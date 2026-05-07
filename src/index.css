@@ -251,6 +251,190 @@
   .section-divider {
     @apply h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent my-2;
   }
+
+  /* ══════════════════════════════════════════
+     MATERIAL DESIGN 3 — Surface & Tonal System
+     ══════════════════════════════════════════ */
+
+  /* MD3 Surface levels (light elevation) */
+  .surface {
+    @apply bg-white rounded-3xl;
+  }
+  .surface-1 {
+    background: color-mix(in srgb, #4f46e5 5%, #ffffff);
+    @apply rounded-3xl;
+  }
+  .surface-2 {
+    background: color-mix(in srgb, #4f46e5 8%, #ffffff);
+    @apply rounded-3xl;
+  }
+  .surface-container {
+    background: color-mix(in srgb, #4f46e5 6%, #f0f2f7);
+    @apply rounded-3xl;
+  }
+
+  /* MD3 Tonal Badges */
+  .badge-tonal-brand {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold;
+    background: color-mix(in srgb, #4f46e5 15%, #ffffff);
+    color: #3730a3;
+  }
+  .badge-tonal-success {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold;
+    background: color-mix(in srgb, #10b981 15%, #ffffff);
+    color: #065f46;
+  }
+  .badge-tonal-danger {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold;
+    background: color-mix(in srgb, #ef4444 15%, #ffffff);
+    color: #991b1b;
+  }
+  .badge-tonal-warning {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold;
+    background: color-mix(in srgb, #f59e0b 15%, #ffffff);
+    color: #92400e;
+  }
+  .badge-tonal-neutral {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold;
+    background: color-mix(in srgb, #64748b 12%, #ffffff);
+    color: #334155;
+  }
+
+  /* MD3 Tonal Buttons */
+  .btn-tonal {
+    @apply inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold rounded-2xl transition-all duration-200 active:scale-95;
+    background: color-mix(in srgb, #4f46e5 15%, #ffffff);
+    color: #3730a3;
+  }
+  .btn-tonal:hover {
+    background: color-mix(in srgb, #4f46e5 22%, #ffffff);
+    box-shadow: 0 2px 8px rgba(79, 70, 229, 0.2);
+  }
+  .btn-tonal-danger {
+    @apply inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold rounded-2xl transition-all duration-200 active:scale-95;
+    background: color-mix(in srgb, #ef4444 15%, #ffffff);
+    color: #991b1b;
+  }
+  .btn-tonal-danger:hover {
+    background: color-mix(in srgb, #ef4444 22%, #ffffff);
+  }
+  .btn-tonal-success {
+    @apply inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold rounded-2xl transition-all duration-200 active:scale-95;
+    background: color-mix(in srgb, #10b981 15%, #ffffff);
+    color: #065f46;
+  }
+  .btn-tonal-success:hover {
+    background: color-mix(in srgb, #10b981 22%, #ffffff);
+  }
+
+  /* MD3 Outlined button */
+  .btn-outlined {
+    @apply inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold rounded-2xl border-2 transition-all duration-200 active:scale-95 bg-transparent;
+    border-color: #c7d2fe;
+    color: #4f46e5;
+  }
+  .btn-outlined:hover {
+    background: color-mix(in srgb, #4f46e5 8%, #ffffff);
+    border-color: #a5b4fc;
+  }
+
+  /* MD3 Elevated card (uses shadow + surface tint) */
+  .card-elevated {
+    @apply rounded-3xl transition-all duration-300;
+    background: color-mix(in srgb, #4f46e5 4%, #ffffff);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08), 0 2px 6px rgba(79,70,229,0.06);
+  }
+  .card-elevated:hover {
+    background: color-mix(in srgb, #4f46e5 7%, #ffffff);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1), 0 4px 12px rgba(79,70,229,0.1);
+    transform: translateY(-2px);
+  }
+
+  /* MD3 Filled card */
+  .card-filled {
+    @apply rounded-3xl;
+    background: color-mix(in srgb, #4f46e5 8%, #f0f2f7);
+  }
+
+  /* MD3 State layer (ripple-ready hover) */
+  .state-layer {
+    @apply relative overflow-hidden;
+  }
+  .state-layer::after {
+    content: '';
+    @apply absolute inset-0 rounded-[inherit] opacity-0 transition-opacity duration-200;
+    background: currentColor;
+  }
+  .state-layer:hover::after { opacity: 0.06; }
+  .state-layer:active::after { opacity: 0.12; }
+
+  /* MD3 Chip (filter/select chips) */
+  .chip {
+    @apply inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold border transition-all duration-200 cursor-pointer select-none;
+    background: #ffffff;
+    border-color: #e2e8f0;
+    color: #475569;
+  }
+  .chip:hover {
+    border-color: #a5b4fc;
+    color: #3730a3;
+    background: color-mix(in srgb, #4f46e5 6%, #ffffff);
+  }
+  .chip.active {
+    border-color: #4f46e5;
+    color: #3730a3;
+    background: color-mix(in srgb, #4f46e5 12%, #ffffff);
+  }
+  .chip-filled {
+    @apply inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer select-none;
+    background: color-mix(in srgb, #4f46e5 15%, #ffffff);
+    color: #3730a3;
+  }
+
+  /* MD3 List item */
+  .list-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-200 cursor-pointer;
+  }
+  .list-item:hover {
+    background: color-mix(in srgb, #4f46e5 6%, #f8fafc);
+  }
+
+  /* MD3 Divider */
+  .md-divider {
+    @apply h-px my-1;
+    background: color-mix(in srgb, #4f46e5 10%, #e2e8f0);
+  }
+
+  /* MD3 Input (filled style) */
+  .input-filled {
+    @apply w-full px-4 pt-5 pb-2 text-sm rounded-t-xl border-0 border-b-2 transition-all duration-200 focus:outline-none;
+    background: color-mix(in srgb, #4f46e5 6%, #f0f2f7);
+    border-color: #94a3b8;
+    color: #0f172a;
+  }
+  .input-filled:focus {
+    border-color: #4f46e5;
+    background: color-mix(in srgb, #4f46e5 10%, #f0f2f7);
+  }
+
+  /* MD3 Navigation indicator pill */
+  .nav-indicator {
+    @apply absolute inset-0 rounded-2xl opacity-0 transition-all duration-300;
+    background: color-mix(in srgb, #4f46e5 16%, transparent);
+  }
+
+  /* MD3 Snackbar-style toast */
+  .snackbar {
+    @apply flex items-center gap-3 px-5 py-3.5 rounded-2xl text-sm font-semibold text-white shadow-xl;
+    background: #1e293b;
+  }
+
+  /* ── Elevation shadows (MD3 tonal) ─────────── */
+  .elevation-0 { box-shadow: none; }
+  .elevation-1 { box-shadow: 0 1px 2px rgba(0,0,0,0.08), 0 1px 3px rgba(79,70,229,0.05); }
+  .elevation-2 { box-shadow: 0 2px 6px rgba(0,0,0,0.1), 0 2px 8px rgba(79,70,229,0.08); }
+  .elevation-3 { box-shadow: 0 4px 12px rgba(0,0,0,0.12), 0 4px 16px rgba(79,70,229,0.1); }
+  .elevation-4 { box-shadow: 0 8px 24px rgba(0,0,0,0.14), 0 8px 24px rgba(79,70,229,0.12); }
 }
 
 /* ── Scrollbar ─────────────────────────────── */

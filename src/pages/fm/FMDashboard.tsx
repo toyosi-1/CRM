@@ -163,14 +163,19 @@ export default function FMDashboard() {
               <p className="text-xs text-slate-400 mt-1">Tap Create Request to get started</p>
             </div>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-slate-100/80">
               {myRequests.slice(0, 5).map(req => {
                 const sla = getSlaStatus(req.slaDeadline, req.status);
+                const priorityBorder =
+                  req.priority === 'critical' ? '#ef4444' :
+                  req.priority === 'high'     ? '#f97316' :
+                  req.priority === 'medium'   ? '#f59e0b' : '#94a3b8';
                 return (
                   <div
                     key={req.id}
                     onClick={() => navigate(`/request/${req.id}`)}
-                    className="request-row group"
+                    className="request-row group relative"
+                    style={{ borderLeft: `3px solid ${priorityBorder}` }}
                   >
                     {/* Left: ID + Description */}
                     <div className="flex-1 min-w-0">

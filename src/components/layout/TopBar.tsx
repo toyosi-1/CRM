@@ -61,22 +61,28 @@ export default function TopBar() {
       <div className="flex-1" />
 
       {/* Search */}
-      <div className={`relative hidden md:flex items-center transition-all duration-200 ${searchFocused ? 'w-72' : 'w-56'}`}>
-        <Search size={14} className="absolute left-3 text-slate-400 pointer-events-none" />
+      <div className={`relative hidden md:flex items-center transition-all duration-300 ${searchFocused ? 'w-72' : 'w-56'}`}>
+        <Search size={14} className={`absolute left-3 pointer-events-none transition-colors ${searchFocused ? 'text-brand-500' : 'text-slate-400'}`} />
         <input
           type="text"
           placeholder="Search requests, vendors…"
           onFocus={() => setSearchFocused(true)}
           onBlur={() => setSearchFocused(false)}
-          className="w-full pl-8 pr-4 py-1.5 text-sm border border-slate-200 rounded-xl bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition-all placeholder:text-slate-400"
+          className="w-full pl-8 pr-4 py-2 text-sm rounded-2xl border-0 focus:outline-none focus:ring-2 focus:ring-brand-400/30 transition-all placeholder:text-slate-400"
+          style={{
+            background: searchFocused
+              ? 'color-mix(in srgb, #4f46e5 10%, #ffffff)'
+              : 'color-mix(in srgb, #4f46e5 5%, #f0f2f7)',
+          }}
         />
       </div>
 
-      {/* SLA Breach pill */}
+      {/* SLA Breach tonal chip */}
       {slaBreached > 0 && (
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 border border-red-200 rounded-xl animate-fade-in">
-          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse-dot" />
-          <span className="text-xs font-bold text-red-600">{slaBreached} SLA Breached</span>
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full animate-fade-in font-bold text-xs"
+          style={{ background: 'rgba(239,68,68,0.12)', color: '#b91c1c' }}>
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse-dot flex-shrink-0" />
+          {slaBreached} SLA Breach{slaBreached > 1 ? 'es' : ''}
         </div>
       )}
 
@@ -95,21 +101,47 @@ export default function TopBar() {
         </button>
 
         {showBell && (
-          <div className="absolute right-0 top-11 w-72 bg-white rounded-2xl border border-slate-200 shadow-card-hover z-50 overflow-hidden animate-scale-in">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-              <span className="text-sm font-bold text-slate-800">Notifications</span>
-              <button onClick={() => setShowBell(false)} className="text-slate-400 hover:text-slate-600">
-                <X size={14} />
+          <div className="absolute right-0 top-12 w-76 z-50 overflow-hidden animate-scale-in"
+            style={{
+              width: '288px',
+              background: 'rgba(255,255,255,0.92)',
+              backdropFilter: 'blur(16px)',
+              borderRadius: '20px',
+              border: '1px solid rgba(226,232,240,0.8)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.14), 0 2px 8px rgba(79,70,229,0.1)',
+            }}>
+            <div className="flex items-center justify-between px-4 py-3.5"
+              style={{ borderBottom: '1px solid color-mix(in srgb, #4f46e5 8%, #e2e8f0)' }}>
+              <span className="text-sm font-black text-slate-800">Notifications</span>
+              <button onClick={() => setShowBell(false)}
+                className="w-6 h-6 rounded-full flex items-center justify-center transition-colors"
+                style={{ background: 'rgba(100,116,139,0.1)' }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(100,116,139,0.2)'}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(100,116,139,0.1)'}>
+                <X size={12} className="text-slate-500" />
               </button>
             </div>
             {notifications.length === 0 ? (
-              <div className="px-4 py-6 text-center text-sm text-slate-400">All clear — no pending actions</div>
+              <div className="px-4 py-8 text-center">
+                <div className="w-10 h-10 rounded-2xl mx-auto mb-2 flex items-center justify-center"
+                  style={{ background: 'color-mix(in srgb, #4f46e5 8%, #f0f2f7)' }}>
+                  <Bell size={16} className="text-brand-500" />
+                </div>
+                <p className="text-sm font-bold text-slate-600">All clear</p>
+                <p className="text-xs text-slate-400 mt-0.5">No pending actions</p>
+              </div>
             ) : (
-              <div className="divide-y divide-slate-100">
+              <div>
                 {notifications.map((n, i) => (
-                  <div key={i} className="flex items-start gap-3 px-4 py-3">
-                    <span className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${n!.type === 'critical' ? 'bg-red-500' : 'bg-brand-500'}`} />
-                    <p className="text-sm text-slate-700">{n!.msg}</p>
+                  <div key={i} className="flex items-start gap-3 px-4 py-3.5 transition-colors"
+                    style={{ borderBottom: i < notifications.length - 1 ? '1px solid rgba(226,232,240,0.6)' : 'none' }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'color-mix(in srgb, #4f46e5 4%, transparent)'}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+                    <div className="mt-0.5 w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: n!.type === 'critical' ? 'rgba(239,68,68,0.12)' : 'rgba(79,70,229,0.1)' }}>
+                      <span className={`w-2 h-2 rounded-full ${n!.type === 'critical' ? 'bg-red-500' : 'bg-brand-500'}`} />
+                    </div>
+                    <p className="text-sm text-slate-700 leading-snug">{n!.msg}</p>
                   </div>
                 ))}
               </div>
@@ -127,7 +159,8 @@ export default function TopBar() {
           <div className="text-xs font-bold text-slate-800 leading-tight">{currentUser.name}</div>
           <div className="text-[10px] text-slate-400 font-medium">{ROLE_LABELS[currentUser.role]}</div>
         </div>
-        <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${avatarGrad} flex items-center justify-center text-white text-xs font-bold shadow-sm ring-2 ring-white`}>
+        <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${avatarGrad} flex items-center justify-center text-white text-xs font-black shadow-sm ring-2 ring-white`}
+          style={{ boxShadow: '0 0 0 2px white, 0 0 0 3px rgba(99,102,241,0.3)' }}>
           {initials}
         </div>
       </div>
