@@ -36,7 +36,7 @@ export default function FMRequests() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="page-title">My Requests</h1>
-          <p className="page-subtitle">{myRequests.length} total · {filtered.length} shown</p>
+          <p className="page-subtitle"><span className="font-bold text-slate-700">{myRequests.length}</span> total · <span className="font-bold text-brand-600">{filtered.length}</span> shown</p>
         </div>
         <button onClick={() => navigate('/fm/request/new')} className="btn-primary">
           <Plus size={15} /> New Request
@@ -47,15 +47,19 @@ export default function FMRequests() {
       <div className="flex flex-wrap gap-3 items-center">
         <div className="relative flex-1 min-w-52">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by REQ number or description…" className="input pl-9" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by REQ number or description…"
+            className="w-full pl-9 pr-4 py-2.5 text-sm rounded-2xl border-0 focus:outline-none focus:ring-2 focus:ring-brand-400/30 transition-all placeholder:text-slate-400"
+            style={{ background: 'color-mix(in srgb, #4f46e5 5%, #f0f2f7)' }}
+          />
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
           <Filter size={13} className="text-slate-400 flex-shrink-0" />
           {STATUS_FILTER_OPTS.map(opt => (
             <button key={opt.value} onClick={() => setStatusFilter(opt.value)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                statusFilter === opt.value ? 'bg-brand-600 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:border-brand-300 hover:text-brand-700'
-              }`}>
+              className={`chip ${statusFilter === opt.value ? 'active' : ''}`}>
               {opt.label}
             </button>
           ))}
@@ -79,7 +83,7 @@ export default function FMRequests() {
             {filtered.map(req => {
               const sla = getSlaStatus(req.slaDeadline, req.status);
               return (
-                <tr key={req.id} className="table-row" onClick={() => navigate(`/request/${req.id}`)}>
+                <tr key={req.id} className="table-row" style={{ borderLeft: `3px solid ${req.priority === 'critical' ? '#ef4444' : req.priority === 'high' ? '#f97316' : req.priority === 'medium' ? '#f59e0b' : '#94a3b8'}` }} onClick={() => navigate(`/request/${req.id}`)}>
                   <td className="table-cell">
                     <span className="font-bold text-brand-600 text-xs font-mono">{req.requestNumber}</span>
                   </td>
