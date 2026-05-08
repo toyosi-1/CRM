@@ -82,68 +82,69 @@ export default function AdminAnalytics() {
 
   return (
     <div className="space-y-6">
-      <div className="dash-header" style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4338ca 100%)' }}>
-        <div className="relative z-10 flex items-start justify-between">
+      <div className="dash-header">
+        <div className="flex items-center justify-between">
           <div>
-            <p className="text-white/50 text-xs font-bold uppercase tracking-widest mb-1">Administration</p>
-            <h1 className="text-2xl font-black text-white tracking-tight">Analytics Center</h1>
-            <p className="text-white/60 text-sm mt-1 font-medium">Real-time operational intelligence across all sites</p>
+            <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">Administration</p>
+            <h1 className="text-xl font-semibold text-white">Analytics Center</h1>
+            <p className="text-slate-400 text-sm mt-0.5">Operational intelligence across all sites</p>
           </div>
-          <div className="flex gap-3">
-            <div className="text-center px-4 py-2 rounded-2xl border border-white/20 bg-white/10 backdrop-blur">
-              <p className="text-2xl font-black text-white animate-count-up">{totalRequests}</p>
-              <p className="text-white/60 text-[11px] font-semibold mt-0.5">Requests</p>
+          <div className="flex gap-6">
+            <div className="text-right">
+              <p className="text-xl font-bold text-white tabular-nums">{totalRequests}</p>
+              <p className="text-slate-500 text-xs mt-0.5">Total Requests</p>
             </div>
-            <div className="text-center px-4 py-2 rounded-2xl border border-white/20 bg-white/10 backdrop-blur">
-              <p className="text-2xl font-black text-emerald-300 animate-count-up">{formatCurrency(totalDisbursed)}</p>
-              <p className="text-white/60 text-[11px] font-semibold mt-0.5">Disbursed</p>
+            <div className="w-px bg-white/10" />
+            <div className="text-right">
+              <p className="text-xl font-bold text-emerald-400 tabular-nums">{formatCurrency(totalDisbursed)}</p>
+              <p className="text-slate-500 text-xs mt-0.5">Disbursed</p>
             </div>
           </div>
         </div>
-        <div className="absolute right-6 top-2 w-36 h-36 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 70%)' }} />
-        <div className="absolute right-28 -top-8 w-24 h-24 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.2) 0%, transparent 70%)' }} />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="stat-card">
-          <div className="flex items-start justify-between mb-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center shadow-sm">
-              <Activity size={15} className="text-white" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-white border border-slate-200 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-8 h-8 rounded-md bg-indigo-50 flex items-center justify-center">
+              <Activity size={14} className="text-indigo-600" />
             </div>
-            <span className="trend-neutral">{openRequests} open</span>
+            <span className="text-xs font-medium text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded">{openRequests} open</span>
           </div>
-          <p className="text-3xl font-black text-slate-900 animate-count-up">{totalRequests}</p>
-          <p className="text-xs text-slate-400 mt-1 font-semibold">Total Requests</p>
+          <p className="text-2xl font-bold text-slate-900 tabular-nums">{totalRequests}</p>
+          <p className="text-xs text-slate-500 mt-1">Total Requests</p>
         </div>
-        <div className="stat-card">
-          <div className="flex items-start justify-between mb-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-sm">
-              <TrendingUp size={15} className="text-white" />
+        <div className="bg-white border border-slate-200 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-8 h-8 rounded-md bg-emerald-50 flex items-center justify-center">
+              <TrendingUp size={14} className="text-emerald-600" />
             </div>
-            <span className="trend-up">WHT {formatCurrency(totalWHT)}</span>
+            <span className="text-xs font-medium text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded">WHT {formatCurrency(totalWHT)}</span>
           </div>
-          <p className="text-2xl font-black text-emerald-600 animate-count-up">{formatCurrency(totalDisbursed)}</p>
-          <p className="text-xs text-slate-400 mt-1 font-semibold">Total Disbursed</p>
+          <p className="text-2xl font-bold text-emerald-700 tabular-nums">{formatCurrency(totalDisbursed)}</p>
+          <p className="text-xs text-slate-500 mt-1">Total Disbursed</p>
         </div>
-        <div className="stat-card">
-          <div className="flex items-start justify-between mb-3">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shadow-sm ${slaBreached > 0 ? 'bg-gradient-to-br from-red-500 to-rose-600' : 'bg-gradient-to-br from-emerald-400 to-teal-500'}`}>
-              <AlertTriangle size={15} className="text-white" />
+        <div className={`border rounded-lg p-4 ${slaBreached > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}>
+          <div className="flex items-center justify-between mb-4">
+            <div className={`w-8 h-8 rounded-md flex items-center justify-center ${slaBreached > 0 ? 'bg-red-100' : 'bg-slate-50'}`}>
+              <AlertTriangle size={14} className={slaBreached > 0 ? 'text-red-600' : 'text-slate-400'} />
             </div>
-            {slaBreached > 0 ? <span className="trend-down">Active</span> : <span className="trend-up">All clear</span>}
+            {slaBreached > 0
+              ? <span className="text-xs font-medium text-red-700 bg-red-100 border border-red-200 px-2 py-0.5 rounded">Active</span>
+              : <span className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">All clear</span>}
           </div>
-          <p className={`text-3xl font-black animate-count-up ${slaBreached > 0 ? 'text-red-600' : 'text-slate-900'}`}>{slaBreached}</p>
-          <p className="text-xs text-slate-400 mt-1 font-semibold">SLA Breaches</p>
+          <p className={`text-2xl font-bold tabular-nums ${slaBreached > 0 ? 'text-red-700' : 'text-slate-900'}`}>{slaBreached}</p>
+          <p className="text-xs text-slate-500 mt-1">SLA Breaches</p>
         </div>
-        <div className="stat-card">
-          <div className="flex items-start justify-between mb-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-sm">
-              <Zap size={15} className="text-white" />
+        <div className="bg-white border border-slate-200 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-8 h-8 rounded-md bg-violet-50 flex items-center justify-center">
+              <Zap size={14} className="text-violet-600" />
             </div>
-            <span className="trend-neutral">Overrides</span>
+            <span className="text-xs font-medium text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded">Overrides</span>
           </div>
-          <p className="text-3xl font-black text-purple-600 animate-count-up">{emergencyBypasses}</p>
-          <p className="text-xs text-slate-400 mt-1 font-semibold">Emergency Bypasses</p>
+          <p className="text-2xl font-bold text-violet-700 tabular-nums">{emergencyBypasses}</p>
+          <p className="text-xs text-slate-500 mt-1">Emergency Bypasses</p>
         </div>
       </div>
 
@@ -186,12 +187,11 @@ export default function AdminAnalytics() {
           <h2 className="section-title mb-4">Department TAT Performance</h2>
           <div className="space-y-2.5">
             {tatData.sort((a, b) => a.avgHours - b.avgHours).map((t, i) => (
-              <div key={t.dept} className="flex items-center gap-3 p-2.5 rounded-2xl transition-colors"
-                style={{ background: i === 0 ? 'rgba(16,185,129,0.07)' : 'transparent' }}>
-                <div className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black text-white flex-shrink-0 ${
-                  i === 0 ? 'bg-gradient-to-br from-emerald-400 to-teal-500' :
-                  i === 1 ? 'bg-gradient-to-br from-amber-400 to-orange-500' :
-                  'bg-gradient-to-br from-red-400 to-rose-500'
+              <div key={t.dept} className={`flex items-center gap-3 p-2.5 rounded-md transition-colors ${i === 0 ? 'bg-emerald-50' : ''}`}>
+                <div className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                  i === 0 ? 'bg-emerald-100 text-emerald-700' :
+                  i === 1 ? 'bg-amber-100 text-amber-700' :
+                  'bg-red-100 text-red-700'
                 }`}>
                   {i + 1}
                 </div>
@@ -264,17 +264,17 @@ export default function AdminAnalytics() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'All Requests', path: '/admin/requests', icon: <Activity size={16} />, gradient: 'from-brand-500 to-purple-600' },
-          { label: 'Site Management', path: '/admin/sites', icon: <TrendingUp size={16} />, gradient: 'from-teal-500 to-cyan-600' },
-          { label: 'Full Audit Log', path: '/admin/audit', icon: <Clock size={16} />, gradient: 'from-violet-500 to-purple-600' },
-          { label: 'Vendor Scores', path: '/admin/vendors', icon: <CheckCircle size={16} />, gradient: 'from-emerald-400 to-teal-500' },
+          { label: 'All Requests', path: '/admin/requests', icon: <Activity size={14} />, color: 'text-indigo-600 bg-indigo-50' },
+          { label: 'Site Management', path: '/admin/sites', icon: <TrendingUp size={14} />, color: 'text-teal-600 bg-teal-50' },
+          { label: 'Full Audit Log', path: '/admin/audit', icon: <Clock size={14} />, color: 'text-violet-600 bg-violet-50' },
+          { label: 'Vendor Scores', path: '/admin/vendors', icon: <CheckCircle size={14} />, color: 'text-emerald-600 bg-emerald-50' },
         ].map(a => (
           <button key={a.path} onClick={() => navigate(a.path)}
-            className="card-elevated p-4 flex items-center gap-3 cursor-pointer group">
-            <div className={`w-9 h-9 rounded-2xl bg-gradient-to-br ${a.gradient} flex items-center justify-center text-white shadow-sm group-hover:scale-110 transition-transform duration-200`}>
+            className="bg-white border border-slate-200 rounded-lg p-4 flex items-center gap-3 hover:border-slate-300 hover:shadow-sm transition-all duration-150 text-left">
+            <div className={`w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0 ${a.color}`}>
               {a.icon}
             </div>
-            <span className="text-sm font-bold text-slate-700 group-hover:text-slate-900">{a.label}</span>
+            <span className="text-sm font-medium text-slate-700">{a.label}</span>
           </button>
         ))}
       </div>

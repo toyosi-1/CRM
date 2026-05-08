@@ -16,54 +16,69 @@ export default function FinanceDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="dash-header" style={{ background: 'linear-gradient(135deg, #059669 0%, #0d9488 50%, #0284c7 100%)' }}>
-        <div className="relative z-10">
-          <h1 className="text-2xl font-bold text-white tracking-tight">Finance Dashboard</h1>
-          <p className="text-white/70 text-sm mt-1">Execute vendor payments · manage WHT · track treasury</p>
+      <div className="dash-header">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">Finance</p>
+            <h1 className="text-xl font-semibold text-white">Finance Dashboard</h1>
+            <p className="text-slate-400 text-sm mt-0.5">Vendor payments · WHT management · treasury</p>
+          </div>
+          <div className="flex gap-6">
+            <div className="text-right">
+              <p className="text-xl font-bold text-emerald-400 tabular-nums">{formatCurrency(totalPaid)}</p>
+              <p className="text-slate-500 text-xs mt-0.5">Total Disbursed</p>
+            </div>
+            <div className="w-px bg-white/10" />
+            <div className="text-right">
+              <p className="text-xl font-bold text-white tabular-nums">{paymentQueue.length}</p>
+              <p className="text-slate-500 text-xs mt-0.5">In Queue</p>
+            </div>
+          </div>
         </div>
-        <div className="absolute right-10 top-2 w-28 h-28 rounded-full bg-white/5 pointer-events-none" />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="stat-card">
-          <div className="flex items-start justify-between mb-3">
-            <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center">
-              <Clock size={16} className="text-orange-500" />
+        <div className={`border rounded-lg p-4 ${paymentQueue.length > 0 ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-200'}`}>
+          <div className="flex items-center justify-between mb-4">
+            <div className={`w-8 h-8 rounded-md flex items-center justify-center ${paymentQueue.length > 0 ? 'bg-amber-100' : 'bg-slate-50'}`}>
+              <Clock size={14} className={paymentQueue.length > 0 ? 'text-amber-600' : 'text-slate-400'} />
             </div>
-            {paymentQueue.length > 0 ? <span className="trend-down">Pending</span> : <span className="trend-up">Clear</span>}
+            {paymentQueue.length > 0
+              ? <span className="text-xs font-medium text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded">Pending</span>
+              : <span className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">Clear</span>}
           </div>
-          <p className="text-3xl font-extrabold text-orange-600 animate-count-up">{paymentQueue.length}</p>
-          <p className="text-xs text-slate-400 mt-1 font-medium">Payment Queue</p>
+          <p className={`text-2xl font-bold tabular-nums ${paymentQueue.length > 0 ? 'text-amber-700' : 'text-slate-900'}`}>{paymentQueue.length}</p>
+          <p className="text-xs text-slate-500 mt-1">Payment Queue</p>
         </div>
-        <div className="stat-card">
-          <div className="flex items-start justify-between mb-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center">
-              <DollarSign size={16} className="text-emerald-600" />
+        <div className="bg-white border border-slate-200 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-8 h-8 rounded-md bg-emerald-50 flex items-center justify-center">
+              <DollarSign size={14} className="text-emerald-600" />
             </div>
-            <span className="trend-up">{paid.length} paid</span>
+            <span className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">{paid.length} paid</span>
           </div>
-          <p className="text-2xl font-extrabold text-emerald-600 animate-count-up">{formatCurrency(totalPaid)}</p>
-          <p className="text-xs text-slate-400 mt-1 font-medium">Total Disbursed</p>
+          <p className="text-2xl font-bold text-emerald-700 tabular-nums">{formatCurrency(totalPaid)}</p>
+          <p className="text-xs text-slate-500 mt-1">Total Disbursed</p>
         </div>
-        <div className="stat-card">
-          <div className="flex items-start justify-between mb-3">
-            <div className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center">
-              <Receipt size={16} className="text-red-500" />
+        <div className="bg-white border border-slate-200 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-8 h-8 rounded-md bg-red-50 flex items-center justify-center">
+              <Receipt size={14} className="text-red-500" />
             </div>
-            <span className="trend-neutral">WHT</span>
+            <span className="text-xs font-medium text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded">WHT</span>
           </div>
-          <p className="text-2xl font-extrabold text-red-600 animate-count-up">{formatCurrency(totalTaxWithheld)}</p>
-          <p className="text-xs text-slate-400 mt-1 font-medium">Tax Withheld</p>
+          <p className="text-2xl font-bold text-red-700 tabular-nums">{formatCurrency(totalTaxWithheld)}</p>
+          <p className="text-xs text-slate-500 mt-1">Tax Withheld</p>
         </div>
-        <div className="stat-card">
-          <div className="flex items-start justify-between mb-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
-              <TrendingUp size={16} className="text-blue-600" />
+        <div className="bg-white border border-slate-200 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-8 h-8 rounded-md bg-blue-50 flex items-center justify-center">
+              <TrendingUp size={14} className="text-blue-600" />
             </div>
-            <span className="trend-up">Inflow</span>
+            <span className="text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">Inflow</span>
           </div>
-          <p className="text-2xl font-extrabold text-blue-600 animate-count-up">{formatCurrency(totalTreasuryInflow)}</p>
-          <p className="text-xs text-slate-400 mt-1 font-medium">Treasury Inflow</p>
+          <p className="text-2xl font-bold text-blue-700 tabular-nums">{formatCurrency(totalTreasuryInflow)}</p>
+          <p className="text-xs text-slate-500 mt-1">Treasury Inflow</p>
         </div>
       </div>
 

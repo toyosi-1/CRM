@@ -92,49 +92,57 @@ export default function FMDashboard() {
       </div>
 
       {/* ── Stat Cards ──────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4" style={{ animationDelay: '0.1s' }}>
-        <div className="stat-card">
-          <div className="flex items-start justify-between mb-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center shadow-sm">
-              <Activity size={15} className="text-white" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {/* Open Requests */}
+        <div className="bg-white border border-slate-200 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-8 h-8 rounded-md bg-indigo-50 flex items-center justify-center">
+              <Activity size={14} className="text-indigo-600" />
             </div>
-            <span className="trend-neutral">Active</span>
+            <span className="text-xs font-medium text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded">Active</span>
           </div>
-          <p className="text-3xl font-black text-slate-900 animate-count-up">{openRequests.length}</p>
-          <p className="text-xs text-slate-400 mt-1 font-semibold">Open Requests</p>
+          <p className="text-2xl font-bold text-slate-900 tabular-nums">{openRequests.length}</p>
+          <p className="text-xs text-slate-500 mt-1">Open Requests</p>
         </div>
 
-        <div className="stat-card">
-          <div className="flex items-start justify-between mb-3">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shadow-sm ${critical.length > 0 ? 'bg-gradient-to-br from-red-500 to-rose-600' : 'bg-gradient-to-br from-slate-200 to-slate-300'}`}>
-              <AlertTriangle size={15} className="text-white" />
+        {/* Critical */}
+        <div className={`border rounded-lg p-4 ${critical.length > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}>
+          <div className="flex items-center justify-between mb-4">
+            <div className={`w-8 h-8 rounded-md flex items-center justify-center ${critical.length > 0 ? 'bg-red-100' : 'bg-slate-50'}`}>
+              <AlertTriangle size={14} className={critical.length > 0 ? 'text-red-600' : 'text-slate-400'} />
             </div>
-            {critical.length > 0 ? <span className="trend-down">Urgent</span> : <span className="trend-neutral">Clear</span>}
+            {critical.length > 0
+              ? <span className="text-xs font-medium text-red-700 bg-red-100 border border-red-200 px-2 py-0.5 rounded">Urgent</span>
+              : <span className="text-xs font-medium text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded">Clear</span>}
           </div>
-          <p className={`text-3xl font-black animate-count-up ${critical.length > 0 ? 'text-red-600' : 'text-slate-900'}`}>{critical.length}</p>
-          <p className="text-xs text-slate-400 mt-1 font-semibold">Critical Open</p>
+          <p className={`text-2xl font-bold tabular-nums ${critical.length > 0 ? 'text-red-700' : 'text-slate-900'}`}>{critical.length}</p>
+          <p className="text-xs text-slate-500 mt-1">Critical Open</p>
         </div>
 
-        <div className="stat-card">
-          <div className="flex items-start justify-between mb-3">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shadow-sm ${slaBreached.length > 0 ? 'bg-gradient-to-br from-orange-400 to-amber-500' : 'bg-gradient-to-br from-emerald-400 to-teal-500'}`}>
-              <Clock size={15} className="text-white" />
+        {/* SLA */}
+        <div className={`border rounded-lg p-4 ${slaBreached.length > 0 ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-200'}`}>
+          <div className="flex items-center justify-between mb-4">
+            <div className={`w-8 h-8 rounded-md flex items-center justify-center ${slaBreached.length > 0 ? 'bg-amber-100' : 'bg-emerald-50'}`}>
+              <Clock size={14} className={slaBreached.length > 0 ? 'text-amber-600' : 'text-emerald-600'} />
             </div>
-            {slaBreached.length > 0 ? <span className="trend-down">⚠ Breached</span> : <span className="trend-up">On Track</span>}
+            {slaBreached.length > 0
+              ? <span className="text-xs font-medium text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded">Breached</span>
+              : <span className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">On Track</span>}
           </div>
-          <p className={`text-3xl font-black animate-count-up ${slaBreached.length > 0 ? 'text-orange-600' : 'text-slate-900'}`}>{slaBreached.length}</p>
-          <p className="text-xs text-slate-400 mt-1 font-semibold">SLA Breached</p>
+          <p className={`text-2xl font-bold tabular-nums ${slaBreached.length > 0 ? 'text-amber-700' : 'text-slate-900'}`}>{slaBreached.length}</p>
+          <p className="text-xs text-slate-500 mt-1">SLA Breached</p>
         </div>
 
-        <div className="stat-card">
-          <div className="flex items-start justify-between mb-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-sm">
-              <TrendingUp size={15} className="text-white" />
+        {/* This Month */}
+        <div className="bg-white border border-slate-200 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-8 h-8 rounded-md bg-emerald-50 flex items-center justify-center">
+              <TrendingUp size={14} className="text-emerald-600" />
             </div>
-            <span className="trend-up">↑ {paid.length} paid</span>
+            <span className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">{paid.length} paid</span>
           </div>
-          <p className="text-3xl font-black text-slate-900 animate-count-up">{myRequests.length}</p>
-          <p className="text-xs text-slate-400 mt-1 font-semibold">This Month</p>
+          <p className="text-2xl font-bold text-slate-900 tabular-nums">{myRequests.length}</p>
+          <p className="text-xs text-slate-500 mt-1">This Month</p>
         </div>
       </div>
 
@@ -143,16 +151,16 @@ export default function FMDashboard() {
 
         {/* Recent Requests — fixed clear layout */}
         <div className="lg:col-span-2 card overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-            <h2 className="section-title">Recent Requests</h2>
-            <button onClick={() => navigate('/fm/requests')} className="btn-ghost text-brand-600 hover:text-brand-700 hover:bg-brand-50 text-xs font-bold">
-              View all <ChevronRight size={13} />
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+            <h2 className="text-sm font-semibold text-slate-800">Recent Requests</h2>
+            <button onClick={() => navigate('/fm/requests')} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1">
+              View all <ChevronRight size={12} />
             </button>
           </div>
 
           {myRequests.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
+              <div className="w-10 h-10 rounded-md bg-slate-100 flex items-center justify-center mb-3">
                 <Activity size={20} className="text-slate-400" />
               </div>
               <p className="text-sm font-semibold text-slate-600">No requests yet</p>
