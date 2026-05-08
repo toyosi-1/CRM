@@ -30,25 +30,21 @@ export default function FMDashboard() {
   return (
     <div className="space-y-6 max-w-screen-xl">
 
-      {/* ── Gradient Hero Header ─────────────── */}
+      {/* ── Hero Header ─────────────── */}
       <div className="dash-header">
-        <div className="relative z-10 flex items-start justify-between">
+        <div className="flex items-center justify-between">
           <div>
-            <p className="text-white/50 text-xs font-bold uppercase tracking-widest mb-1.5">{today}</p>
-            <h1 className="text-2xl font-black text-white tracking-tight">Good day, {firstName} 👋</h1>
-            <p className="text-white/60 text-sm mt-1.5 font-medium flex items-center gap-1.5">
+            <p className="text-slate-400 text-xs uppercase tracking-widest mb-1">{today}</p>
+            <h1 className="text-xl font-semibold text-white">Good day, {firstName}</h1>
+            <p className="text-slate-400 text-sm mt-0.5 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
               {site?.name ?? 'No site assigned'}
             </p>
           </div>
-          <button onClick={() => navigate('/fm/request/new')} className="btn-white-glass flex items-center gap-2 shadow-lg">
-            <Plus size={15} /> New Request
+          <button onClick={() => navigate('/fm/request/new')} className="btn-white-glass">
+            <Plus size={14} /> New Request
           </button>
         </div>
-        {/* decorative orbs */}
-        <div className="absolute right-6 top-2 w-36 h-36 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.07) 0%, transparent 70%)' }} />
-        <div className="absolute right-28 -top-8 w-24 h-24 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.2) 0%, transparent 70%)' }} />
-        <div className="absolute left-1/2 bottom-0 w-48 h-12 pointer-events-none" style={{ background: 'radial-gradient(ellipse, rgba(255,255,255,0.04) 0%, transparent 70%)' }} />
       </div>
 
       {/* ── Critical Alert Banner ────────────────── */}
@@ -73,17 +69,17 @@ export default function FMDashboard() {
       {/* ── Quick Actions ────────────────────────── */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Create Request', icon: <Plus size={20} />, gradient: 'from-brand-500 to-purple-600', shadow: 'shadow-[0_4px_16px_rgba(99,102,241,0.35)]', path: '/fm/request/new', badge: null },
-          { label: 'Checklists', icon: <CheckSquare size={20} />, gradient: 'from-teal-500 to-cyan-600', shadow: 'shadow-[0_4px_16px_rgba(20,184,166,0.35)]', path: '/fm/checklists', badge: pendingChecklists.length || null },
-          { label: 'Assets', icon: <Package size={20} />, gradient: 'from-violet-500 to-purple-600', shadow: 'shadow-[0_4px_16px_rgba(139,92,246,0.35)]', path: '/fm/assets', badge: null },
+          { label: 'Create Request', icon: <Plus size={16} />, color: 'text-indigo-600 bg-indigo-50', path: '/fm/request/new', badge: null },
+          { label: 'Checklists', icon: <CheckSquare size={16} />, color: 'text-teal-600 bg-teal-50', path: '/fm/checklists', badge: pendingChecklists.length || null },
+          { label: 'Assets', icon: <Package size={16} />, color: 'text-purple-600 bg-purple-50', path: '/fm/assets', badge: null },
         ].map(action => (
           <button
             key={action.path}
             onClick={() => navigate(action.path)}
-            className="card p-5 flex flex-col items-center gap-3 hover:shadow-card-hover hover:-translate-y-1 transition-all duration-300 cursor-pointer group"
+            className="card p-4 flex flex-col items-center gap-2.5 hover:shadow-md hover:border-slate-300 transition-all duration-200 cursor-pointer group"
           >
-            <div className={`w-13 h-13 w-12 h-12 rounded-2xl bg-gradient-to-br ${action.gradient} flex items-center justify-center ${action.shadow} group-hover:scale-110 transition-transform duration-300 relative`}>
-              <span className="text-white">{action.icon}</span>
+            <div className={`w-9 h-9 rounded-lg ${action.color} flex items-center justify-center relative`}>
+              {action.icon}
               {action.badge && (
                 <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-amber-500 text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-sm border-2 border-white">
                   {action.badge}

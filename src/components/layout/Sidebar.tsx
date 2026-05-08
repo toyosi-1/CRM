@@ -76,12 +76,12 @@ const NAV_MAP: Record<UserRole, NavSection[]> = {
   admin: ADMIN_NAV,
 };
 
-const ROLE_CONFIG: Record<UserRole, { gradient: string; dot: string; initials?: string }> = {
-  facility_manager: { gradient: 'from-teal-500 to-teal-600', dot: 'bg-teal-400' },
-  procurement:      { gradient: 'from-blue-500 to-blue-600',  dot: 'bg-blue-400' },
-  supervisor:       { gradient: 'from-purple-500 to-purple-600', dot: 'bg-purple-400' },
-  finance:          { gradient: 'from-emerald-500 to-emerald-600', dot: 'bg-emerald-400' },
-  admin:            { gradient: 'from-brand-500 to-brand-700', dot: 'bg-brand-400' },
+const ROLE_COLOR: Record<UserRole, string> = {
+  facility_manager: '#14b8a6',
+  procurement:      '#3b82f6',
+  supervisor:       '#8b5cf6',
+  finance:          '#10b981',
+  admin:            '#6366f1',
 };
 
 export default function Sidebar() {
@@ -89,58 +89,41 @@ export default function Sidebar() {
   if (!currentUser) return null;
 
   const sections = NAV_MAP[currentUser.role];
-  const rc = ROLE_CONFIG[currentUser.role];
   const initials = currentUser.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
+  const roleColor = ROLE_COLOR[currentUser.role];
 
   return (
-    <aside className="w-60 min-h-screen flex flex-col flex-shrink-0 border-r border-white/[0.04]"
-      style={{ background: 'linear-gradient(180deg, #090e1c 0%, #0b1120 50%, #080c18 100%)' }}>
-
-      {/* Subtle top glow line */}
-      <div className="absolute top-0 left-0 right-0 h-px"
-        style={{ background: 'linear-gradient(90deg, transparent, rgba(99,102,241,0.5), transparent)' }} />
+    <aside className="w-56 min-h-screen flex flex-col flex-shrink-0 border-r" style={{ background: '#111827', borderColor: '#1f2937' }}>
 
       {/* Logo */}
-      <div className="px-5 py-5 border-b border-white/[0.05]">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-glow-brand"
-              style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)' }}>
-              <Zap size={16} className="text-white" fill="currentColor" />
-            </div>
-            <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-[#090e1c]" />
+      <div className="px-4 py-4 border-b" style={{ borderColor: '#1f2937' }}>
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded flex items-center justify-center bg-indigo-600">
+            <Zap size={14} className="text-white" fill="currentColor" />
           </div>
           <div>
-            <div className="text-white font-black text-sm leading-tight tracking-tight">FacilityOps</div>
-            <div className="text-slate-600 text-[9px] font-bold tracking-[0.15em] uppercase mt-0.5">Enterprise Suite</div>
+            <div className="text-white font-semibold text-sm">FacilityOps</div>
+            <div className="text-slate-500 text-[10px] tracking-wider uppercase">Enterprise CRM</div>
           </div>
         </div>
       </div>
 
-      {/* User card */}
-      <div className="px-3 pt-3 pb-2">
-        <div className="px-3 py-3 rounded-2xl border"
-          style={{ background: 'rgba(255,255,255,0.03)', borderColor: 'rgba(255,255,255,0.07)' }}>
-          <div className="flex items-center gap-2.5">
-            <div className="relative flex-shrink-0">
-              <div className="w-9 h-9 rounded-full p-[2px]"
-                style={{ background: `linear-gradient(135deg, ${rc.gradient.includes('teal') ? '#14b8a6' : rc.gradient.includes('blue') ? '#3b82f6' : rc.gradient.includes('purple') ? '#8b5cf6' : rc.gradient.includes('emerald') ? '#10b981' : '#6366f1'}, #1e1b4b)` }}>
-                <div className={`w-full h-full rounded-full bg-gradient-to-br ${rc.gradient} flex items-center justify-center text-white text-xs font-black`}>
-                  {initials}
-                </div>
-              </div>
-              <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#090e1c] ${rc.dot} animate-pulse-dot`} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-white text-xs font-bold truncate leading-tight">{currentUser.name}</div>
-              <div className="text-slate-500 text-[10px] font-semibold mt-0.5 truncate">{ROLE_LABELS[currentUser.role]}</div>
-            </div>
+      {/* User */}
+      <div className="px-3 py-3 border-b" style={{ borderColor: '#1f2937' }}>
+        <div className="flex items-center gap-2.5 px-2 py-2">
+          <div className="w-7 h-7 rounded flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
+            style={{ background: roleColor }}>
+            {initials}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-slate-200 text-xs font-medium truncate">{currentUser.name}</div>
+            <div className="text-slate-500 text-[10px] truncate">{ROLE_LABELS[currentUser.role]}</div>
           </div>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 overflow-y-auto pb-2">
+      <nav className="flex-1 px-2 py-2 overflow-y-auto">
         {sections.map((section, si) => (
           <div key={si}>
             {section.section && (
@@ -154,8 +137,8 @@ export default function Sidebar() {
                   end={item.path.split('/').length <= 2}
                   className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
                 >
-                  <span className="flex-shrink-0 opacity-60 group-[.active]:opacity-100">{item.icon}</span>
-                  <span className="font-medium">{item.label}</span>
+                  <span className="flex-shrink-0">{item.icon}</span>
+                  <span>{item.label}</span>
                 </NavLink>
               ))}
             </div>
@@ -164,16 +147,10 @@ export default function Sidebar() {
       </nav>
 
       {/* Sign Out */}
-      <div className="px-3 py-3 border-t border-white/[0.05]">
-        <button
-          onClick={logout}
-          className="sidebar-link w-full group hover:text-red-400"
-          style={{ '--hover-bg': 'rgba(239,68,68,0.08)' } as React.CSSProperties}
-          onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.08)'}
-          onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-        >
-          <LogOut size={15} className="text-slate-600 group-hover:text-red-400 transition-colors" />
-          <span className="text-slate-500 group-hover:text-red-400 transition-colors">Sign Out</span>
+      <div className="px-2 py-3 border-t" style={{ borderColor: '#1f2937' }}>
+        <button onClick={logout} className="sidebar-link w-full text-left hover:text-red-400">
+          <LogOut size={14} />
+          <span>Sign Out</span>
         </button>
       </div>
     </aside>
