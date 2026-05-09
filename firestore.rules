@@ -1,0 +1,63 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: user must be authenticated
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Helper: fetch the caller's user doc to check role
+    function callerRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isAuth() && callerRole() == 'admin';
+    }
+
+    // Users — readable by all authenticated users, writable only by admin
+    match /users/{userId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // Sites — readable by all, writable by admin + finance (budget spend update)
+    match /sites/{siteId} {
+      allow read: if isAuth();
+      allow write: if isAuth() && (callerRole() == 'admin' || callerRole() == 'finance');
+    }
+
+    // Vendors — readable by all, writable by procurement + admin
+    match /vendors/{vendorId} {
+      allow read: if isAuth();
+      allow write: if isAuth() && (callerRole() == 'procurement' || callerRole() == 'admin');
+    }
+
+    // Assets — readable by all, writable by facility_manager + admin
+    match /assets/{assetId} {
+      allow read: if isAuth();
+      allow write: if isAuth() && (callerRole() == 'facility_manager' || callerRole() == 'admin');
+    }
+
+    // Requests — readable by all authenticated, writable by authenticated users
+    match /requests/{requestId} {
+      allow read: if isAuth();
+      allow create: if isAuth() && callerRole() == 'facility_manager';
+      allow update: if isAuth();
+      allow delete: if isAdmin();
+    }
+
+    // Checklists — facility managers create/update, others read
+    match /checklists/{checklistId} {
+      allow read: if isAuth();
+      allow write: if isAuth() && (callerRole() == 'facility_manager' || callerRole() == 'admin');
+    }
+
+    // Treasury — finance + admin read/write
+    match /treasury/{entryId} {
+      allow read: if isAuth();
+      allow write: if isAuth() && (callerRole() == 'finance' || callerRole() == 'admin');
+    }
+  }
+}

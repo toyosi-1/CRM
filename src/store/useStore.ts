@@ -7,6 +7,12 @@ import {
   MOCK_USERS, MOCK_SITES, MOCK_VENDORS, MOCK_ASSETS,
   MOCK_REQUESTS, MOCK_CHECKLISTS, MOCK_TREASURY
 } from '../data/mockData';
+import {
+  fetchUsers, fetchSites, fetchVendors, fetchAssets,
+  subscribeRequests, subscribeChecklists, subscribeTreasury,
+  createRequestInDB, updateRequestInDB, updateSiteInDB,
+  updateChecklistInDB, addTreasuryEntryInDB,
+} from '../lib/firestore';
 
 interface AppState {
   currentUser: User | null;
@@ -18,7 +24,9 @@ interface AppState {
   checklists: Checklist[];
   treasury: TreasuryEntry[];
   activeRequestId: string | null;
+  firebaseReady: boolean;
 
+  initFirebase: () => Promise<void>;
   login: (userId: string) => void;
   logout: () => void;
 
@@ -61,6 +69,10 @@ function computeSlaDeadline(priority: Priority, createdAt: string): string {
   return d.toISOString();
 }
 
+let _unsubRequests: (() => void) | null = null;
+let _unsubChecklists: (() => void) | null = null;
+let _unsubTreasury: (() => void) | null = null;
+
 export const useStore = create<AppState>((set, get) => ({
   currentUser: null,
   users: MOCK_USERS,
@@ -71,13 +83,56 @@ export const useStore = create<AppState>((set, get) => ({
   checklists: MOCK_CHECKLISTS,
   treasury: MOCK_TREASURY,
   activeRequestId: null,
+  firebaseReady: false,
+
+  initFirebase: async () => {
+    try {
+      const [users, sites, vendors, assets] = await Promise.all([
+        fetchUsers(),
+        fetchSites(),
+        fetchVendors(),
+        fetchAssets(),
+      ]);
+
+      if (users.length) set({ users });
+      if (sites.length) set({ sites });
+      if (vendors.length) set({ vendors });
+      if (assets.length) set({ assets });
+
+      if (_unsubRequests) _unsubRequests();
+      _unsubRequests = subscribeRequests(requests => {
+        if (requests.length) set({ requests });
+      });
+
+      if (_unsubChecklists) _unsubChecklists();
+      _unsubChecklists = subscribeChecklists(checklists => {
+        if (checklists.length) set({ checklists });
+      });
+
+      if (_unsubTreasury) _unsubTreasury();
+      _unsubTreasury = subscribeTreasury(treasury => {
+        if (treasury.length) set({ treasury });
+      });
+
+      set({ firebaseReady: true });
+    } catch (e) {
+      console.warn('Firebase init failed — falling back to mock data', e);
+      set({ firebaseReady: true });
+    }
+  },
 
   login: (userId) => {
-    const user = MOCK_USERS.find(u => u.id === userId) ?? null;
+    const { users } = get();
+    const user = users.find(u => u.id === userId) ?? null;
     set({ currentUser: user });
   },
 
-  logout: () => set({ currentUser: null, activeRequestId: null }),
+  logout: () => {
+    if (_unsubRequests) { _unsubRequests(); _unsubRequests = null; }
+    if (_unsubChecklists) { _unsubChecklists(); _unsubChecklists = null; }
+    if (_unsubTreasury) { _unsubTreasury(); _unsubTreasury = null; }
+    set({ currentUser: null, activeRequestId: null });
+  },
 
   setActiveRequest: (id) => set({ activeRequestId: id }),
 
@@ -123,6 +178,7 @@ export const useStore = create<AppState>((set, get) => ({
         tatHours: 0,
       }],
     };
+    createRequestInDB(newReq).catch(console.error);
     set({ requests: [newReq, ...requests] });
   },
 
@@ -144,7 +200,9 @@ export const useStore = create<AppState>((set, get) => ({
           userRole: actor.role, department: actor.department,
           action, comment, timestamp: now, tatHours,
         };
-        return { ...r, status, rejectionComment: comment, updatedAt: now, auditTrail: [...r.auditTrail, entry] };
+        const updated = { ...r, status, rejectionComment: comment, updatedAt: now, auditTrail: [...r.auditTrail, entry] };
+        updateRequestInDB(requestId, updated).catch(console.error);
+        return updated;
       }),
     });
   },
@@ -173,11 +231,12 @@ export const useStore = create<AppState>((set, get) => ({
       timestamp: now, tatHours,
     };
     set({
-      requests: requests.map(r =>
-        r.id === requestId
-          ? { ...r, status: 'PO_GENERATED', purchaseOrder: po, updatedAt: now, auditTrail: [...r.auditTrail, entry] }
-          : r
-      ),
+      requests: requests.map(r => {
+        if (r.id !== requestId) return r;
+        const updated = { ...r, status: 'PO_GENERATED' as const, purchaseOrder: po, updatedAt: now, auditTrail: [...r.auditTrail, entry] };
+        updateRequestInDB(requestId, updated).catch(console.error);
+        return updated;
+      }),
     });
   },
 
@@ -199,11 +258,12 @@ export const useStore = create<AppState>((set, get) => ({
       timestamp: now, tatHours,
     };
     set({
-      requests: requests.map(r =>
-        r.id === requestId
-          ? { ...r, taxType, grossAmount: gross, taxAmount: tax, netPayment: net, updatedAt: now, auditTrail: [...r.auditTrail, entry] }
-          : r
-      ),
+      requests: requests.map(r => {
+        if (r.id !== requestId) return r;
+        const updated = { ...r, taxType, grossAmount: gross, taxAmount: tax, netPayment: net, updatedAt: now, auditTrail: [...r.auditTrail, entry] };
+        updateRequestInDB(requestId, updated).catch(console.error);
+        return updated;
+      }),
     });
   },
 
@@ -226,13 +286,15 @@ export const useStore = create<AppState>((set, get) => ({
         : s
     );
     set({
-      requests: requests.map(r =>
-        r.id === requestId
-          ? { ...r, status: 'PAID', paymentReceiptUrl: 'receipt.pdf', updatedAt: now, auditTrail: [...r.auditTrail, entry] }
-          : r
-      ),
+      requests: requests.map(r => {
+        if (r.id !== requestId) return r;
+        const updated = { ...r, status: 'PAID' as const, paymentReceiptUrl: 'receipt.pdf', updatedAt: now, auditTrail: [...r.auditTrail, entry] };
+        updateRequestInDB(requestId, updated).catch(console.error);
+        return updated;
+      }),
       sites: updatedSites,
     });
+    updateSiteInDB(req.siteId, { currentMonthSpend: updatedSites.find(s => s.id === req.siteId)?.currentMonthSpend }).catch(console.error);
   },
 
   saveChecklist: (checklistId, items) => {
@@ -241,30 +303,34 @@ export const useStore = create<AppState>((set, get) => ({
         c.id === checklistId ? { ...c, items } : c
       ),
     }));
+    updateChecklistInDB(checklistId, { items }).catch(console.error);
   },
 
   submitChecklist: (checklistId, userId) => {
     const { users } = get();
     const user = users.find(u => u.id === userId);
+    const data = { submittedToAdmin: true, completedBy: userId, completedAt: new Date().toISOString(), completedByName: user?.name };
     set(state => ({
       checklists: state.checklists.map(c =>
-        c.id === checklistId
-          ? { ...c, submittedToAdmin: true, completedBy: userId, completedAt: new Date().toISOString(), completedByName: user?.name }
-          : c
+        c.id === checklistId ? { ...c, ...data } : c
       ),
     }));
+    updateChecklistInDB(checklistId, data).catch(console.error);
   },
 
   updateSite: (siteId, data) => {
     set(state => ({
       sites: state.sites.map(s => s.id === siteId ? { ...s, ...data } : s),
     }));
+    updateSiteInDB(siteId, data).catch(console.error);
   },
 
   addTreasuryEntry: (entry) => {
+    const newEntry = { ...entry, id: genId() };
     set(state => ({
-      treasury: [{ ...entry, id: genId() }, ...state.treasury],
+      treasury: [newEntry, ...state.treasury],
     }));
+    addTreasuryEntryInDB(newEntry).catch(console.error);
   },
 
   getBudgetSummaries: () => {
