@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Award, CheckCircle, Pencil, Search, ShieldCheck, Store, User, XCircle } from 'lucide-react';
+import { Award, Pencil, Search, Store, User, XCircle } from 'lucide-react';
 import { useStore, reportSaveError } from '../../store/useStore';
 import { formatCurrency, vendorMatches } from '../../utils/helpers';
 import type { Vendor } from '../../types';
@@ -11,7 +11,6 @@ export default function VendorOnboarding() {
   const { currentUser, vendors, users, upsertVendor } = useStore();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Vendor | null>(null);
-  const [verified, setVerified] = useState(false);
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState('');
   const filteredVendors = vendors.filter(v => vendorMatches(v, query));
@@ -19,10 +18,9 @@ export default function VendorOnboarding() {
 
   const openForm = (vendor?: Vendor) => {
     setEditing(vendor ?? null);
-    setVerified(vendor?.verified ?? false);
     setShowForm(true);
   };
-  const closeForm = () => { setShowForm(false); setEditing(null); setVerified(false); };
+  const closeForm = () => { setShowForm(false); setEditing(null); };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -40,7 +38,6 @@ export default function VendorOnboarding() {
         rcNumber: form.rcNumber.value, exemptionNotes: form.exemptionNotes.value,
         bankName: form.bank.value, accountNumber: form.accountNo.value, accountName: form.accountName.value,
         contactPerson: form.contactPerson.value, phone: form.phone.value, email: form.email.value.trim(), alias: form.alias.value.trim(), tin: form.tin.value,
-        verified: editing ? editing.verified : verified,
         guarantorProfileId: form.guarantor.value || undefined,
       });
       closeForm();
@@ -51,10 +48,6 @@ export default function VendorOnboarding() {
     }
   };
 
-  // No live bank API is wired up — this is an explicit manual confirmation that
-  // procurement has independently checked the account name against the bank.
-  const confirmAccount = () => setVerified(true);
-
   return (
     <div className="space-y-6">
       <div className="dash-header">
@@ -62,7 +55,7 @@ export default function VendorOnboarding() {
           <div>
             <p className="text-white/50 text-xs font-bold uppercase tracking-widest mb-1">Procurement</p>
             <h1 className="text-2xl font-black text-white tracking-tight">Vendor onboarding</h1>
-            <p className="text-white/60 text-sm mt-1">Register vendors and verify bank details.</p>
+            <p className="text-white/60 text-sm mt-1">Register vendors and manage their payment details.</p>
           </div>
           {canManage && <button onClick={() => openForm()} className="btn-white-glass"><User size={14} />Register vendor</button>}
         </div>
@@ -90,7 +83,6 @@ export default function VendorOnboarding() {
               <div className="form-group"><label className="label">Bank</label><select name="bank" className="select" defaultValue={editing?.bankName}>{BANKS.map(b => <option key={b} value={b}>{b}</option>)}</select></div>
               <div className="form-group"><label className="label">Account number</label><input name="accountNo" className="input" maxLength={10} defaultValue={editing?.accountNumber} required /></div>
             </div>
-            {!editing && <button type="button" onClick={confirmAccount} className="btn-secondary w-full justify-center" disabled={verified}>{verified ? <><CheckCircle size={14} />Account details confirmed</> : <><ShieldCheck size={14} />I have confirmed the account name with the bank</>}</button>}
           </div>
           <button className="btn-primary" disabled={saving}>{saving ? 'Saving…' : editing ? 'Save changes' : 'Save vendor'}</button>
         </form>

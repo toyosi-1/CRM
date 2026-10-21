@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { CheckSquare, Square, Send, Clock, Flag } from 'lucide-react';
 import { useStore } from '../../store/useStore';
-import type { ChecklistItem } from '../../types';
+import type { Checklist, ChecklistItem } from '../../types';
 import { formatDate, formatDateTime } from '../../utils/helpers';
 import FMDailyWalk from './FMDailyWalk';
 import ChecklistBuilder from '../supervisor/ChecklistBuilder';
@@ -28,6 +29,7 @@ function SectionTabs({ tabs, section, onChange }: { tabs: { key: 'walk' | 'all' 
 }
 
 export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech' }) {
+  const navigate = useNavigate();
   const [section, setSection] = useState<'walk' | 'all' | 'builder'>('walk');
   const { currentUser, checklists, users, saveChecklist, submitChecklist, activeSiteId } = useStore();
   const siteId = activeSiteId ?? currentUser?.siteId;
@@ -42,11 +44,27 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
     if (!cl || cl.submittedToAdmin) return;
     const updated: ChecklistItem[] = cl.items.map(item =>
       item.id === itemId
-        ? { ...item, checked: !item.checked, timestamp: !item.checked ? new Date().toISOString() : undefined }
+        ? item.checked
+          ? { ...item, checked: false, timestamp: undefined, flagged: false, comment: undefined }
+          : { ...item, checked: true, timestamp: new Date().toISOString() }
         : item
     );
     saveChecklist(checklistId, updated);
   };
+
+  const updateItem = (cl: Checklist, itemId: string, patch: Partial<ChecklistItem>) => {
+    saveChecklist(cl.id, cl.items.map(i => (i.id === itemId ? { ...i, ...patch } : i)));
+  };
+
+  const flagItem = (cl: Checklist, item: ChecklistItem) => {
+    if (cl.submittedToAdmin) return;
+    updateItem(cl, item.id, item.flagged
+      ? { flagged: false, comment: undefined }
+      : { flagged: true, checked: true, timestamp: new Date().toISOString() });
+  };
+
+  const submittable = (cl: Checklist) =>
+    cl.items.every(i => i.checked) && cl.items.every(i => !i.flagged || (i.comment ?? '').trim().length > 0);
 
   const handleSubmit = (checklistId: string) => {
     if (!currentUser) return;
@@ -87,6 +105,7 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
           const checkedCount = visibleItems.filter(i => i.checked).length;
           const pct = visibleItems.length ? Math.round((checkedCount / visibleItems.length) * 100) : 0;
           const allDone = cl.items.every(i => i.checked);
+          const flaggedNeedingComment = cl.items.filter(i => i.flagged && !(i.comment ?? '').trim()).length;
           const isActive = activeId === cl.id;
 
           return (
@@ -134,34 +153,67 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
                 <div className="border-t border-slate-100">
                   <div className="divide-y divide-slate-100">
                     {visibleItems.map(item => (
-                      <div
-                        key={item.id}
-                        className={`flex items-start gap-3 px-4 py-3.5 transition-colors ${cl.submittedToAdmin ? '' : 'cursor-pointer hover:bg-brand-50/40'} ${item.checked ? 'opacity-60' : ''}`}
-                        onClick={() => toggleItem(cl.id, item.id)}
-                      >
-                        <div className="flex-shrink-0 mt-0.5">
-                          {item.checked
-                            ? <CheckSquare size={17} className="text-emerald-500" />
-                            : <Square size={17} className="text-slate-300" />
-                          }
-                        </div>
-                        <div className="flex-1">
-                          <p className={`text-sm font-medium ${item.checked ? 'line-through text-slate-400' : 'text-slate-700'}`}>
-                            {item.label}
-                          </p>
-                          {item.checked && item.timestamp && (
-                            <p className="text-xs text-emerald-600 mt-0.5 flex items-center gap-1 font-medium">
-                              <Clock size={10} /> Done · {formatDateTime(item.timestamp)}
+                      <div key={item.id} className={`px-4 py-3.5 transition-colors ${item.flagged ? 'bg-amber-50/60' : ''} ${item.checked && !item.flagged ? 'opacity-60' : ''}`}>
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={`flex-shrink-0 mt-0.5 ${cl.submittedToAdmin ? '' : 'cursor-pointer'}`}
+                            onClick={() => toggleItem(cl.id, item.id)}
+                          >
+                            {item.checked
+                              ? <CheckSquare size={17} className={item.flagged ? 'text-amber-500' : 'text-emerald-500'} />
+                              : <Square size={17} className="text-slate-300" />
+                            }
+                          </div>
+                          <div
+                            className={`flex-1 ${cl.submittedToAdmin ? '' : 'cursor-pointer'}`}
+                            onClick={() => toggleItem(cl.id, item.id)}
+                          >
+                            <p className={`text-sm font-medium ${item.checked && !item.flagged ? 'line-through text-slate-400' : 'text-slate-700'}`}>
+                              {item.label}
                             </p>
+                            {item.checked && item.timestamp && (
+                              <p className="text-xs text-emerald-600 mt-0.5 flex items-center gap-1 font-medium">
+                                <Clock size={10} /> Done · {formatDateTime(item.timestamp)}
+                              </p>
+                            )}
+                            {item.value !== undefined && item.value !== '' && (
+                              <p className="text-xs text-slate-500 mt-0.5">Reading: {item.value}{item.unit ? ` ${item.unit}` : ''}</p>
+                            )}
+                          </div>
+                          {!cl.submittedToAdmin && (
+                            <button
+                              type="button"
+                              title={item.flagged ? 'Remove fail flag' : 'Mark as failed'}
+                              onClick={() => flagItem(cl, item)}
+                              className={`flex-shrink-0 mt-0.5 p-1 rounded-md transition-colors ${item.flagged ? 'text-amber-600 bg-amber-100' : 'text-slate-300 hover:text-amber-500 hover:bg-amber-50'}`}
+                            >
+                              <Flag size={14} />
+                            </button>
                           )}
-                          {item.value !== undefined && item.value !== '' && (
-                            <p className="text-xs text-slate-500 mt-0.5">Reading: {item.value}{item.unit ? ` ${item.unit}` : ''}</p>
-                          )}
-                          {item.comment && (
-                            <p className="text-xs text-slate-500 mt-0.5">{item.comment}</p>
-                          )}
+                          {item.flagged && cl.submittedToAdmin && <Flag size={13} className="text-amber-500 flex-shrink-0 mt-1" />}
                         </div>
-                        {item.flagged && <Flag size={13} className="text-amber-500 flex-shrink-0 mt-1" />}
+                        {item.flagged && (
+                          <div className="mt-2 space-y-2">
+                            {cl.submittedToAdmin ? (
+                              item.comment && <p className="text-xs text-slate-500">{item.comment}</p>
+                            ) : (
+                              <>
+                                <textarea
+                                  className="input resize-none text-xs"
+                                  rows={2}
+                                  placeholder="Comment required — describe the issue, and add a photo on the request if needed"
+                                  defaultValue={item.comment ?? ''}
+                                  onBlur={e => updateItem(cl, item.id, { comment: e.target.value })}
+                                />
+                                <button
+                                  type="button"
+                                  className="btn-secondary text-xs"
+                                  onClick={() => navigate(`/fm/request/new?prefill=${encodeURIComponent(`${cl.title} — ${item.zone ?? 'General'} — ${item.label}: ${item.comment ?? 'flagged on checklist'}`)}`)}
+                                >Raise request</button>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -169,11 +221,15 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
                     <div className="p-4 border-t border-slate-100 flex gap-3">
                       <button
                         onClick={() => handleSubmit(cl.id)}
-                        disabled={!allDone}
+                        disabled={!submittable(cl)}
                         className="btn-primary w-full disabled:opacity-40"
                       >
                         <Send size={14} />
-                        {!allDone ? `Complete all items first (${cl.items.filter(i => !i.checked).length} remaining)` : 'Submit to Admin'}
+                        {!allDone
+                          ? `Complete all items first (${cl.items.filter(i => !i.checked).length} remaining)`
+                          : flaggedNeedingComment > 0
+                            ? `Add comments on ${flaggedNeedingComment} failed item${flaggedNeedingComment === 1 ? '' : 's'}`
+                            : 'Submit to Admin'}
                       </button>
                     </div>
                   )}
