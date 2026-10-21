@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Route, Send, CheckCircle } from 'lucide-react';
+import { Route, Send, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useStore } from '../../store/useStore';
-import { ensureChecklistInstances, instanceId, isDueToday, scheduleLabel } from '../../lib/checklists';
+import { ensureChecklistInstances, instanceId, isChecklistMissed, isDueToday, scheduleLabel } from '../../lib/checklists';
 import FlagCommentPanel from '../../components/shared/FlagCommentPanel';
 import type { Checklist, ChecklistItem } from '../../types';
 import { formatDate } from '../../utils/helpers';
@@ -30,8 +30,10 @@ export default function FMDailyWalk({ embedded }: { embedded?: boolean } = {}) {
   const scheduleById = new Map(dueTemplates.map(t => [instanceId(t), scheduleLabel(t)]));
   const walks = checklists.filter(c => c.siteId === siteId && dueIds.has(c.id) && !c.submittedToAdmin);
   const submitted = checklists.filter(c => c.siteId === siteId && dueIds.has(c.id) && c.submittedToAdmin);
+  const missed = checklists.filter(c => c.siteId === siteId && isChecklistMissed(c, checklistTemplates));
 
   const updateItem = (cl: Checklist, itemId: string, patch: Partial<ChecklistItem>) => {
+    if (isChecklistMissed(cl, checklistTemplates)) return;
     const items = cl.items.map(i => i.id === itemId ? { ...i, ...patch } : i);
     saveChecklist(cl.id, items);
   };
@@ -110,6 +112,15 @@ export default function FMDailyWalk({ embedded }: { embedded?: boolean } = {}) {
         <Route size={15} className="text-brand-600 flex-shrink-0 mt-0.5" />
         <span className="text-sm">Items are ordered to match your physical walk route. Rating <strong>Poor</strong> or <strong>Critical</strong> — or marking <strong>Fail</strong> — flags the item and a comment becomes mandatory.</span>
       </div>
+
+      {missed.length > 0 && (
+        <div className="alert-critical flex items-start gap-2 !bg-red-50/70">
+          <AlertTriangle size={15} className="text-red-600 flex-shrink-0 mt-0.5" />
+          <span className="text-sm text-red-800">
+            {missed.length} scheduled checklist{missed.length === 1 ? '' : 's'} missed {missed.length === 1 ? 'its' : 'their'} day and {missed.length === 1 ? 'is' : 'are'} now locked — view {missed.length === 1 ? 'it' : 'them'} under All checklists.
+          </span>
+        </div>
+      )}
 
       {submitted.length > 0 && (
         <div className="alert-info flex items-center gap-2 !border-emerald-200 !bg-emerald-50">

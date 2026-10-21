@@ -27,6 +27,29 @@ export function instanceId(template: ChecklistTemplate) {
   return `${template.id}_${periodKey(template.frequency)}`;
 }
 
+const ID_DATE = /_(\d{4}-\d{2}-\d{2})$/;
+
+/** The scheduled due date for a checklist instance (`templateId_YYYY-MM-DD`). */
+export function checklistDate(cl: Checklist) {
+  return ID_DATE.exec(cl.id)?.[1] ?? cl.createdAt.slice(0, 10);
+}
+
+/** First instant after the checklist's allowed window. */
+function checklistDeadline(cl: Checklist, templates: ChecklistTemplate[]): Date {
+  const start = new Date(`${checklistDate(cl)}T00:00:00`);
+  const template = templates.find(t => t.id === cl.id.slice(0, -11));
+  const f = template?.frequency ?? 'daily';
+  if (f === 'weekly') start.setDate(start.getDate() + 7);
+  else if (f === 'monthly') { start.setMonth(start.getMonth() + 1); start.setDate(1); }
+  else start.setDate(start.getDate() + 1);
+  return start;
+}
+
+/** True once the scheduled day/period passed without submission. */
+export function isChecklistMissed(cl: Checklist, templates: ChecklistTemplate[]) {
+  return !cl.submittedToAdmin && new Date() >= checklistDeadline(cl, templates);
+}
+
 const DAY_NAMES = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
 
 export function scheduleLabel(template: ChecklistTemplate) {

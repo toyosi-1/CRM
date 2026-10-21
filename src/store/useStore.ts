@@ -22,6 +22,7 @@ import {
   upsertVendor, createFacilityVendorSLA, updateFacilityVendorSLA, deleteFacilityVendorSLA,
 } from '../lib/db';
 import { supabase } from '../lib/supabase';
+import { isChecklistMissed } from '../lib/checklists';
 import { titleCase, sentenceCase, normalizeFloor } from '../utils/helpers';
 
 type RequestDraft = Partial<MaintenanceRequest> & {
@@ -492,6 +493,11 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   saveChecklist: (checklistId, items) => {
+    const cl = get().checklists.find(c => c.id === checklistId);
+    if (cl && isChecklistMissed(cl, get().checklistTemplates)) {
+      reportSaveError(new Error('This checklist missed its scheduled day and can no longer be edited.'));
+      return;
+    }
     set(state => ({
       checklists: state.checklists.map(c =>
         c.id === checklistId ? { ...c, items } : c
@@ -502,6 +508,11 @@ export const useStore = create<AppState>((set, get) => ({
 
   submitChecklist: (checklistId, userId) => {
     const { users } = get();
+    const cl = get().checklists.find(c => c.id === checklistId);
+    if (cl && isChecklistMissed(cl, get().checklistTemplates)) {
+      reportSaveError(new Error('This checklist missed its scheduled day and can no longer be submitted.'));
+      return;
+    }
     const user = users.find(u => u.id === userId);
     const data = { submittedToAdmin: true, completedBy: userId, completedAt: new Date().toISOString(), completedByName: user?.name };
     set(state => ({

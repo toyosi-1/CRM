@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { CheckSquare, Square, Send, Clock, Flag, ChevronDown, ChevronRight } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import FlagCommentPanel from '../../components/shared/FlagCommentPanel';
+import { checklistDate, isChecklistMissed } from '../../lib/checklists';
 import type { Checklist, ChecklistItem } from '../../types';
 import { dayKey, formatDate, formatDateTime } from '../../utils/helpers';
 import FMDailyWalk from './FMDailyWalk';
@@ -32,7 +33,7 @@ function SectionTabs({ tabs, section, onChange }: { tabs: { key: 'walk' | 'all' 
 export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech' }) {
   const navigate = useNavigate();
   const [section, setSection] = useState<'walk' | 'all' | 'builder'>('walk');
-  const { currentUser, checklists, users, saveChecklist, submitChecklist, activeSiteId } = useStore();
+  const { currentUser, checklists, checklistTemplates, users, saveChecklist, submitChecklist, activeSiteId } = useStore();
   const siteId = activeSiteId ?? currentUser?.siteId;
   const [activeId, setActiveId] = useState<string | null>(null);
   const todayKey = dayKey();
@@ -43,9 +44,9 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
     .filter(c => c.siteId === siteId)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  // Segment the history by calendar day so long lists stay scannable
+  // Segment the history by scheduled day so long lists stay scannable
   const byDay = myChecklists.reduce<Map<string, Checklist[]>>((map, cl) => {
-    const day = cl.createdAt.slice(0, 10);
+    const day = checklistDate(cl);
     map.set(day, [...(map.get(day) ?? []), cl]);
     return map;
   }, new Map());
@@ -64,7 +65,7 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
 
   const toggleItem = (checklistId: string, itemId: string) => {
     const cl = myChecklists.find(c => c.id === checklistId);
-    if (!cl || cl.submittedToAdmin) return;
+    if (!cl || cl.submittedToAdmin || isChecklistMissed(cl, checklistTemplates)) return;
     const updated: ChecklistItem[] = cl.items.map(item =>
       item.id === itemId
         ? item.checked
@@ -80,7 +81,7 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
   };
 
   const flagItem = (cl: Checklist, item: ChecklistItem) => {
-    if (cl.submittedToAdmin) return;
+    if (cl.submittedToAdmin || isChecklistMissed(cl, checklistTemplates)) return;
     updateItem(cl, item.id, item.flagged
       ? { flagged: false, comment: undefined }
       : { flagged: true, checked: true, timestamp: new Date().toISOString() });
@@ -126,6 +127,7 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
         {[...byDay.entries()].map(([day, dayChecklists]) => {
           const isOpen = openDays.has(day);
           const submittedCount = dayChecklists.filter(c => c.submittedToAdmin).length;
+          const missedCount = dayChecklists.filter(c => isChecklistMissed(c, checklistTemplates)).length;
           return (
             <div key={day} className="space-y-3">
               <button
@@ -139,6 +141,7 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
                 <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">{dayLabel(day)}</span>
                 <span className="badge b-neu">{dayChecklists.length} checklist{dayChecklists.length === 1 ? '' : 's'}</span>
                 {submittedCount > 0 && <span className="badge bg-emerald-100 text-emerald-700">{submittedCount} submitted</span>}
+                {missedCount > 0 && <span className="badge bg-red-100 text-red-700">{missedCount} missed</span>}
               </button>
               {isOpen && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -149,6 +152,8 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
           const allDone = cl.items.every(i => i.checked);
           const flaggedNeedingComment = cl.items.filter(i => i.flagged && !(i.comment ?? '').trim()).length;
           const isActive = activeId === cl.id;
+          const missed = isChecklistMissed(cl, checklistTemplates);
+          const locked = cl.submittedToAdmin || missed;
 
           return (
             <div key={cl.id} className="card overflow-hidden">
@@ -164,8 +169,8 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
                     <p className="text-xs text-slate-500 mt-0.5">{formatDate(cl.createdAt)} · {checkedCount}/{visibleItems.length} items complete</p>
                   </div>
                 </div>
-                <span className={`badge ${cl.submittedToAdmin ? 'bg-emerald-100 text-emerald-700' : pct === 100 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
-                  {cl.submittedToAdmin ? 'Submitted' : pct === 100 ? 'Ready' : `${pct}%`}
+                <span className={`badge ${cl.submittedToAdmin ? 'bg-emerald-100 text-emerald-700' : missed ? 'bg-red-100 text-red-700' : pct === 100 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                  {cl.submittedToAdmin ? 'Submitted' : missed ? 'Missed' : pct === 100 ? 'Ready' : `${pct}%`}
                 </span>
               </div>
 
@@ -173,7 +178,7 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
               <div className="px-4 pb-3">
                 <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all duration-500 bg-gradient-to-r ${cl.submittedToAdmin ? 'from-emerald-400 to-emerald-500' : pct === 100 ? 'from-amber-400 to-orange-400' : 'from-brand-500 to-brand-600'}`}
+                    className={`h-full rounded-full transition-all duration-500 bg-gradient-to-r ${cl.submittedToAdmin ? 'from-emerald-400 to-emerald-500' : missed ? 'from-red-300 to-red-400' : pct === 100 ? 'from-amber-400 to-orange-400' : 'from-brand-500 to-brand-600'}`}
                     style={{ width: `${pct}%` }}
                   />
                 </div>
@@ -198,7 +203,7 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
                       <div key={item.id} className={`px-4 py-3.5 transition-colors ${item.flagged ? 'bg-amber-50/60' : ''} ${item.checked && !item.flagged ? 'opacity-60' : ''}`}>
                         <div className="flex items-start gap-3">
                           <div
-                            className={`flex-shrink-0 mt-0.5 ${cl.submittedToAdmin ? '' : 'cursor-pointer'}`}
+                            className={`flex-shrink-0 mt-0.5 ${locked ? '' : 'cursor-pointer'}`}
                             onClick={() => toggleItem(cl.id, item.id)}
                           >
                             {item.checked
@@ -207,7 +212,7 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
                             }
                           </div>
                           <div
-                            className={`flex-1 ${cl.submittedToAdmin ? '' : 'cursor-pointer'}`}
+                            className={`flex-1 ${locked ? '' : 'cursor-pointer'}`}
                             onClick={() => toggleItem(cl.id, item.id)}
                           >
                             <p className={`text-sm font-medium ${item.checked && !item.flagged ? 'line-through text-slate-400' : 'text-slate-700'}`}>
@@ -222,7 +227,7 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
                               <p className="text-xs text-slate-500 mt-0.5">Reading: {item.value}{item.unit ? ` ${item.unit}` : ''}</p>
                             )}
                           </div>
-                          {!cl.submittedToAdmin && (
+                          {!locked && (
                             <button
                               type="button"
                               title={item.flagged ? 'Remove fail flag' : 'Mark as failed'}
@@ -232,12 +237,12 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
                               <Flag size={14} />
                             </button>
                           )}
-                          {item.flagged && cl.submittedToAdmin && <Flag size={13} className="text-amber-500 flex-shrink-0 mt-1" />}
+                          {item.flagged && locked && <Flag size={13} className="text-amber-500 flex-shrink-0 mt-1" />}
                         </div>
                         {item.flagged && (
                           <FlagCommentPanel
                             item={item}
-                            submitted={cl.submittedToAdmin}
+                            submitted={locked}
                             onSave={comment => updateItem(cl, item.id, { comment })}
                             onRaiseRequest={comment => navigate(`/fm/request/new?prefill=${encodeURIComponent(`${cl.title} — ${item.zone ?? 'General'} — ${item.label}: ${comment || 'flagged on checklist'}`)}`)}
                           />
@@ -245,7 +250,13 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
                       </div>
                     ))}
                   </div>
-                  {!cl.submittedToAdmin && (
+                  {missed && (
+                    <div className="px-4 py-3 border-t border-slate-100 flex items-center gap-2 text-xs font-semibold text-red-600 bg-red-50/60">
+                      <Clock size={12} />
+                      Missed — this checklist was due {formatDate(`${checklistDate(cl)}T12:00:00`)} and can no longer be completed.
+                    </div>
+                  )}
+                  {!locked && (
                     <div className="p-4 border-t border-slate-100 flex gap-3">
                       <button
                         onClick={() => handleSubmit(cl.id)}
