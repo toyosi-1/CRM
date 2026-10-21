@@ -1,250 +1,241 @@
 import { useNavigate } from 'react-router-dom';
-import { Plus, CheckSquare, Package, AlertTriangle, Clock, TrendingUp, Activity, ArrowRight, ChevronRight } from 'lucide-react';
+import { AlertCircle, FilePlus, CheckCircle, Hourglass, CalendarCheck, Wallet, FileBadge, ChevronRight, ArrowUp } from 'lucide-react';
 import { useStore } from '../../store/useStore';
-import { StatusBadge, PriorityBadge } from '../../components/shared/Badges';
-import BudgetWidget from '../../components/shared/BudgetWidget';
-import { formatCurrency, getSlaStatus } from '../../utils/helpers';
+import { acknowledgeHandover } from '../../lib/firestore';
+import { StatusBadge } from '../../components/shared/Badges';
+import { formatCurrency } from '../../utils/helpers';
 
 export default function FMDashboard() {
   const navigate = useNavigate();
-  const { currentUser, requests, sites, checklists } = useStore();
-  const site = sites.find(s => s.id === currentUser?.siteId);
-  const myRequests = requests.filter(r => r.siteId === currentUser?.siteId);
+  const { currentUser, requests, sites, checklists, ppmSchedules, vendors, pettyCash, activeSiteId, users, facilityVendorSLAs } = useStore();
+
+  // Acting FM handover acknowledgement (spec §5.8)
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const actingActive = currentUser?.actingForProfileId && currentUser.actingStart && currentUser.actingEnd
+    && currentUser.actingStart <= todayIso && currentUser.actingEnd >= todayIso;
+  const coveringFm = actingActive ? users.find(u => u.id === currentUser.actingForProfileId) : undefined;
+  const handover = currentUser?.actingHandover ?? {};
+
+  const siteId = activeSiteId ?? currentUser?.siteId;
+  const site = sites.find(s => s.id === siteId);
+  const myRequests = requests.filter(r => r.siteId === siteId);
   const openRequests = myRequests.filter(r => !['PAID', 'CLOSED', 'REJECTED'].includes(r.status));
-  const critical = myRequests.filter(r => r.priority === 'critical' && !['PAID', 'CLOSED'].includes(r.status));
+  const executed = myRequests.filter(r => r.status === 'PAID' || r.status === 'CLOSED');
+  const rejected = myRequests.filter(r => r.status === 'REJECTED');
   const slaBreached = myRequests.filter(r => r.slaBreached && !['PAID', 'CLOSED', 'REJECTED'].includes(r.status));
-  const paid = myRequests.filter(r => r.status === 'PAID');
-  const mySiteChecklists = checklists.filter(c => c.siteId === currentUser?.siteId);
-  const pendingChecklists = mySiteChecklists.filter(c => !c.submittedToAdmin);
+  const pendingChecklists = checklists.filter(c => c.siteId === siteId && !c.submittedToAdmin);
 
-  const budgetData = site ? {
-    budget: site.monthlyBudget,
-    spent: site.currentMonthSpend,
-    remaining: site.monthlyBudget - site.currentMonthSpend,
-    utilizationPct: Math.round((site.currentMonthSpend / site.monthlyBudget) * 100),
-  } : null;
+  // Pending tasks (rejected requests, unsubmitted checklists, SLA alerts)
+  const pendingTasks: { badge: string; badgeClass: string; label: string; to: string }[] = [
+    ...rejected.map(r => ({ badge: 'Rejected', badgeClass: 'b-danger', label: `Resubmit or revise — ${r.requestNumber}`, to: `/request/${r.id}` })),
+    ...pendingChecklists.slice(0, 2).map(c => ({ badge: 'Due', badgeClass: 'b-ok', label: `Submit checklist — ${c.title}`, to: '/fm/checklists' })),
+    ...slaBreached.map(r => ({ badge: 'SLA Alert', badgeClass: 'b-warn', label: `SLA breached — ${r.requestNumber}`, to: `/request/${r.id}` })),
+  ].slice(0, 5);
 
-  const firstName = currentUser?.name?.split(' ')[0];
-  const today = new Date().toLocaleDateString('en-NG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  // Upcoming events from PPM + expiring vendor SLAs
+  const upcomingPpm = ppmSchedules
+    .filter(p => p.siteId === siteId && p.nextDueDate && p.status !== 'completed')
+    .sort((a, b) => a.nextDueDate.localeCompare(b.nextDueDate))
+    .slice(0, 3);
+  const expiringSlas = facilityVendorSLAs.filter(sla => {
+    if (sla.siteId !== siteId || !sla.expiryDate) return false;
+    const days = Math.ceil((new Date(sla.expiryDate).getTime() - new Date().getTime()) / 86400000);
+    return days >= 0 && days <= 60;
+  }).map(sla => ({ ...sla, vendor: vendors.find(v => v.id === sla.vendorId) }));
+  const events = [
+    ...upcomingPpm.map(p => ({ date: p.nextDueDate, name: p.title, meta: vendors.find(v => v.id === p.vendorId)?.name ?? 'Scheduled task', badge: 'PPM', cls: 'b-info' })),
+    ...expiringSlas.filter(s => s.expiryDate).map(s => ({ date: s.expiryDate!, name: `${s.vendor?.name ?? 'Vendor'} SLA renewal`, meta: `${s.category} contract`, badge: 'SLA', cls: 'b-warn' })),
+  ].sort((a, b) => a.date.localeCompare(b.date)).slice(0, 4);
+
+  // Petty cash float
+  const sitePetty = pettyCash.filter(p => p.siteId === siteId && p.status === 'approved');
+  const floatBalance = sitePetty.reduce((sum, p) => sum + (p.type === 'top_up' ? p.amount : -p.amount), 0);
+  const floatLimit = site?.floatLimit ?? 0;
+  const floatPct = floatLimit > 0 ? Math.round((floatBalance / floatLimit) * 100) : 0;
+
+  // PPM on-time rate for this site
+  const sitePpm = ppmSchedules.filter(p => p.siteId === siteId);
+  const ppmDone = sitePpm.filter(p => (p.serviceHistory?.length ?? 0) > 0 || p.status === 'completed');
+  const ppmOnTime = sitePpm.length ? Math.round((ppmDone.length / sitePpm.length) * 100) : null;
+
+  const completionPct = myRequests.length ? Math.round((executed.length / myRequests.length) * 100) : 0;
+  const budget = site?.monthlyBudget ?? 0;
+  const spent = site?.currentMonthSpend ?? 0;
+  const budgetPct = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
+  const budgetColor = budgetPct >= 90 ? 'var(--red)' : budgetPct >= 70 ? 'var(--amber)' : 'var(--green)';
+  const monthLabel = new Date().toLocaleDateString('en-NG', { month: 'long', year: 'numeric' });
+
+  const pendingCount = pendingTasks.length;
 
   return (
-    <div className="space-y-6 max-w-screen-xl">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 1400 }}>
 
-      {/* ── Hero Header ─────────────── */}
-      <div className="dash-header">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-slate-400 text-xs uppercase tracking-widest mb-1">{today}</p>
-            <h1 className="text-xl font-semibold text-white">Good day, {firstName}</h1>
-            <p className="text-slate-400 text-sm mt-0.5 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
-              {site?.name ?? 'No site assigned'}
-            </p>
+      {/* ── Acting FM handover (spec §5.8) ── */}
+      {actingActive && !currentUser?.actingAcknowledgedAt && coveringFm && (
+        <div className="card" style={{ padding: '14px 15px', borderColor: '#C8C8E8' }}>
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <p className="card-title">You are acting FM for {coveringFm.name} until {currentUser.actingEnd}</p>
+              <p className="card-sub">Handover pack generated {handover.generatedAt ? new Date(String(handover.generatedAt)).toLocaleDateString('en-GB') : ''}:</p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1 mt-2 text-xs" style={{ color: 'var(--gh-text-2)' }}>
+                <span>Sites: {(handover.sites as string[] | undefined)?.join(', ') || '—'}</span>
+                <span>Open requests: {(handover.openRequests as unknown[] | undefined)?.length ?? 0}</span>
+                <span>Float balance: {formatCurrency(Number(handover.floatBalance ?? 0))}</span>
+                <span>PPM due in 30 days: {(handover.ppmDueIn30Days as unknown[] | undefined)?.length ?? 0}</span>
+                <span>SLAs expiring: {(handover.slasExpiring as unknown[] | undefined)?.length ?? 0}</span>
+                <span>Assets under repair: {(handover.criticalAssets as unknown[] | undefined)?.length ?? 0}</span>
+              </div>
+            </div>
+            <button className="btn-acc" onClick={() => currentUser && acknowledgeHandover(currentUser.id)}>Acknowledge handover</button>
           </div>
-          <button onClick={() => navigate('/fm/request/new')} className="btn-white-glass">
-            <Plus size={14} /> New Request
-          </button>
-        </div>
-      </div>
-
-      {/* ── Critical Alert Banner ────────────────── */}
-      {(critical.length > 0 || slaBreached.length > 0) && (
-        <div className="alert-critical">
-          <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-            <AlertTriangle size={15} className="text-red-600" />
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-bold text-red-800">Immediate Attention Required</p>
-            <p className="text-sm text-red-600 mt-0.5">
-              {critical.length > 0 && <span>{critical.length} critical request{critical.length > 1 ? 's' : ''} still open. </span>}
-              {slaBreached.length > 0 && <span>{slaBreached.length} SLA breach{slaBreached.length > 1 ? 'es' : ''} detected — escalation may occur.</span>}
-            </p>
-          </div>
-          <button onClick={() => navigate('/fm/requests')} className="flex-shrink-0 text-xs font-bold text-red-700 hover:text-red-900 flex items-center gap-1">
-            View <ArrowRight size={12} />
-          </button>
         </div>
       )}
 
-      {/* ── Quick Actions ────────────────────────── */}
-      <div className="grid grid-cols-3 gap-4">
-        {[
-          { label: 'Create Request', icon: <Plus size={16} />, color: 'text-indigo-600 bg-indigo-50', path: '/fm/request/new', badge: null },
-          { label: 'Checklists', icon: <CheckSquare size={16} />, color: 'text-teal-600 bg-teal-50', path: '/fm/checklists', badge: pendingChecklists.length || null },
-          { label: 'Assets', icon: <Package size={16} />, color: 'text-purple-600 bg-purple-50', path: '/fm/assets', badge: null },
-        ].map(action => (
-          <button
-            key={action.path}
-            onClick={() => navigate(action.path)}
-            className="card p-4 flex flex-col items-center gap-2.5 hover:shadow-md hover:border-slate-300 transition-all duration-200 cursor-pointer group"
-          >
-            <div className={`w-9 h-9 rounded-lg ${action.color} flex items-center justify-center relative`}>
-              {action.icon}
-              {action.badge && (
-                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-amber-500 text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-sm border-2 border-white">
-                  {action.badge}
-                </span>
-              )}
-            </div>
-            <span className="text-sm font-bold text-slate-700 group-hover:text-slate-900 transition-colors">{action.label}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* ── Stat Cards ──────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {/* Open Requests */}
-        <div className="bg-white border border-slate-200 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-8 h-8 rounded-md bg-indigo-50 flex items-center justify-center">
-              <Activity size={14} className="text-indigo-600" />
-            </div>
-            <span className="text-xs font-medium text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded">Active</span>
-          </div>
-          <p className="text-2xl font-bold text-slate-900 tabular-nums">{openRequests.length}</p>
-          <p className="text-xs text-slate-500 mt-1">Open Requests</p>
+      {/* ── Attention banner ── */}
+      {pendingCount > 0 && (
+        <div className="warn-banner">
+          <AlertCircle size={15} aria-hidden="true" />
+          <span><strong>{pendingCount} pending task{pendingCount === 1 ? '' : 's'}</strong> require your attention today</span>
         </div>
+      )}
 
-        {/* Critical */}
-        <div className={`border rounded-lg p-4 ${critical.length > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}>
-          <div className="flex items-center justify-between mb-4">
-            <div className={`w-8 h-8 rounded-md flex items-center justify-center ${critical.length > 0 ? 'bg-red-100' : 'bg-slate-50'}`}>
-              <AlertTriangle size={14} className={critical.length > 0 ? 'text-red-600' : 'text-slate-400'} />
-            </div>
-            {critical.length > 0
-              ? <span className="text-xs font-medium text-red-700 bg-red-100 border border-red-200 px-2 py-0.5 rounded">Urgent</span>
-              : <span className="text-xs font-medium text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded">Clear</span>}
-          </div>
-          <p className={`text-2xl font-bold tabular-nums ${critical.length > 0 ? 'text-red-700' : 'text-slate-900'}`}>{critical.length}</p>
-          <p className="text-xs text-slate-500 mt-1">Critical Open</p>
+      {/* ── KPI tiles ── */}
+      <div className="kpi-grid">
+        <div className="kpi c-acc">
+          <div className="kpi-ico i-acc"><FilePlus size={14} aria-hidden="true" /></div>
+          <div className="kpi-lbl">Requests logged</div>
+          <div className="kpi-val">{myRequests.length}</div>
+          <div className="kpi-sub up"><ArrowUp size={10} aria-hidden="true" /> {openRequests.length} open</div>
         </div>
-
-        {/* SLA */}
-        <div className={`border rounded-lg p-4 ${slaBreached.length > 0 ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-200'}`}>
-          <div className="flex items-center justify-between mb-4">
-            <div className={`w-8 h-8 rounded-md flex items-center justify-center ${slaBreached.length > 0 ? 'bg-amber-100' : 'bg-emerald-50'}`}>
-              <Clock size={14} className={slaBreached.length > 0 ? 'text-amber-600' : 'text-emerald-600'} />
-            </div>
-            {slaBreached.length > 0
-              ? <span className="text-xs font-medium text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded">Breached</span>
-              : <span className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">On Track</span>}
-          </div>
-          <p className={`text-2xl font-bold tabular-nums ${slaBreached.length > 0 ? 'text-amber-700' : 'text-slate-900'}`}>{slaBreached.length}</p>
-          <p className="text-xs text-slate-500 mt-1">SLA Breached</p>
+        <div className="kpi c-green">
+          <div className="kpi-ico i-green"><CheckCircle size={14} aria-hidden="true" /></div>
+          <div className="kpi-lbl">Executed</div>
+          <div className="kpi-val">{executed.length}</div>
+          <div className="kpi-sub">{completionPct}% completion</div>
         </div>
-
-        {/* This Month */}
-        <div className="bg-white border border-slate-200 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-8 h-8 rounded-md bg-emerald-50 flex items-center justify-center">
-              <TrendingUp size={14} className="text-emerald-600" />
-            </div>
-            <span className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">{paid.length} paid</span>
-          </div>
-          <p className="text-2xl font-bold text-slate-900 tabular-nums">{myRequests.length}</p>
-          <p className="text-xs text-slate-500 mt-1">This Month</p>
+        <div className="kpi c-blue">
+          <div className="kpi-ico i-blue"><Hourglass size={14} aria-hidden="true" /></div>
+          <div className="kpi-lbl">In progress</div>
+          <div className="kpi-val">{openRequests.length}</div>
+          <div className="kpi-sub">{myRequests.filter(r => r.status === 'PAYMENT_PENDING').length} at Finance</div>
+        </div>
+        <div className="kpi c-amber">
+          <div className="kpi-ico i-amber"><CalendarCheck size={14} aria-hidden="true" /></div>
+          <div className="kpi-lbl">PPM on-time</div>
+          <div className="kpi-val">{ppmOnTime === null ? '—' : ppmOnTime}{ppmOnTime !== null && <span style={{ fontSize: 13, fontWeight: 400 }}>%</span>}</div>
+          <div className="kpi-sub">{sitePpm.filter(p => p.status === 'deferred').length} deferred</div>
+        </div>
+        <div className="kpi c-teal">
+          <div className="kpi-ico i-teal"><Wallet size={14} aria-hidden="true" /></div>
+          <div className="kpi-lbl">Petty cash float</div>
+          <div className="kpi-val">{formatCurrency(floatBalance)}</div>
+          <div className="kpi-sub">{floatLimit ? `${floatPct}% of ${formatCurrency(floatLimit)} limit` : 'No limit set'}</div>
+        </div>
+        <div className="kpi c-red">
+          <div className="kpi-ico i-red"><FileBadge size={14} aria-hidden="true" /></div>
+          <div className="kpi-lbl">SLA expiring</div>
+          <div className="kpi-val">{expiringSlas.length}</div>
+          <div className="kpi-sub dn">{expiringSlas[0]?.expiryDate ? `${expiringSlas[0].vendor?.name ?? 'Vendor'} · ${Math.ceil((new Date(expiringSlas[0].expiryDate).getTime() - new Date().getTime()) / 86400000)} days` : 'None'}</div>
         </div>
       </div>
 
-      {/* ── Recent Requests + Sidebar ─────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* Recent Requests — fixed clear layout */}
-        <div className="lg:col-span-2 card overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
-            <h2 className="text-sm font-semibold text-slate-800">Recent Requests</h2>
-            <button onClick={() => navigate('/fm/requests')} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1">
-              View all <ChevronRight size={12} />
-            </button>
+      {/* ── Pending tasks + Upcoming events ── */}
+      <div className="row2">
+        <div className="card" style={{ padding: '14px 15px' }}>
+          <div className="card-hd">
+            <div><div className="card-title">Pending tasks</div><div className="card-sub">Action required today</div></div>
+            {pendingCount > 0 && <span className="badge b-danger">{pendingCount} item{pendingCount === 1 ? '' : 's'}</span>}
           </div>
-
-          {myRequests.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="w-10 h-10 rounded-md bg-slate-100 flex items-center justify-center mb-3">
-                <Activity size={20} className="text-slate-400" />
-              </div>
-              <p className="text-sm font-semibold text-slate-600">No requests yet</p>
-              <p className="text-xs text-slate-400 mt-1">Tap Create Request to get started</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100/80">
-              {myRequests.slice(0, 5).map(req => {
-                const sla = getSlaStatus(req.slaDeadline, req.status);
-                const priorityBorder =
-                  req.priority === 'critical' ? '#ef4444' :
-                  req.priority === 'high'     ? '#f97316' :
-                  req.priority === 'medium'   ? '#f59e0b' : '#94a3b8';
-                return (
-                  <div
-                    key={req.id}
-                    onClick={() => navigate(`/request/${req.id}`)}
-                    className="request-row group relative"
-                    style={{ borderLeft: `3px solid ${priorityBorder}` }}
-                  >
-                    {/* Left: ID + Description */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-bold text-slate-400 font-mono">{req.requestNumber}</span>
-                        <PriorityBadge priority={req.priority} />
-                      </div>
-                      <p className="text-sm font-medium text-slate-800 truncate leading-snug">{req.description}</p>
-                    </div>
-
-                    {/* Right: Status + SLA on separate stacked lines */}
-                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0 ml-3">
-                      <StatusBadge status={req.status} />
-                      <span className={`text-xs font-semibold ${sla.color} flex items-center gap-1`}>
-                        <Clock size={10} />
-                        {sla.label}
-                      </span>
-                    </div>
-
-                    <ChevronRight size={14} className="text-slate-300 flex-shrink-0 group-hover:text-slate-500 transition-colors" />
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {pendingTasks.map(task => (
+              <button key={task.label} onClick={() => navigate(task.to)}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 0', borderBottom: '1px solid var(--gh-border)', fontSize: 12, textAlign: 'left', color: 'var(--gh-text)' }}>
+                <span className={`badge ${task.badgeClass}`}>{task.badge}</span>
+                <span style={{ flex: 1 }}>{task.label}</span>
+                <ChevronRight size={14} style={{ color: 'var(--gh-muted)' }} aria-hidden="true" />
+              </button>
+            ))}
+            {pendingCount === 0 && <p className="text-xs" style={{ color: 'var(--gh-muted)', padding: '8px 0' }}>Nothing pending — all clear.</p>}
+          </div>
         </div>
-
-        {/* Right sidebar */}
-        <div className="space-y-4">
-          {budgetData && (
-            <BudgetWidget
-              budget={budgetData.budget}
-              spent={budgetData.spent}
-              remaining={budgetData.remaining}
-              utilizationPct={budgetData.utilizationPct}
-            />
-          )}
-
-          {site && (
-            <div className="card p-5">
-              <p className="label mb-3">Petty Cash</p>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-500">Status</span>
-                  <span className={`badge ${site.pettyCashEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                    <span className={`badge-dot ${site.pettyCashEnabled ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                    {site.pettyCashEnabled ? 'Enabled' : 'Disabled'}
-                  </span>
+        <div className="card" style={{ padding: '14px 15px' }}>
+          <div className="card-hd">
+            <div><div className="card-title">Upcoming events</div><div className="card-sub">Next scheduled</div></div>
+          </div>
+          {events.map(ev => {
+            const d = new Date(ev.date);
+            return (
+              <div className="event-row" key={ev.name}>
+                <div className="event-date">
+                  <div className="day">{d.getDate()}</div>
+                  <div className="mon">{d.toLocaleDateString('en-NG', { month: 'short' })}</div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-500">Float Limit</span>
-                  <span className="text-sm font-bold text-slate-800">{formatCurrency(site.floatLimit)}</span>
+                <div className="event-info">
+                  <div className="event-name">{ev.name}</div>
+                  <div className="event-meta">{ev.meta}</div>
                 </div>
-                <div className="pt-2 border-t border-slate-100">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-400">Pending checklists</span>
-                    <span className={`text-xs font-bold ${pendingChecklists.length > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                      {pendingChecklists.length > 0 ? `${pendingChecklists.length} pending` : 'All submitted'}
-                    </span>
-                  </div>
-                </div>
+                <span className={`badge ${ev.cls}`}>{ev.badge}</span>
               </div>
-            </div>
-          )}
+            );
+          })}
+          {events.length === 0 && <p className="text-xs" style={{ color: 'var(--gh-muted)', padding: '8px 0' }}>No upcoming events scheduled.</p>}
         </div>
+      </div>
+
+      {/* ── Budget status ── */}
+      <div className="card" style={{ padding: '14px 15px' }}>
+        <div className="card-hd">
+          <div><div className="card-title">Budget status</div><div className="card-sub">{monthLabel}</div></div>
+          {budgetPct >= 90 && <span className="badge b-warn">Near limit</span>}
+        </div>
+        <div className="bar-row">
+          <span className="bar-lbl">Maintenance</span>
+          <div className="bar-track"><div className="bar-fill" style={{ width: `${budgetPct}%`, background: budgetColor }} /></div>
+          <span className="bar-pct">{budgetPct}%</span>
+          <span style={{ fontSize: 10, color: 'var(--gh-muted)', marginLeft: 6 }}>{formatCurrency(spent)} / {formatCurrency(budget)}</span>
+        </div>
+      </div>
+
+      {/* ── Recent requests table ── */}
+      <div className="fc">
+        <div className="fc-hd">
+          <span className="fc-title">Recent requests</span>
+          <span className="fc-act" onClick={() => navigate('/fm/requests')}>View all →</span>
+        </div>
+        <div className="tbl-wrap"><table>
+          <colgroup>
+            <col style={{ width: 130 }} />
+            <col />
+            <col style={{ width: 140 }} />
+            <col style={{ width: 170 }} />
+            <col style={{ width: 110 }} />
+          </colgroup>
+          <thead><tr>
+            <th scope="col" className="table-header">Request ID</th>
+            <th scope="col" className="table-header">Description</th>
+            <th scope="col" className="table-header">Amount</th>
+            <th scope="col" className="table-header">Status</th>
+            <th scope="col" className="table-header">Action</th>
+          </tr></thead>
+          <tbody>
+            {myRequests.slice(0, 5).map(r => (
+              <tr key={r.id} className="table-row" onClick={() => navigate(`/request/${r.id}`)}>
+                <td className="table-cell id-col">{r.requestNumber}</td>
+                <td className="table-cell">{r.description}</td>
+                <td className="table-cell mono table-number">{formatCurrency(r.grossAmount ?? r.invoiceAmount ?? 0)}</td>
+                <td className="table-cell"><StatusBadge status={r.status} /></td>
+                <td className="table-cell table-action">
+                  {r.status === 'REJECTED'
+                    ? <button className="btn-acc" onClick={e => { e.stopPropagation(); navigate('/fm/request/new'); }}>Re-submit</button>
+                    : <button className="btn-ghost" onClick={e => { e.stopPropagation(); navigate(`/request/${r.id}`); }}>View</button>}
+                </td>
+              </tr>
+            ))}
+            {myRequests.length === 0 && (
+              <tr><td className="table-empty" colSpan={5}><strong>No requests yet</strong>Log your first maintenance request to begin tracking work at this facility.</td></tr>
+            )}
+          </tbody>
+        </table></div>
       </div>
     </div>
   );

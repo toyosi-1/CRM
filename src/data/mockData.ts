@@ -3,13 +3,21 @@ import type {
   TreasuryEntry, AuditEntry
 } from '../types';
 
+const DEFAULT_SITE_EXTRA = {
+  siteType: 'Full residential building' as const, floors: '', units: '', scope: '',
+  electricityBilling: 'postpaid' as const, meterAccountNo: '', emergencyContact: '',
+  securityDesk: '', status: 'healthy' as const,
+};
+
 export const MOCK_USERS: User[] = [
-  { id: 'u1', name: 'Amara Osei', email: 'amara@facilityops.com', role: 'facility_manager', siteId: 's1', department: 'Operations', avatar: 'AO' },
-  { id: 'u2', name: 'Kwame Mensah', email: 'kwame@facilityops.com', role: 'facility_manager', siteId: 's2', department: 'Operations', avatar: 'KM' },
-  { id: 'u3', name: 'Chioma Eze', email: 'chioma@facilityops.com', role: 'procurement', department: 'Procurement', avatar: 'CE' },
-  { id: 'u4', name: 'Bola Adeyemi', email: 'bola@facilityops.com', role: 'supervisor', department: 'Management', avatar: 'BA' },
-  { id: 'u5', name: 'Tunde Fashola', email: 'tunde@facilityops.com', role: 'finance', department: 'Finance', avatar: 'TF' },
-  { id: 'u6', name: 'Ngozi Okonkwo', email: 'ngozi@facilityops.com', role: 'admin', department: 'Administration', avatar: 'NO' },
+  { id: 'u1', name: 'Amara Osei', email: 'amara@facilityops.com', role: 'facility_manager', siteId: 's1', department: 'Operations', avatar: 'AO', phone: '+234 801 234 5678', trade: '' },
+  { id: 'u2', name: 'Kwame Mensah', email: 'kwame@facilityops.com', role: 'facility_manager', siteId: 's2', department: 'Operations', avatar: 'KM', phone: '+234 802 345 6789', trade: '' },
+  { id: 'u3', name: 'Chioma Eze', email: 'chioma@facilityops.com', role: 'procurement', department: 'Procurement', avatar: 'CE', phone: '', trade: '' },
+  { id: 'u4', name: 'Bola Adeyemi', email: 'bola@facilityops.com', role: 'supervisor', department: 'Management', avatar: 'BA', phone: '', trade: '' },
+  { id: 'u5', name: 'Tunde Fashola', email: 'tunde@facilityops.com', role: 'finance', department: 'Finance', avatar: 'TF', phone: '', trade: '' },
+  { id: 'u6', name: 'Ngozi Okonkwo', email: 'ngozi@facilityops.com', role: 'admin', department: 'Administration', avatar: 'NO', phone: '', trade: '' },
+  { id: 'u7', name: 'Segun Ade', email: 'segun@facilityops.com', role: 'technician', department: 'Maintenance', siteId: 's1', avatar: 'SA', phone: '+234 809 876 5432', trade: 'Electrical' },
+  { id: 'u8', name: 'Kunle Balogun', email: 'kunle@facilityops.com', role: 'technician', department: 'Maintenance', siteId: 's1', avatar: 'KB', phone: '+234 809 876 5433', trade: 'HVAC' },
 ];
 
 export const MOCK_SITES: Site[] = [
@@ -19,6 +27,8 @@ export const MOCK_SITES: Site[] = [
     contactEmail: 'amara@facilityops.com', pettyCashEnabled: true, floatLimit: 150000,
     monthlyBudget: 2500000, currentMonthSpend: 1850000,
     slaExpiryDate: '2026-12-31', createdAt: '2024-01-15',
+    siteType: 'Full commercial building — multiple floors', floors: '5 + penthouse + basement', units: 'Office block', scope: 'Whole building including common areas, plant rooms and grounds',
+    electricityBilling: 'postpaid', meterAccountNo: 'EKEDC-44821', emergencyContact: '0801 234 5678', securityDesk: '0809 876 5432', status: 'healthy',
   },
   {
     id: 's2', name: 'Abuja Regional Office', address: '7 Gana Street, Maitama, Abuja',
@@ -26,6 +36,7 @@ export const MOCK_SITES: Site[] = [
     contactEmail: 'kwame@facilityops.com', pettyCashEnabled: true, floatLimit: 100000,
     monthlyBudget: 1800000, currentMonthSpend: 1200000,
     slaExpiryDate: '2026-09-30', createdAt: '2024-03-01',
+    ...DEFAULT_SITE_EXTRA,
   },
   {
     id: 's3', name: 'Port Harcourt Depot', address: '22 Aba Road, Port Harcourt, Rivers',
@@ -33,6 +44,8 @@ export const MOCK_SITES: Site[] = [
     contactEmail: 'emeka@facilityops.com', pettyCashEnabled: false, floatLimit: 50000,
     monthlyBudget: 3200000, currentMonthSpend: 2980000,
     slaExpiryDate: '2026-06-30', createdAt: '2024-02-10',
+    ...DEFAULT_SITE_EXTRA,
+    status: 'overspent',
   },
 ];
 
@@ -42,30 +55,38 @@ export const MOCK_VENDORS: Vendor[] = [
     bankName: 'First Bank', accountNumber: '3012345678', accountName: 'TechFix Solutions Ltd',
     totalJobsCompleted: 34, totalAmountPaid: 8450000, avgCompletionDays: 2.3,
     lastJobDate: '2026-03-10', riskScore: 'low', createdAt: '2024-01-20',
+    tier: '1', contactPerson: 'Emeka Nwosu', phone: '0801 234 5678', tin: '12345678-0001',
+    verified: true,
   },
   {
     id: 'v2', name: 'CoolAir HVAC Services', category: 'HVAC', type: 'recurring',
     bankName: 'GTBank', accountNumber: '0123456789', accountName: 'CoolAir HVAC Services',
     totalJobsCompleted: 18, totalAmountPaid: 5200000, avgCompletionDays: 3.1,
     lastJobDate: '2026-03-05', riskScore: 'low', createdAt: '2024-02-15',
+    tier: '2', contactPerson: 'Amina Bello', phone: '0802 345 6789', tin: '',
+    verified: false,
   },
   {
     id: 'v3', name: 'SwiftGen Power Ltd', category: 'Generator', type: 'recurring',
     bankName: 'Zenith Bank', accountNumber: '2234567890', accountName: 'SwiftGen Power Ltd',
     totalJobsCompleted: 52, totalAmountPaid: 14200000, avgCompletionDays: 1.5,
     lastJobDate: '2026-03-14', riskScore: 'medium', createdAt: '2023-11-01',
+    tier: '1', contactPerson: 'Tunde Bakare', phone: '0803 456 7890', tin: '98765432-0001',
+    verified: true,
   },
   {
     id: 'v4', name: 'ProClean Facilities', category: 'Cleaning', type: 'one_time',
     bankName: 'Access Bank', accountNumber: '0987654321', accountName: 'ProClean Facilities',
     totalJobsCompleted: 5, totalAmountPaid: 750000, avgCompletionDays: 4.8,
     lastJobDate: '2026-02-20', riskScore: 'high', createdAt: '2025-08-10',
+    tier: '3', contactPerson: 'Ngozi Obi', phone: '0804 567 8901', tin: '', verified: false,
   },
   {
     id: 'v5', name: 'Concrete & Civil Works', category: 'Civil', type: 'one_time',
     bankName: 'UBA', accountNumber: '1122334455', accountName: 'Concrete & Civil Works',
     totalJobsCompleted: 8, totalAmountPaid: 22000000, avgCompletionDays: 14.2,
     lastJobDate: '2026-01-15', riskScore: 'medium', createdAt: '2024-05-12',
+    tier: '3', contactPerson: 'Kola Adesanya', phone: '0805 678 9012', tin: '', verified: false,
   },
 ];
 

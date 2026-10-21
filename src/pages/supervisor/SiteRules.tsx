@@ -28,7 +28,7 @@ export default function SiteRules() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="page-title">Site Rules &amp; Controls</h1>
+        <h1 className="page-title">Site rules and controls</h1>
         <p className="page-subtitle">Manage petty cash settings, float limits, and budget controls per site</p>
       </div>
 
@@ -36,7 +36,7 @@ export default function SiteRules() {
         {sites.map(site => {
           const isEditing = editing === site.id;
           const d = draft[site.id];
-          const utilPct = Math.round((site.currentMonthSpend / site.monthlyBudget) * 100);
+          const utilPct = site.monthlyBudget > 0 ? Math.round((site.currentMonthSpend / site.monthlyBudget) * 100) : 0;
 
           return (
             <div key={site.id} className="card-hover p-5">
@@ -64,7 +64,7 @@ export default function SiteRules() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 {/* Petty Cash */}
                 <div className="bg-slate-50 rounded-xl p-4">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Petty Cash</p>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Petty cash</p>
                   {isEditing && d ? (
                     <button
                       onClick={() => setDraft(prev => ({ ...prev, [site.id]: { ...prev[site.id], pettyCashEnabled: !prev[site.id].pettyCashEnabled } }))}
@@ -106,9 +106,9 @@ export default function SiteRules() {
                   )}
                 </div>
 
-                {/* Monthly Budget */}
+                {/* Annual Budget */}
                 <div className="bg-slate-50 rounded-xl p-4">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Monthly Budget</p>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Annual Budget</p>
                   {isEditing && d ? (
                     <input
                       type="number"

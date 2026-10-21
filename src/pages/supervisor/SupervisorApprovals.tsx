@@ -25,7 +25,7 @@ export default function SupervisorApprovals() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="page-title">Approval Queue</h1>
+        <h1 className="page-title">Approval queue</h1>
         <p className="page-subtitle">{queue.length} requests awaiting your decision</p>
       </div>
 

@@ -25,7 +25,7 @@ export default function ProcurementQueue() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="page-title">Procurement Queue</h1>
+        <h1 className="page-title">Procurement queue</h1>
         <p className="page-subtitle">{queueRequests.length} requests awaiting action</p>
       </div>
 
@@ -35,7 +35,7 @@ export default function ProcurementQueue() {
             <tr className="border-b border-slate-100">
               <th className="table-header">Request</th>
               <th className="table-header">Site</th>
-              <th className="table-header">Vendor / Invoice</th>
+              <th className="table-header">Vendor / invoice</th>
               <th className="table-header">Priority</th>
               <th className="table-header">Status</th>
               <th className="table-header">SLA</th>

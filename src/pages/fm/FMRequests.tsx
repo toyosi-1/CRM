@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Filter } from 'lucide-react';
+import { Plus, Search, Filter, Paperclip } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { StatusBadge, PriorityBadge } from '../../components/shared/Badges';
 import { formatDate, getSlaStatus } from '../../utils/helpers';
@@ -8,11 +8,12 @@ import type { RequestStatus } from '../../types';
 
 export default function FMRequests() {
   const navigate = useNavigate();
-  const { currentUser, requests } = useStore();
+  const { currentUser, requests, activeSiteId } = useStore();
+  const siteId = activeSiteId ?? currentUser?.siteId;
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<RequestStatus | 'all'>('all');
 
-  const myRequests = requests.filter(r => r.siteId === currentUser?.siteId);
+  const myRequests = requests.filter(r => r.siteId === siteId);
   const filtered = myRequests.filter(r => {
     const matchSearch = r.requestNumber.toLowerCase().includes(search.toLowerCase()) ||
       r.description.toLowerCase().includes(search.toLowerCase());
@@ -35,7 +36,7 @@ export default function FMRequests() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="page-title">My Requests</h1>
+          <h1 className="page-title">My requests</h1>
           <p className="page-subtitle"><span className="font-bold text-slate-700">{myRequests.length}</span> total · <span className="font-bold text-brand-600">{filtered.length}</span> shown</p>
         </div>
         <button onClick={() => navigate('/fm/request/new')} className="btn-primary">
@@ -88,8 +89,22 @@ export default function FMRequests() {
                     <span className="font-bold text-brand-600 text-xs font-mono">{req.requestNumber}</span>
                   </td>
                   <td className="table-cell max-w-xs">
-                    <p className="truncate text-sm font-medium text-slate-800">{req.description}</p>
-                    {req.vendorName && <p className="text-xs text-slate-400 mt-0.5">{req.vendorName}</p>}
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const img = (req.attachments ?? []).find(a => /\.(png|jpe?g|gif|webp|heic|avif)$/i.test(a.name) || /\.(png|jpe?g|gif|webp|heic|avif)([?#]|$)/i.test(a.url));
+                        return img ? <img src={img.url} alt={img.name} className="w-9 h-9 rounded-lg object-cover border border-slate-200 flex-shrink-0" loading="lazy" /> : null;
+                      })()}
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-slate-800">{req.description}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {req.vendorName}
+                          {(req.attachments?.length ?? 0) > 0 && <span className="ml-1 inline-flex items-center gap-0.5">· <Paperclip size={10} /> {req.attachments!.length}</span>}
+                        </p>
+                        {req.status === 'REJECTED' && req.rejectionComment && (
+                          <p className="text-xs text-red-600 mt-1 font-medium">Rejected: {req.rejectionComment} — open to resubmit</p>
+                        )}
+                      </div>
+                    </div>
                   </td>
                   <td className="table-cell"><PriorityBadge priority={req.priority} /></td>
                   <td className="table-cell"><StatusBadge status={req.status} /></td>

@@ -9,7 +9,7 @@ export default function SupervisorDashboard() {
   const navigate = useNavigate();
   const { requests, sites, getBudgetSummaries } = useStore();
 
-  const pendingApproval = requests.filter(r => r.status === 'PO_GENERATED' || r.status === 'SUPERVISOR_APPROVAL');
+  const pendingAction = requests.filter(r => r.status === 'PO_GENERATED' || r.status === 'SUPERVISOR_APPROVAL');
   const approved = requests.filter(r => ['PAYMENT_PENDING', 'PAID', 'CLOSED'].includes(r.status));
   const rejected = requests.filter(r => r.status === 'REJECTED');
   const budgetWarnings = requests.filter(r => r.isBudgetWarning && !['PAID', 'CLOSED'].includes(r.status));
@@ -19,12 +19,11 @@ export default function SupervisorDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="dash-header" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 50%, #4f46e5 100%)' }}>
+      <div className="dash-header">
         <div className="relative z-10">
-          <h1 className="text-2xl font-bold text-white tracking-tight">Supervisor Dashboard</h1>
-          <p className="text-white/70 text-sm mt-1">Review approvals · manage site rules · monitor budgets</p>
+          <h1 className="text-2xl font-bold tracking-tight">Supervisor dashboard</h1>
+          <p className="text-sm mt-1">Review approvals · manage site rules · monitor budgets</p>
         </div>
-        <div className="absolute right-10 top-2 w-28 h-28 rounded-full bg-white/5 pointer-events-none" />
       </div>
 
       {budgetWarnings.length > 0 && (
@@ -45,10 +44,10 @@ export default function SupervisorDashboard() {
             <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center">
               <Clock size={16} className="text-amber-500" />
             </div>
-            {pendingApproval.length > 0 ? <span className="trend-down">Action needed</span> : <span className="trend-up">Clear</span>}
+            {pendingAction.length > 0 ? <span className="trend-down">Action needed</span> : <span className="trend-up">Clear</span>}
           </div>
-          <p className="text-3xl font-extrabold text-amber-600 animate-count-up">{pendingApproval.length}</p>
-          <p className="text-xs text-slate-400 mt-1 font-medium">Pending Approval</p>
+          <p className="text-3xl font-extrabold text-amber-600 animate-count-up">{pendingAction.length}</p>
+          <p className="text-xs text-slate-400 mt-1 font-medium">Pending Action</p>
         </div>
         <div className="stat-card">
           <div className="flex items-start justify-between mb-3">
@@ -86,11 +85,11 @@ export default function SupervisorDashboard() {
         {/* Approval Queue */}
         <div className="lg:col-span-2 card overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-            <h2 className="section-title">Approval Queue</h2>
+            <h2 className="section-title">Approval queue</h2>
             <button onClick={() => navigate('/supervisor/approvals')} className="btn-ghost text-xs text-brand-600 font-bold">View all</button>
           </div>
           <div className="divide-y divide-slate-100">
-            {pendingApproval.slice(0, 5).map(req => {
+            {pendingAction.slice(0, 5).map(req => {
               const sla = getSlaStatus(req.slaDeadline, req.status);
               return (
                 <div key={req.id} onClick={() => navigate(`/request/${req.id}`)} className="request-row group">
@@ -114,7 +113,7 @@ export default function SupervisorDashboard() {
                 </div>
               );
             })}
-            {pendingApproval.length === 0 && (
+            {pendingAction.length === 0 && (
               <div className="flex flex-col items-center py-12 text-center">
                 <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center mb-3">
                   <CheckCircle size={20} className="text-emerald-500" />

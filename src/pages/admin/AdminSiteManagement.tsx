@@ -1,11 +1,41 @@
-import { useState } from 'react';
-import { Building2, MapPin, Phone, Calendar, AlertTriangle, CheckCircle, TrendingUp, Layers, ChevronRight, DollarSign } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
+import { Building2, MapPin, Phone, Calendar, AlertTriangle, CheckCircle, TrendingUp, Layers, ChevronRight, DollarSign, Pencil, Plus, XCircle } from 'lucide-react';
 import { useStore } from '../../store/useStore';
-import { formatCurrency, formatDate } from '../../utils/helpers';
+import { formatCurrency, formatDate, titleCase } from '../../utils/helpers';
+import { FACILITY_TYPES, type Site } from '../../types';
+
+const EMPTY_SITE = (): Site => ({
+  id: crypto.randomUUID(), name: '', address: '', size: '', contactName: '', contactPhone: '', contactEmail: '',
+  pettyCashEnabled: false, floatLimit: 0, monthlyBudget: 0, currentMonthSpend: 0, slaExpiryDate: '',
+  siteType: 'Full commercial building — multiple floors', floors: '', units: '', scope: '',
+  electricityBilling: 'postpaid', meterAccountNo: '', emergencyContact: '', securityDesk: '',
+  status: 'healthy', createdAt: new Date().toISOString(),
+});
 
 export default function AdminSiteManagement() {
-  const { sites } = useStore();
+  const { sites, saveSite } = useStore();
   const [selected, setSelected] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Site | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const f = event.currentTarget.elements as unknown as Record<string, HTMLInputElement | HTMLSelectElement>;
+    setSaving(true);
+    await saveSite({
+      ...editing!,
+      name: titleCase(f.name.value), address: titleCase(f.address.value), siteType: f.siteType.value as Site['siteType'],
+      size: f.size.value, floors: titleCase(f.floors.value), units: f.units.value, scope: f.scope.value,
+      contactName: titleCase(f.contactName.value), contactPhone: f.contactPhone.value, contactEmail: f.contactEmail.value.trim(),
+      monthlyBudget: Number(f.monthlyBudget.value) || 0, floatLimit: Number(f.floatLimit.value) || 0,
+      pettyCashEnabled: (f.pettyCash as HTMLInputElement).checked, slaExpiryDate: f.slaExpiryDate.value,
+      electricityBilling: f.electricityBilling.value as Site['electricityBilling'], meterAccountNo: f.meterAccountNo.value,
+      emergencyContact: f.emergencyContact.value, securityDesk: f.securityDesk.value,
+      status: f.status.value as Site['status'],
+    });
+    setEditing(null);
+    setSaving(false);
+  };
 
   const selectedSite = sites.find(s => s.id === selected);
   const slaExpiredSites = sites.filter(s => new Date(s.slaExpiryDate) < new Date());
@@ -24,7 +54,8 @@ export default function AdminSiteManagement() {
             <h1 className="text-2xl font-black text-white tracking-tight">Site Management</h1>
             <p className="text-white/60 text-sm mt-1 font-medium">{sites.length} facility sites across your network</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 items-start">
+            <button onClick={() => setEditing(EMPTY_SITE())} className="btn-white-glass"><Plus size={14} />New site</button>
             <div className="text-center px-4 py-2 rounded-2xl border border-white/20 bg-white/10 backdrop-blur">
               <p className="text-2xl font-black text-white animate-count-up">{sites.length}</p>
               <p className="text-white/60 text-[11px] font-semibold mt-0.5">Total Sites</p>
@@ -42,6 +73,38 @@ export default function AdminSiteManagement() {
         <div className="absolute right-8 top-3 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />
         <div className="absolute right-20 -top-6 w-20 h-20 rounded-full bg-white/5 pointer-events-none" />
       </div>
+
+      {/* ── Site create/edit form ─────────────────── */}
+      {editing && (
+        <form key={editing.id} onSubmit={submit} className="card p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-black text-slate-900">{sites.some(s => s.id === editing.id) ? `Edit ${editing.name}` : 'New facility'}</h2>
+            <button type="button" onClick={() => setEditing(null)}><XCircle size={18} className="text-slate-400" /></button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="form-group"><label className="label">Facility name</label><input name="name" className="input" defaultValue={editing.name} required /></div>
+            <div className="form-group"><label className="label">Address</label><input name="address" className="input" defaultValue={editing.address} required /></div>
+            <div className="form-group"><label className="label">Facility type</label><select name="siteType" className="select" defaultValue={editing.siteType}>{FACILITY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
+            <div className="form-group"><label className="label">Size</label><input name="size" className="input" defaultValue={editing.size} placeholder="e.g. 12 floors · 48 units" /></div>
+            <div className="form-group"><label className="label">Floors / levels</label><input name="floors" className="input" defaultValue={editing.floors} placeholder="e.g. Basement, Ground Floor, First Floor" /></div>
+            <div className="form-group"><label className="label">Units</label><input name="units" className="input" defaultValue={editing.units} /></div>
+            <div className="form-group md:col-span-3"><label className="label">Scope of services</label><input name="scope" className="input" defaultValue={editing.scope} placeholder="e.g. Cleaning, security, MEP maintenance" /></div>
+            <div className="form-group"><label className="label">Contact person</label><input name="contactName" className="input" defaultValue={editing.contactName} /></div>
+            <div className="form-group"><label className="label">Contact phone</label><input name="contactPhone" className="input" defaultValue={editing.contactPhone} /></div>
+            <div className="form-group"><label className="label">Contact email</label><input name="contactEmail" type="email" className="input" defaultValue={editing.contactEmail} /></div>
+            <div className="form-group"><label className="label">Annual budget (₦)</label><input name="monthlyBudget" type="number" min="0" className="input" defaultValue={editing.monthlyBudget || ''} /></div>
+            <div className="form-group"><label className="label">Petty cash float limit (₦)</label><input name="floatLimit" type="number" min="0" className="input" defaultValue={editing.floatLimit || ''} /></div>
+            <div className="form-group"><label className="label">SLA expiry date</label><input name="slaExpiryDate" type="date" className="input" defaultValue={editing.slaExpiryDate?.slice(0, 10)} /></div>
+            <div className="form-group"><label className="label">Electricity billing</label><select name="electricityBilling" className="select" defaultValue={editing.electricityBilling}><option value="postpaid">Postpaid</option><option value="prepaid">Prepaid</option><option value="none">None</option></select></div>
+            <div className="form-group"><label className="label">Meter / account no.</label><input name="meterAccountNo" className="input" defaultValue={editing.meterAccountNo} /></div>
+            <div className="form-group"><label className="label">Emergency contact</label><input name="emergencyContact" className="input" defaultValue={editing.emergencyContact} /></div>
+            <div className="form-group"><label className="label">Security desk</label><input name="securityDesk" className="input" defaultValue={editing.securityDesk} /></div>
+            <div className="form-group"><label className="label">Status</label><select name="status" className="select" defaultValue={editing.status}><option value="healthy">Healthy</option><option value="watch">Watch</option><option value="overspent">Overspent</option><option value="inactive">Inactive</option></select></div>
+            <div className="form-group flex items-end pb-1"><label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input name="pettyCash" type="checkbox" className="w-4 h-4" defaultChecked={editing.pettyCashEnabled} />Petty cash enabled</label></div>
+          </div>
+          <button className="btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save facility'}</button>
+        </form>
+      )}
 
       {/* ── SLA Alert ───────────────────────────── */}
       {slaExpiredSites.length > 0 && (
@@ -62,7 +125,7 @@ export default function AdminSiteManagement() {
         {/* ── Site Cards ───────────────────────────── */}
         <div className="lg:col-span-2 space-y-3">
           {sites.map((site, idx) => {
-            const utilPct = Math.round((site.currentMonthSpend / site.monthlyBudget) * 100);
+            const utilPct = site.monthlyBudget > 0 ? Math.round((site.currentMonthSpend / site.monthlyBudget) * 100) : 0;
             const slaExpired = new Date(site.slaExpiryDate) < new Date();
             const isSelected = selected === site.id;
             const barColor = utilPct >= 90
@@ -186,22 +249,23 @@ export default function AdminSiteManagement() {
               </div>
 
               <div className="p-5 space-y-4">
+                <button onClick={() => { setEditing(selectedSite); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="btn-secondary w-full justify-center text-xs"><Pencil size={12} />Edit facility details</button>
 
                 {/* Budget spotlight */}
                 <div className="rounded-2xl p-4 border"
                   style={{ background: 'linear-gradient(135deg, #eff6ff, #f5f3ff)', borderColor: 'rgba(99,102,241,0.12)' }}>
                   <div className="flex items-center gap-2 mb-1">
                     <TrendingUp size={13} className="text-brand-500" />
-                    <p className="label">Monthly Budget</p>
+                    <p className="label">Annual Budget</p>
                   </div>
                   <p className="text-2xl font-black text-slate-900">{formatCurrency(selectedSite.monthlyBudget)}</p>
                   <p className="text-xs text-slate-500 mt-1">
-                    <span className="font-bold text-brand-600">{formatCurrency(selectedSite.currentMonthSpend)}</span> spent this month
+                    <span className="font-bold text-brand-600">{formatCurrency(selectedSite.currentMonthSpend)}</span> spent to date
                   </p>
                   <div className="mt-3 w-full bg-white/70 rounded-full h-2 overflow-hidden">
                     <div
                       className="h-2 rounded-full bg-gradient-to-r from-brand-500 to-purple-600 transition-all duration-700"
-                      style={{ width: `${Math.min(Math.round((selectedSite.currentMonthSpend / selectedSite.monthlyBudget) * 100), 100)}%` }}
+                      style={{ width: `${Math.min(selectedSite.monthlyBudget > 0 ? Math.round((selectedSite.currentMonthSpend / selectedSite.monthlyBudget) * 100) : 0, 100)}%` }}
                     />
                   </div>
                 </div>

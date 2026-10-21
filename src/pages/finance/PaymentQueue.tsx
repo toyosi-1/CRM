@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DollarSign, Eye, CheckCircle } from 'lucide-react';
 import { useStore } from '../../store/useStore';
+import { uploadFile } from '../../lib/firestore';
 import { PriorityBadge, StatusBadge } from '../../components/shared/Badges';
 import { formatCurrency, getSlaStatus, TAX_LABELS } from '../../utils/helpers';
 import type { TaxType } from '../../types';
@@ -9,19 +11,27 @@ export default function PaymentQueue() {
   const navigate = useNavigate();
   const { currentUser, requests, processPayment, markPaid } = useStore();
 
+  const [receiptFiles, setReceiptFiles] = useState<Record<string, File | null>>({});
+  const [savingId, setSavingId] = useState('');
   const queue = requests.filter(r => r.status === 'PAYMENT_PENDING' || r.status === 'ADMIN_APPROVED');
   const handleApplyTax = (reqId: string, taxType: TaxType) => {
     processPayment(reqId, taxType, currentUser!.id);
   };
 
-  const handleMarkPaid = (reqId: string) => {
-    markPaid(reqId, currentUser!.id);
+  const handleMarkPaid = async (reqId: string) => {
+    const file = receiptFiles[reqId];
+    if (!file || !currentUser) return;
+    setSavingId(reqId);
+    const receiptUrl = await uploadFile(`receipts/${reqId}/${crypto.randomUUID()}-${file.name}`, file);
+    markPaid(reqId, currentUser.id, receiptUrl);
+    setReceiptFiles(current => ({ ...current, [reqId]: null }));
+    setSavingId('');
   };
 
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="page-title">Payment Queue</h1>
+        <h1 className="page-title">Payment queue</h1>
         <p className="page-subtitle">{queue.length} requests pending payment processing</p>
       </div>
 
@@ -94,9 +104,12 @@ export default function PaymentQueue() {
                     </>
                   )}
                   {hasTax && (
-                    <button onClick={() => handleMarkPaid(req.id)} className="btn-success text-xs py-1.5">
-                      <CheckCircle size={12} /> Mark Paid
-                    </button>
+                    <>
+                      <input className="input text-xs" type="file" accept="image/*,.pdf" onChange={e => setReceiptFiles(current => ({ ...current, [req.id]: e.target.files?.[0] ?? null }))} />
+                      <button onClick={() => handleMarkPaid(req.id)} disabled={!receiptFiles[req.id] || savingId === req.id} className="btn-success text-xs py-1.5 disabled:opacity-50">
+                        <CheckCircle size={12} /> {savingId === req.id ? 'Uploading…' : 'Mark Paid'}
+                      </button>
+                    </>
                   )}
                 </div>
               </div>

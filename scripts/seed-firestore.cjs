@@ -1,36 +1,24 @@
 /**
  * FacilityOps — Firestore Seed Script
  *
- * Seeds all mock data into Firestore and creates Firebase Auth accounts
- * for each user with a default password.
+ * Seeds all mock data into Firestore and creates Firebase Auth accounts.
+ * Uses Firebase CLI Application Default Credentials — no service account JSON needed.
  *
  * Prerequisites:
- *   1. npm install -g firebase-tools
- *   2. firebase login
- *   3. Set FIREBASE_PROJECT_ID in this file (or pass as env var)
+ *   firebase login   (already done)
  *
  * Usage:
- *   GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey.json node scripts/seed-firestore.cjs
- *
- * Or using the Firebase Admin SDK with a service account JSON file
- * downloaded from Firebase Console > Project Settings > Service Accounts.
+ *   node scripts/seed-firestore.cjs
  */
 
 const admin = require('firebase-admin');
-const path = require('path');
 
-const SERVICE_ACCOUNT_PATH = process.env.GOOGLE_APPLICATION_CREDENTIALS
-  || path.join(__dirname, '..', 'serviceAccountKey.json');
+const PROJECT_ID = 'facilityops-crm';
 
-try {
-  const serviceAccount = require(SERVICE_ACCOUNT_PATH);
-  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-} catch (e) {
-  console.error('\n❌  Could not load service account key.');
-  console.error('    Download it from Firebase Console > Project Settings > Service Accounts');
-  console.error(`    Expected path: ${SERVICE_ACCOUNT_PATH}\n`);
-  process.exit(1);
-}
+admin.initializeApp({
+  credential: admin.credential.applicationDefault(),
+  projectId: PROJECT_ID,
+});
 
 const db = admin.firestore();
 const auth = admin.auth();

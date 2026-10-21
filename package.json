@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "migrate:supabase:dry": "node scripts/migrate-firebase-to-supabase.cjs",
+    "migrate:supabase": "node scripts/migrate-firebase-to-supabase.cjs --apply"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",
@@ -25,6 +27,7 @@
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-toast": "^1.2.15",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@supabase/supabase-js": "^2.117.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
@@ -49,12 +52,15 @@
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
+    "firebase-admin": "^13.9.0",
     "globals": "^17.4.0",
     "postcss": "^8.5.8",
     "puppeteer": "^24.43.0",
     "tailwindcss": "^3.4.19",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.56.1",
-    "vite": "^8.0.0"
+    "vite": "^8.0.0",
+    "vite-plugin-pwa": "^2.0.0",
+    "workbox-precaching": "^7.4.1"
   }
 }

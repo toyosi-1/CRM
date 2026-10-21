@@ -98,9 +98,9 @@ export default function AdminRequests() {
                       <button onClick={() => navigate(`/request/${req.id}`)} className="btn-icon w-7 h-7">
                         <Eye size={13} />
                       </button>
-                      {req.status === 'REQUEST_CREATED' && (
-                        <button onClick={e => handleEmergencyBypass(e, req.id)} className="px-2 py-1 bg-purple-100 text-purple-700 text-xs font-bold rounded-lg hover:bg-purple-200 flex items-center gap-1 transition-colors">
-                          <Zap size={10} /> Bypass
+                      {['REQUEST_CREATED', 'PROCUREMENT_REVIEW', 'PO_GENERATED', 'SUPERVISOR_APPROVAL'].includes(req.status) && (
+                        <button onClick={e => handleEmergencyBypass(e, req.id)} title="Veto — approve & skip to payment" className="px-2 py-1 bg-purple-100 text-purple-700 text-xs font-bold rounded-lg hover:bg-purple-200 flex items-center gap-1 transition-colors">
+                          <Zap size={10} /> Veto
                         </button>
                       )}
                     </div>

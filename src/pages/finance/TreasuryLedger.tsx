@@ -30,7 +30,7 @@ export default function TreasuryLedger() {
     <div className="space-y-5">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="page-title">Treasury Ledger</h1>
+          <h1 className="page-title">Treasury ledger</h1>
           <p className="page-subtitle">Non-operational revenue and facility inflows · Net balance: <span className={netBalance >= 0 ? 'text-emerald-600 font-bold' : 'text-red-600 font-bold'}>{formatCurrency(Math.abs(netBalance))}</span></p>
         </div>
         <button onClick={() => setShowForm(!showForm)} className="btn-primary">
@@ -119,7 +119,7 @@ export default function TreasuryLedger() {
               <th className="table-header">Source</th>
               <th className="table-header">Type</th>
               <th className="table-header">Amount</th>
-              <th className="table-header">Recorded By</th>
+              <th className="table-header">Recorded by</th>
             </tr>
           </thead>
           <tbody>

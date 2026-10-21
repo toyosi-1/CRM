@@ -1,4 +1,4 @@
-export type UserRole = 'facility_manager' | 'procurement' | 'supervisor' | 'finance' | 'admin';
+export type UserRole = 'facility_manager' | 'procurement' | 'supervisor' | 'finance' | 'admin' | 'technician';
 
 export type RequestStatus =
   | 'REQUEST_CREATED'
@@ -21,9 +21,38 @@ export interface User {
   email: string;
   role: UserRole;
   siteId?: string;
+  siteIds?: string[];
   avatar?: string;
   department: string;
+  phone: string;
+  trade: string;
+  active?: boolean;
+  notes?: string;
+  actingForProfileId?: string;
+  actingStart?: string;
+  actingEnd?: string;
+  actingHandover?: Record<string, unknown>;
+  actingAcknowledgedAt?: string;
 }
+
+export type FacilityType =
+  | 'Full residential building'
+  | 'Single unit — multiple floors'
+  | 'Single floor within a building'
+  | 'Selected units within a building'
+  | 'Full commercial building — multiple floors'
+  | 'Mixed use — residential and commercial'
+  | 'Gated estate — multiple structures';
+
+export const FACILITY_TYPES: FacilityType[] = [
+  'Full residential building',
+  'Single unit — multiple floors',
+  'Single floor within a building',
+  'Selected units within a building',
+  'Full commercial building — multiple floors',
+  'Mixed use — residential and commercial',
+  'Gated estate — multiple structures',
+];
 
 export interface Site {
   id: string;
@@ -38,6 +67,15 @@ export interface Site {
   monthlyBudget: number;
   currentMonthSpend: number;
   slaExpiryDate: string;
+  siteType: FacilityType;
+  floors: string;
+  units: string;
+  scope: string;
+  electricityBilling: 'postpaid' | 'prepaid' | 'none';
+  meterAccountNo: string;
+  emergencyContact: string;
+  securityDesk: string;
+  status: 'healthy' | 'watch' | 'overspent' | 'inactive';
   createdAt: string;
 }
 
@@ -46,6 +84,8 @@ export interface Vendor {
   name: string;
   category: string;
   type: VendorType;
+  rcNumber?: string;
+  exemptionNotes?: string;
   bankName: string;
   accountNumber: string;
   accountName: string;
@@ -54,13 +94,45 @@ export interface Vendor {
   avgCompletionDays: number;
   lastJobDate: string;
   riskScore: 'low' | 'medium' | 'high';
+  tier: '1' | '2' | '3';
+  contactPerson: string;
+  phone: string;
+  email?: string;
+  alias?: string;
+  tin: string;
+  verified: boolean;
+  approvalStatus?: 'pending' | 'approved' | 'rejected';
+  requestedBy?: string;
+  guarantorProfileId?: string;
   createdAt: string;
+}
+
+export interface FacilityVendorSLA {
+  id: string;
+  siteId: string;
+  vendorId: string;
+  category: string;
+  responseSlaHours: number;
+  startDate?: string;
+  expiryDate?: string;
+  paymentModel?: 'prepaid' | 'per_service';
+  suspended?: boolean;
+  renewalReview?: boolean;
+  breachNotices?: { issuedBy: string; at: string; reason: string }[];
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Asset {
   id: string;
   name: string;
   siteId: string;
+  floor?: string;
+  location?: string;
+  category?: string;
+  purchaseDate?: string;
+  shelfLifeMonths?: number;
   installationDate: string;
   lastRepairDate: string;
   totalRepairCost: number;
@@ -100,6 +172,13 @@ export interface AuditEntry {
   tatHours?: number;
 }
 
+export interface RequestAttachment {
+  name: string;
+  url: string;
+  originalSize: number;
+  compressedSize: number;
+}
+
 export interface MaintenanceRequest {
   id: string;
   requestNumber: string;
@@ -108,14 +187,29 @@ export interface MaintenanceRequest {
   submittedBy: string;
   submittedByName: string;
   description: string;
+  category?: string;
+  location?: string;
+  slaAvailable?: boolean;
+  oneTimeVendor?: {
+    name?: string;
+    contactPerson?: string;
+    phone?: string;
+    bankName?: string;
+    accountNumber?: string;
+    accountName?: string;
+    notes?: string;
+  };
   priority: Priority;
   status: RequestStatus;
   vendorId?: string;
   vendorName?: string;
+  vendorAttendedAt?: string;
   vendorType?: VendorType;
   invoiceAmount?: number;
   invoiceUrl?: string;
   faultPhotoUrl?: string;
+  attachments?: RequestAttachment[];
+  storageSaved?: number;
   assetId?: string;
   assetName?: string;
   purchaseOrder?: PurchaseOrder;
@@ -127,8 +221,19 @@ export interface MaintenanceRequest {
   rejectionComment?: string;
   isEmergencyBypass?: boolean;
   isBudgetWarning?: boolean;
+  isIncident?: boolean;
+  linkedIncidentId?: string;
+  jobCompletionUrl?: string;
+  reconStatus?: 'confirmed' | 'flagged';
+  reconNote?: string;
+  reconBy?: string;
   slaDeadline: string;
   slaBreached: boolean;
+  procurementReceivedAt?: string;
+  procurementHandledAt?: string;
+  supervisorReceivedAt?: string;
+  supervisorApprovedAt?: string;
+  paidAt?: string;
   auditTrail: AuditEntry[];
   createdAt: string;
   updatedAt: string;
@@ -139,6 +244,13 @@ export interface ChecklistItem {
   label: string;
   checked: boolean;
   timestamp?: string;
+  zone?: string;
+  responseType?: 'passfail' | 'rating' | 'numeric';
+  role?: 'fm' | 'tech' | 'both';
+  value?: string | number;
+  unit?: string;
+  comment?: string;
+  flagged?: boolean;
 }
 
 export interface Checklist {
@@ -187,4 +299,145 @@ export interface SLAStat {
   onTime: number;
   breached: number;
   compliancePct: number;
+}
+
+export interface PPMSchedule {
+  id: string;
+  siteId: string;
+  assetId?: string;
+  vendorId?: string;
+  title: string;
+  description: string;
+  frequencyMonths: number;
+  nextDueDate: string;
+  lastCompletedDate?: string;
+  status: 'scheduled' | 'due' | 'overdue' | 'completed' | 'deferred';
+  assignedTo?: string;
+  assignedRole?: 'FM' | 'Technician' | 'Vendor' | 'Finance';
+  deferralReason?: string;
+  contractStart?: string;
+  contractEnd?: string;
+  visitsIncluded?: number;
+  approx?: boolean;
+  planDates?: string[];
+  serviceHistory?: string[];
+  completionPhotos?: RequestAttachment[];
+  jobCompletionUrl?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Incident {
+  id: string;
+  siteId: string;
+  requestId?: string;
+  reportedBy: string;
+  title: string;
+  description: string;
+  category?: string;
+  severity: Priority;
+  status: 'open' | 'investigating' | 'resolved' | 'closed';
+  attachments: RequestAttachment[];
+  occurredAt: string;
+  resolvedAt?: string;
+  resolutionNotes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReconciliationEntry {
+  id: string;
+  entryDate: string;
+  reference: string;
+  payee: string;
+  siteId?: string;
+  amount: number;
+  state: 'confirmed' | 'pending' | 'exception';
+  note: string;
+  recordedBy: string;
+  createdAt: string;
+}
+
+export interface PettyCashEntry {
+  id: string;
+  siteId: string;
+  amount: number;
+  type: 'top_up' | 'expense';
+  description: string;
+  receiptUrl?: string;
+  recordedBy: string;
+  approvedBy?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  editCount?: number;
+  editNotes?: { note: string; by: string; at: string }[];
+  createdAt: string;
+}
+
+export interface SupportTicket {
+  id: string;
+  raisedBy: string;
+  page: string;
+  subject: string;
+  body: string;
+  priority: 'low' | 'medium' | 'high' | 'blocking';
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  attachmentUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Tenant {
+  id: string;
+  siteId: string;
+  name: string;
+  unit: string;
+  email: string;
+  phone: string;
+  monthlyRent: number;
+  leaseExpiry?: string;
+  lastPaymentDate?: string;
+  status: 'paid' | 'expiring_soon' | 'overdue';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface JobCompletion {
+  id: string;
+  requestId?: string;
+  ppmScheduleId?: string;
+  submittedBy: string;
+  narrative: string;
+  beforePhotoUrl?: string;
+  afterPhotoUrl?: string;
+  createdAt: string;
+}
+
+export interface ChecklistTemplateItem {
+  id: string;
+  name: string;
+  type: 'rating' | 'passfail' | 'numeric';
+  role: 'fm' | 'tech' | 'both';
+  unit?: string;
+  locked?: boolean;
+}
+
+export interface ChecklistTemplateZone {
+  id: string;
+  name: string;
+  icon?: string;
+  active: boolean;
+  locked?: boolean;
+  items: ChecklistTemplateItem[];
+}
+
+export interface ChecklistTemplate {
+  id: string;
+  siteId: string;
+  title: string;
+  frequency: 'daily' | 'weekly' | 'monthly';
+  daysOfWeek?: number[];
+  zones: ChecklistTemplateZone[];
+  createdAt: string;
+  updatedAt: string;
 }

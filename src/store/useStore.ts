@@ -1,18 +1,32 @@
 import { create } from 'zustand';
 import type {
   User, Site, Vendor, Asset, MaintenanceRequest,
-  Checklist, TreasuryEntry, RequestStatus, TaxType, Priority
+  Checklist, TreasuryEntry, RequestStatus, TaxType, Priority,
+  PPMSchedule, Incident, PettyCashEntry, SupportTicket, Tenant, JobCompletion, ChecklistTemplate, ReconciliationEntry, FacilityVendorSLA
 } from '../types';
 import {
   MOCK_USERS, MOCK_SITES, MOCK_VENDORS, MOCK_ASSETS,
   MOCK_REQUESTS, MOCK_CHECKLISTS, MOCK_TREASURY
 } from '../data/mockData';
 import {
-  fetchUsers, fetchSites, fetchVendors, fetchAssets,
+  fetchUsers, fetchSites, fetchVendors, fetchAssets, createAsset as createAssetRow, updateAsset as updateAssetRow,
   subscribeRequests, subscribeChecklists, subscribeTreasury,
-  createRequestInDB, updateRequestInDB, updateSiteInDB,
-  updateChecklistInDB, addTreasuryEntryInDB,
+  subscribePPMSchedules, subscribeIncidents, subscribePettyCash, subscribeSupportTickets,
+  subscribeTenants, subscribeJobCompletions, subscribeChecklistTemplates, subscribeReconciliation, subscribeFacilityVendorSLAs,
+  createReconciliationEntry, updateReconciliationEntry,
+  createRequestInDB, updateRequestInDB, deleteRequestInDB, updateSiteInDB, upsertSiteInDB,
+  updateChecklistInDB, addTreasuryEntryInDB, uploadFile,
+  createPPMSchedule, updatePPMSchedule, createIncident, updateIncident,
+  createPettyCashEntry, updatePettyCashEntry, createSupportTicket, updateSupportTicket,
+  createTenant, updateTenant, createJobCompletion, createChecklistTemplate, updateChecklistTemplate,
+  upsertVendor, createFacilityVendorSLA, updateFacilityVendorSLA, deleteFacilityVendorSLA,
 } from '../lib/firestore';
+import { supabase } from '../lib/supabase';
+import { titleCase, sentenceCase, normalizeFloor } from '../utils/helpers';
+
+type RequestDraft = Partial<MaintenanceRequest> & {
+  attachmentFiles?: Array<{ file: File; originalSize: number; compressedSize: number }>;
+};
 
 interface AppState {
   currentUser: User | null;
@@ -23,16 +37,33 @@ interface AppState {
   requests: MaintenanceRequest[];
   checklists: Checklist[];
   treasury: TreasuryEntry[];
+  ppmSchedules: PPMSchedule[];
+  incidents: Incident[];
+  pettyCash: PettyCashEntry[];
+  supportTickets: SupportTicket[];
+  tenants: Tenant[];
+  jobCompletions: JobCompletion[];
+  checklistTemplates: ChecklistTemplate[];
+  reconciliationEntries: ReconciliationEntry[];
+  facilityVendorSLAs: FacilityVendorSLA[];
   activeRequestId: string | null;
-  firebaseReady: boolean;
+  activeSiteId: string | null;
+  supabaseReady: boolean;
 
-  initFirebase: () => Promise<void>;
+  initSupabase: () => Promise<void>;
   login: (userId: string) => void;
   logout: () => void;
 
   setActiveRequest: (id: string | null) => void;
+  setActiveSiteId: (siteId: string) => void;
 
-  createRequest: (data: Partial<MaintenanceRequest>) => void;
+  getPPMForUser: () => PPMSchedule[];
+  getOpenIncidentsForUser: () => Incident[];
+  getPettyCashForSite: (siteId: string) => PettyCashEntry[];
+
+  createRequest: (data: RequestDraft) => Promise<void>;
+  deleteRequest: (requestId: string) => Promise<void>;
+  updateRequest: (requestId: string, data: Partial<MaintenanceRequest>) => Promise<void>;
   updateRequestStatus: (
     requestId: string,
     status: RequestStatus,
@@ -42,12 +73,47 @@ interface AppState {
   ) => void;
   generatePO: (requestId: string, actorId: string) => void;
   processPayment: (requestId: string, taxType: TaxType, actorId: string) => void;
-  markPaid: (requestId: string, actorId: string) => void;
+  markPaid: (requestId: string, actorId: string, receiptUrl?: string) => void;
 
   saveChecklist: (checklistId: string, items: Checklist['items']) => void;
   submitChecklist: (checklistId: string, userId: string) => void;
 
   updateSite: (siteId: string, data: Partial<Site>) => void;
+  saveSite: (site: Site) => Promise<void>;
+
+  createPPMSchedule: (data: Partial<PPMSchedule>) => Promise<void>;
+  updatePPMSchedule: (id: string, data: Partial<PPMSchedule>) => Promise<void>;
+
+  createAsset: (data: Partial<Asset>) => Promise<void>;
+  updateAsset: (id: string, data: Partial<Asset>) => Promise<void>;
+
+  createIncident: (data: Partial<Incident>) => Promise<void>;
+  updateIncident: (id: string, data: Partial<Incident>) => Promise<void>;
+
+  createPettyCashEntry: (data: Partial<PettyCashEntry>) => Promise<void>;
+  updatePettyCashEntry: (id: string, data: Partial<PettyCashEntry>) => Promise<void>;
+
+  createSupportTicket: (data: Partial<SupportTicket>) => Promise<void>;
+  updateSupportTicket: (id: string, data: Partial<SupportTicket>) => Promise<void>;
+
+  upsertVendor: (vendor: Partial<Vendor>) => Promise<void>;
+
+  createFacilityVendorSLA: (data: Partial<FacilityVendorSLA>) => Promise<void>;
+  updateFacilityVendorSLA: (id: string, data: Partial<FacilityVendorSLA>) => Promise<void>;
+  deleteFacilityVendorSLA: (id: string) => Promise<void>;
+
+  createTenant: (data: Partial<Tenant>) => Promise<void>;
+  updateTenant: (id: string, data: Partial<Tenant>) => Promise<void>;
+
+  createJobCompletion: (data: Partial<JobCompletion>) => Promise<void>;
+
+  createChecklistTemplate: (data: Partial<ChecklistTemplate>) => Promise<void>;
+  updateChecklistTemplate: (id: string, data: Partial<ChecklistTemplate>) => Promise<void>;
+
+  createReconEntry: (data: Partial<ReconciliationEntry>) => Promise<void>;
+  updateReconEntry: (id: string, data: Partial<ReconciliationEntry>) => Promise<void>;
+  setRequestRecon: (requestId: string, status: 'confirmed' | 'flagged', note: string, by: string) => Promise<void>;
+
   addTreasuryEntry: (entry: Omit<TreasuryEntry, 'id'>) => void;
 
   getBudgetSummaries: () => { siteId: string; siteName: string; monthlyBudget: number; spent: number; remaining: number; utilizationPct: number }[];
@@ -58,6 +124,8 @@ interface AppState {
 const SLA_HOURS: Record<Priority, number> = {
   critical: 2, high: 8, medium: 24, low: 72,
 };
+
+const DEMO_MODE = import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEMO_MODE === 'true';
 
 function genId() {
   return Math.random().toString(36).slice(2, 10);
@@ -72,20 +140,39 @@ function computeSlaDeadline(priority: Priority, createdAt: string): string {
 let _unsubRequests: (() => void) | null = null;
 let _unsubChecklists: (() => void) | null = null;
 let _unsubTreasury: (() => void) | null = null;
+let _unsubPPM: (() => void) | null = null;
+let _unsubIncidents: (() => void) | null = null;
+let _unsubPettyCash: (() => void) | null = null;
+let _unsubTickets: (() => void) | null = null;
+let _unsubTenants: (() => void) | null = null;
+let _unsubJobCompletions: (() => void) | null = null;
+let _unsubChecklistTemplates: (() => void) | null = null;
+let _unsubRecon: (() => void) | null = null;
+let _unsubFacilityVendorSLAs: (() => void) | null = null;
 
 export const useStore = create<AppState>((set, get) => ({
   currentUser: null,
-  users: MOCK_USERS,
-  sites: MOCK_SITES,
-  vendors: MOCK_VENDORS,
-  assets: MOCK_ASSETS,
-  requests: MOCK_REQUESTS,
-  checklists: MOCK_CHECKLISTS,
-  treasury: MOCK_TREASURY,
+  activeSiteId: null,
+  users: DEMO_MODE ? MOCK_USERS : [],
+  sites: DEMO_MODE ? MOCK_SITES : [],
+  vendors: DEMO_MODE ? MOCK_VENDORS : [],
+  assets: DEMO_MODE ? MOCK_ASSETS : [],
+  requests: DEMO_MODE ? MOCK_REQUESTS : [],
+  checklists: DEMO_MODE ? MOCK_CHECKLISTS : [],
+  treasury: DEMO_MODE ? MOCK_TREASURY : [],
+  ppmSchedules: [],
+  incidents: [],
+  pettyCash: [],
+  supportTickets: [],
+  tenants: [],
+  jobCompletions: [],
+  checklistTemplates: [],
+  reconciliationEntries: [],
+  facilityVendorSLAs: [],
   activeRequestId: null,
-  firebaseReady: false,
+  supabaseReady: false,
 
-  initFirebase: async () => {
+  initSupabase: async () => {
     try {
       const [users, sites, vendors, assets] = await Promise.all([
         fetchUsers(),
@@ -94,74 +181,130 @@ export const useStore = create<AppState>((set, get) => ({
         fetchAssets(),
       ]);
 
-      if (users.length) set({ users });
-      if (sites.length) set({ sites });
-      if (vendors.length) set({ vendors });
-      if (assets.length) set({ assets });
+      set({ users, sites, vendors, assets });
 
       if (_unsubRequests) _unsubRequests();
-      _unsubRequests = subscribeRequests(requests => {
-        if (requests.length) set({ requests });
-      });
+      _unsubRequests = subscribeRequests(requests => set({ requests }));
 
       if (_unsubChecklists) _unsubChecklists();
-      _unsubChecklists = subscribeChecklists(checklists => {
-        if (checklists.length) set({ checklists });
-      });
+      _unsubChecklists = subscribeChecklists(checklists => set({ checklists }));
 
       if (_unsubTreasury) _unsubTreasury();
-      _unsubTreasury = subscribeTreasury(treasury => {
-        if (treasury.length) set({ treasury });
-      });
+      _unsubTreasury = subscribeTreasury(treasury => set({ treasury }));
 
-      set({ firebaseReady: true });
+      if (_unsubPPM) _unsubPPM();
+      _unsubPPM = subscribePPMSchedules(ppmSchedules => set({ ppmSchedules }));
+
+      if (_unsubIncidents) _unsubIncidents();
+      _unsubIncidents = subscribeIncidents(incidents => set({ incidents }));
+
+      if (_unsubPettyCash) _unsubPettyCash();
+      _unsubPettyCash = subscribePettyCash(pettyCash => set({ pettyCash }));
+
+      if (_unsubTickets) _unsubTickets();
+      _unsubTickets = subscribeSupportTickets(supportTickets => set({ supportTickets }));
+
+      if (_unsubTenants) _unsubTenants();
+      _unsubTenants = subscribeTenants(tenants => set({ tenants }));
+
+      if (_unsubJobCompletions) _unsubJobCompletions();
+      _unsubJobCompletions = subscribeJobCompletions(jobCompletions => set({ jobCompletions }));
+
+      if (_unsubChecklistTemplates) _unsubChecklistTemplates();
+      _unsubChecklistTemplates = subscribeChecklistTemplates(checklistTemplates => set({ checklistTemplates }));
+
+      if (_unsubRecon) _unsubRecon();
+      _unsubRecon = subscribeReconciliation(reconciliationEntries => set({ reconciliationEntries }));
+
+      if (_unsubFacilityVendorSLAs) _unsubFacilityVendorSLAs();
+      _unsubFacilityVendorSLAs = subscribeFacilityVendorSLAs(facilityVendorSLAs => set({ facilityVendorSLAs }));
+
+      set({ supabaseReady: true });
     } catch (e) {
-      console.warn('Firebase init failed — falling back to mock data', e);
-      set({ firebaseReady: true });
+      console.error('Supabase initialization failed', e);
+      set({ supabaseReady: false });
     }
   },
 
   login: (userId) => {
     const { users } = get();
     const user = users.find(u => u.id === userId) ?? null;
-    set({ currentUser: user });
+    set({ currentUser: user, activeSiteId: user?.siteId ?? null });
   },
 
   logout: () => {
     if (_unsubRequests) { _unsubRequests(); _unsubRequests = null; }
     if (_unsubChecklists) { _unsubChecklists(); _unsubChecklists = null; }
     if (_unsubTreasury) { _unsubTreasury(); _unsubTreasury = null; }
-    set({ currentUser: null, activeRequestId: null });
+    if (_unsubPPM) { _unsubPPM(); _unsubPPM = null; }
+    if (_unsubIncidents) { _unsubIncidents(); _unsubIncidents = null; }
+    if (_unsubPettyCash) { _unsubPettyCash(); _unsubPettyCash = null; }
+    if (_unsubTickets) { _unsubTickets(); _unsubTickets = null; }
+    if (_unsubTenants) { _unsubTenants(); _unsubTenants = null; }
+    if (_unsubJobCompletions) { _unsubJobCompletions(); _unsubJobCompletions = null; }
+    if (_unsubChecklistTemplates) { _unsubChecklistTemplates(); _unsubChecklistTemplates = null; }
+    if (_unsubFacilityVendorSLAs) { _unsubFacilityVendorSLAs(); _unsubFacilityVendorSLAs = null; }
+    set({ currentUser: null, activeRequestId: null, activeSiteId: null });
   },
 
   setActiveRequest: (id) => set({ activeRequestId: id }),
+  setActiveSiteId: (siteId) => set({ activeSiteId: siteId }),
 
-  createRequest: (data) => {
+  createRequest: async (data) => {
     const { currentUser, sites, requests } = get();
     if (!currentUser) return;
-    const site = sites.find(s => s.id === currentUser.siteId);
+    const attachmentFiles = data.attachmentFiles ?? [];
+    const attachments = await Promise.all(attachmentFiles.map(async (attachment, index) => ({
+      name: attachment.file.name,
+      url: await uploadFile(`requests/${currentUser.id}/${Date.now()}-${index}-${attachment.file.name}`, attachment.file),
+      originalSize: attachment.originalSize,
+      compressedSize: attachment.compressedSize,
+    })));
+    const requestSiteId = get().activeSiteId ?? currentUser.siteId;
+    const site = sites.find(s => s.id === requestSiteId);
     const now = new Date().toISOString();
     const priority = (data.priority ?? 'medium') as Priority;
     const slaDeadline = computeSlaDeadline(priority, now);
-    const reqNum = `REQ-2026-${String(requests.length + 42).padStart(4, '0')}`;
+    const { data: reqNumData, error: reqNumError } = await supabase.rpc('generate_request_number', {
+      p_site_id: requestSiteId,
+      p_created_at: now,
+    });
+    if (reqNumError) throw reqNumError;
+    const reqNum = String(reqNumData ?? '');
     const id = genId();
     const newReq: MaintenanceRequest = {
       id,
       requestNumber: reqNum,
-      siteId: currentUser.siteId ?? '',
+      siteId: requestSiteId ?? '',
       siteName: site?.name ?? '',
       submittedBy: currentUser.id,
       submittedByName: currentUser.name,
-      description: data.description ?? '',
+      description: sentenceCase(data.description ?? ''),
+      category: data.category ? titleCase(data.category) : undefined,
+      location: data.location ? data.location.split('—').map(part => titleCase(part)).join('—') : undefined,
+      slaAvailable: data.slaAvailable ?? false,
+      oneTimeVendor: data.oneTimeVendor ? {
+        ...data.oneTimeVendor,
+        name: data.oneTimeVendor.name ? titleCase(data.oneTimeVendor.name) : data.oneTimeVendor.name,
+        contactPerson: data.oneTimeVendor.contactPerson ? titleCase(data.oneTimeVendor.contactPerson) : data.oneTimeVendor.contactPerson,
+        bankName: data.oneTimeVendor.bankName ? titleCase(data.oneTimeVendor.bankName) : data.oneTimeVendor.bankName,
+        accountName: data.oneTimeVendor.accountName ? titleCase(data.oneTimeVendor.accountName) : data.oneTimeVendor.accountName,
+      } : undefined,
       priority,
       status: 'REQUEST_CREATED',
       vendorId: data.vendorId,
-      vendorName: data.vendorName,
+      vendorName: data.vendorName ? titleCase(data.vendorName) : undefined,
       vendorType: data.vendorType,
       invoiceAmount: data.invoiceAmount,
       assetId: data.assetId,
       assetName: data.assetName,
+      attachments,
+      storageSaved: data.storageSaved,
+      faultPhotoUrl: attachments.find(attachment => !attachment.name.startsWith('QUOTE-'))?.url,
+      invoiceUrl: attachments.find(attachment => attachment.name.startsWith('QUOTE-'))?.url,
       isBudgetWarning: data.isBudgetWarning ?? false,
+      isIncident: data.isIncident ?? false,
+      linkedIncidentId: data.linkedIncidentId,
       slaDeadline,
       slaBreached: false,
       createdAt: now,
@@ -178,8 +321,30 @@ export const useStore = create<AppState>((set, get) => ({
         tatHours: 0,
       }],
     };
-    createRequestInDB(newReq).catch(console.error);
+    await createRequestInDB(newReq);
     set({ requests: [newReq, ...requests] });
+    if (data.isIncident) {
+      if (data.linkedIncidentId) {
+        await updateIncident(data.linkedIncidentId, { requestId: id, status: 'investigating' }).catch(console.error);
+      } else {
+        await createIncident({
+          id: genId(), siteId: requestSiteId ?? '', requestId: id, reportedBy: currentUser.id,
+          title: data.description?.split('\n')[0]?.slice(0, 120) || 'Significant incident',
+          description: `Auto-created incident report linked to request ${reqNum}.\n\n${data.description ?? ''}`,
+          severity: priority, status: 'open', attachments, occurredAt: now, createdAt: now, updatedAt: now,
+        }).catch(console.error);
+      }
+    }
+  },
+
+  deleteRequest: async (requestId) => {
+    await deleteRequestInDB(requestId);
+    set(state => ({ requests: state.requests.filter(r => r.id !== requestId) }));
+  },
+
+  updateRequest: async (requestId, data) => {
+    await updateRequestInDB(requestId, { ...data, updatedAt: new Date().toISOString() });
+    set(state => ({ requests: state.requests.map(r => r.id === requestId ? { ...r, ...data, updatedAt: new Date().toISOString() } : r) }));
   },
 
   updateRequestStatus: (requestId, status, actorId, action, comment) => {
@@ -200,7 +365,19 @@ export const useStore = create<AppState>((set, get) => ({
           userRole: actor.role, department: actor.department,
           action, comment, timestamp: now, tatHours,
         };
-        const updated = { ...r, status, rejectionComment: comment, updatedAt: now, auditTrail: [...r.auditTrail, entry] };
+        const updated = {
+          ...r,
+          status,
+          ...(status === 'PROCUREMENT_REVIEW' && { procurementReceivedAt: now }),
+          ...(status === 'SUPERVISOR_APPROVAL' && { supervisorReceivedAt: now }),
+          ...(status === 'PAYMENT_PENDING' && { supervisorApprovedAt: now }),
+          ...(status === 'PAID' && { paidAt: now }),
+          ...(status === 'ADMIN_APPROVED' && { supervisorApprovedAt: now }),
+          rejectionComment: comment,
+          isEmergencyBypass: r.isEmergencyBypass || action.includes('EMERGENCY BYPASS'),
+          updatedAt: now,
+          auditTrail: [...r.auditTrail, entry],
+        };
         updateRequestInDB(requestId, updated).catch(console.error);
         return updated;
       }),
@@ -233,7 +410,7 @@ export const useStore = create<AppState>((set, get) => ({
     set({
       requests: requests.map(r => {
         if (r.id !== requestId) return r;
-        const updated = { ...r, status: 'PO_GENERATED' as const, purchaseOrder: po, updatedAt: now, auditTrail: [...r.auditTrail, entry] };
+        const updated = { ...r, status: 'PO_GENERATED' as const, purchaseOrder: po, procurementHandledAt: now, supervisorReceivedAt: now, updatedAt: now, auditTrail: [...r.auditTrail, entry] };
         updateRequestInDB(requestId, updated).catch(console.error);
         return updated;
       }),
@@ -267,7 +444,7 @@ export const useStore = create<AppState>((set, get) => ({
     });
   },
 
-  markPaid: (requestId, actorId) => {
+  markPaid: (requestId, actorId, receiptUrl) => {
     const { users, requests, sites } = get();
     const actor = users.find(u => u.id === actorId);
     const req = requests.find(r => r.id === requestId);
@@ -277,7 +454,7 @@ export const useStore = create<AppState>((set, get) => ({
     const entry = {
       id: genId(), requestId, userId: actor.id, userName: actor.name,
       userRole: actor.role, department: actor.department,
-      action: `Payment completed. Net amount ₦${(req.netPayment ?? req.invoiceAmount ?? 0).toLocaleString()} disbursed. Receipt uploaded.`,
+      action: `Payment completed. Net amount ₦${(req.netPayment ?? req.invoiceAmount ?? 0).toLocaleString()} disbursed.${receiptUrl ? ' Receipt uploaded.' : ' No receipt uploaded.'}`,
       timestamp: now, tatHours,
     };
     const updatedSites = sites.map(s =>
@@ -288,7 +465,7 @@ export const useStore = create<AppState>((set, get) => ({
     set({
       requests: requests.map(r => {
         if (r.id !== requestId) return r;
-        const updated = { ...r, status: 'PAID' as const, paymentReceiptUrl: 'receipt.pdf', updatedAt: now, auditTrail: [...r.auditTrail, entry] };
+        const updated = { ...r, status: 'PAID' as const, paymentReceiptUrl: receiptUrl, paidAt: now, updatedAt: now, auditTrail: [...r.auditTrail, entry] };
         updateRequestInDB(requestId, updated).catch(console.error);
         return updated;
       }),
@@ -325,6 +502,150 @@ export const useStore = create<AppState>((set, get) => ({
     updateSiteInDB(siteId, data).catch(console.error);
   },
 
+  saveSite: async (site) => {
+    await upsertSiteInDB(site);
+    set(state => ({
+      sites: state.sites.some(s => s.id === site.id)
+        ? state.sites.map(s => (s.id === site.id ? { ...s, ...site } : s))
+        : [...state.sites, site],
+    }));
+  },
+
+  createAsset: async (data) => {
+    const asset = {
+      ...data, id: genId(), status: data.status ?? 'operational', totalRepairCost: 0, maintenanceHistory: [],
+      name: data.name ? titleCase(data.name) : data.name,
+      floor: data.floor ? normalizeFloor(data.floor) : data.floor,
+      location: data.location ? titleCase(data.location) : data.location,
+      category: data.category ? titleCase(data.category) : data.category,
+    } as Asset;
+    await createAssetRow(asset);
+    set(state => ({ assets: [...state.assets, asset].sort((a, b) => a.name.localeCompare(b.name)) }));
+  },
+  updateAsset: async (id, data) => {
+    const normalized: Partial<Asset> = {
+      ...data,
+      ...(data.name !== undefined && { name: titleCase(data.name) }),
+      ...(data.floor !== undefined && { floor: data.floor ? normalizeFloor(data.floor) : data.floor }),
+      ...(data.location !== undefined && { location: data.location ? titleCase(data.location) : data.location }),
+      ...(data.category !== undefined && { category: data.category ? titleCase(data.category) : data.category }),
+    };
+    await updateAssetRow(id, normalized);
+    set(state => ({ assets: state.assets.map(a => a.id === id ? { ...a, ...normalized } : a).sort((a, b) => a.name.localeCompare(b.name)) }));
+  },
+
+  createPPMSchedule: async (data) => {
+    await createPPMSchedule({ ...data, id: genId(), status: data.status ?? 'scheduled' });
+  },
+  updatePPMSchedule: async (id, data) => {
+    set(state => ({ ppmSchedules: state.ppmSchedules.map(s => s.id === id ? { ...s, ...data, updatedAt: new Date().toISOString() } : s) }));
+    await updatePPMSchedule(id, data).catch(console.error);
+  },
+
+  createIncident: async (data) => {
+    const id = genId();
+    const now = new Date().toISOString();
+    await createIncident({
+      ...data, id, status: 'open', occurredAt: data.occurredAt ?? now, createdAt: now, updatedAt: now,
+      title: data.title ? titleCase(data.title) : data.title,
+      description: data.description ? sentenceCase(data.description) : data.description,
+      category: data.category ? titleCase(data.category) : data.category,
+    });
+  },
+  updateIncident: async (id, data) => {
+    const normalized: Partial<Incident> = {
+      ...data,
+      ...(data.title !== undefined && { title: titleCase(data.title) }),
+      ...(data.description !== undefined && { description: sentenceCase(data.description) }),
+      ...(data.category !== undefined && { category: data.category ? titleCase(data.category) : data.category }),
+    };
+    set(state => ({ incidents: state.incidents.map(item => item.id === id ? { ...item, ...normalized, updatedAt: new Date().toISOString() } : item) }));
+    await updateIncident(id, normalized).catch(console.error);
+  },
+
+  createPettyCashEntry: async (data) => {
+    const id = genId();
+    const now = new Date().toISOString();
+    await createPettyCashEntry({ ...data, id, status: 'approved', createdAt: now });
+  },
+  updatePettyCashEntry: async (id, data) => {
+    set(state => ({ pettyCash: state.pettyCash.map(item => item.id === id ? { ...item, ...data } : item) }));
+    await updatePettyCashEntry(id, data).catch(console.error);
+  },
+
+  createSupportTicket: async (data) => {
+    const id = genId();
+    const now = new Date().toISOString();
+    await createSupportTicket({ ...data, id, status: 'open', createdAt: now, updatedAt: now });
+  },
+  updateSupportTicket: async (id, data) => {
+    set(state => ({ supportTickets: state.supportTickets.map(item => item.id === id ? { ...item, ...data, updatedAt: new Date().toISOString() } : item) }));
+    await updateSupportTicket(id, data).catch(console.error);
+  },
+
+  upsertVendor: async (vendor) => {
+    const normalized: Partial<Vendor> = {
+      ...vendor,
+      ...(vendor.name !== undefined && { name: titleCase(vendor.name) }),
+      ...(vendor.category !== undefined && { category: vendor.category ? titleCase(vendor.category) : vendor.category }),
+      ...(vendor.contactPerson !== undefined && { contactPerson: vendor.contactPerson ? titleCase(vendor.contactPerson) : vendor.contactPerson }),
+      ...(vendor.bankName !== undefined && { bankName: vendor.bankName ? titleCase(vendor.bankName) : vendor.bankName }),
+      ...(vendor.accountName !== undefined && { accountName: vendor.accountName ? titleCase(vendor.accountName) : vendor.accountName }),
+      ...(vendor.alias !== undefined && { alias: vendor.alias ? titleCase(vendor.alias) : vendor.alias }),
+    };
+    set(state => ({
+      vendors: normalized.id && state.vendors.some(v => v.id === normalized.id)
+        ? state.vendors.map(v => v.id === normalized.id ? { ...v, ...normalized } : v)
+        : [...state.vendors, normalized as Vendor],
+    }));
+    await upsertVendor(normalized).catch(console.error);
+  },
+
+  createFacilityVendorSLA: async (data) => {
+    await createFacilityVendorSLA(data);
+    set(state => ({ facilityVendorSLAs: [data as FacilityVendorSLA, ...state.facilityVendorSLAs] }));
+  },
+  updateFacilityVendorSLA: async (id, data) => {
+    await updateFacilityVendorSLA(id, data);
+    set(state => ({ facilityVendorSLAs: state.facilityVendorSLAs.map(s => s.id === id ? { ...s, ...data } : s) }));
+  },
+  deleteFacilityVendorSLA: async (id) => {
+    await deleteFacilityVendorSLA(id);
+    set(state => ({ facilityVendorSLAs: state.facilityVendorSLAs.filter(s => s.id !== id) }));
+  },
+
+  createTenant: async (data) => {
+    await createTenant({ ...data, status: data.status ?? 'paid' });
+  },
+  updateTenant: async (id, data) => {
+    set(state => ({ tenants: state.tenants.map(item => item.id === id ? { ...item, ...data } : item) }));
+    await updateTenant(id, data).catch(console.error);
+  },
+
+  createJobCompletion: async (data) => {
+    await createJobCompletion({ ...data });
+  },
+
+  createChecklistTemplate: async (data) => {
+    await createChecklistTemplate({ ...data, zones: data.zones ?? [] });
+  },
+  createReconEntry: async (data) => {
+    await createReconciliationEntry({ ...data, id: crypto.randomUUID(), createdAt: new Date().toISOString() });
+  },
+  updateReconEntry: async (id, data) => {
+    set(state => ({ reconciliationEntries: state.reconciliationEntries.map(e => e.id === id ? { ...e, ...data } : e) }));
+    await updateReconciliationEntry(id, data).catch(console.error);
+  },
+  setRequestRecon: async (requestId, status, note, by) => {
+    set(state => ({ requests: state.requests.map(r => r.id === requestId ? { ...r, reconStatus: status, reconNote: note, reconBy: by } : r) }));
+    await updateRequestInDB(requestId, { reconStatus: status, reconNote: note, reconBy: by }).catch(console.error);
+  },
+
+  updateChecklistTemplate: async (id, data) => {
+    set(state => ({ checklistTemplates: state.checklistTemplates.map(item => item.id === id ? { ...item, ...data } : item) }));
+    await updateChecklistTemplate(id, data).catch(console.error);
+  },
+
   addTreasuryEntry: (entry) => {
     const newEntry = { ...entry, id: genId() };
     set(state => ({
@@ -341,19 +662,40 @@ export const useStore = create<AppState>((set, get) => ({
       monthlyBudget: s.monthlyBudget,
       spent: s.currentMonthSpend,
       remaining: s.monthlyBudget - s.currentMonthSpend,
-      utilizationPct: Math.round((s.currentMonthSpend / s.monthlyBudget) * 100),
+      utilizationPct: s.monthlyBudget > 0 ? Math.round((s.currentMonthSpend / s.monthlyBudget) * 100) : 0,
     }));
   },
 
   getRequestsBySite: (siteId) => get().requests.filter(r => r.siteId === siteId),
 
   getOpenRequestsForUser: () => {
-    const { currentUser, requests } = get();
+    const { currentUser, requests, activeSiteId } = get();
     if (!currentUser) return [];
-    if (currentUser.role === 'facility_manager') return requests.filter(r => r.siteId === currentUser.siteId);
+    if (currentUser.role === 'facility_manager') return requests.filter(r => r.siteId === (activeSiteId ?? currentUser.siteId));
     if (currentUser.role === 'procurement') return requests.filter(r => r.status === 'REQUEST_CREATED' || r.status === 'PROCUREMENT_REVIEW');
     if (currentUser.role === 'supervisor') return requests.filter(r => r.status === 'PO_GENERATED' || r.status === 'SUPERVISOR_APPROVAL');
     if (currentUser.role === 'finance') return requests.filter(r => r.status === 'PAYMENT_PENDING' || r.status === 'ADMIN_APPROVED');
     return requests;
+  },
+
+  getPPMForUser: () => {
+    const { currentUser, ppmSchedules } = get();
+    if (!currentUser) return [];
+    if (currentUser.role === 'technician') return ppmSchedules.filter(s => s.assignedTo === currentUser.id);
+    if (currentUser.role === 'facility_manager') return ppmSchedules.filter(s => s.siteId === (get().activeSiteId ?? currentUser.siteId));
+    return ppmSchedules;
+  },
+
+  getOpenIncidentsForUser: () => {
+    const { currentUser, incidents } = get();
+    if (!currentUser) return [];
+    if (currentUser.role === 'facility_manager') return incidents.filter(i => i.siteId === (get().activeSiteId ?? currentUser.siteId) && i.status !== 'closed');
+    if (currentUser.role === 'admin') return incidents;
+    return incidents.filter(i => i.status !== 'closed');
+  },
+
+  getPettyCashForSite: (siteId: string) => {
+    const { pettyCash } = get();
+    return pettyCash.filter(entry => entry.siteId === siteId);
   },
 }));

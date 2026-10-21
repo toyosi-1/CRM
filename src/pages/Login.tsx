@@ -1,17 +1,18 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Zap, Building2, ShoppingCart, CheckSquare, DollarSign, Shield, ArrowRight, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
+import { Home, Building2, ShoppingCart, CheckSquare, DollarSign, Shield, ArrowRight, Mail, Lock, Loader2, AlertCircle, Wrench } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { useAuth } from '../lib/AuthContext';
 import { MOCK_USERS } from '../data/mockData';
 import type { UserRole } from '../types';
 
 const ROLE_DEMOS = [
-  { userId: 'u1', role: 'facility_manager' as UserRole, label: 'Facility Manager', desc: 'Site operations & requests', icon: <Building2 size={16} />, color: '#0d9488' },
-  { userId: 'u3', role: 'procurement' as UserRole, label: 'Procurement', desc: 'Vendor & PO management', icon: <ShoppingCart size={16} />, color: '#3b82f6' },
-  { userId: 'u4', role: 'supervisor' as UserRole, label: 'Supervisor', desc: 'Approvals & governance', icon: <CheckSquare size={16} />, color: '#8b5cf6' },
-  { userId: 'u5', role: 'finance' as UserRole, label: 'Finance', desc: 'Payments & treasury', icon: <DollarSign size={16} />, color: '#10b981' },
-  { userId: 'u6', role: 'admin' as UserRole, label: 'System Admin', desc: 'Full system access', icon: <Shield size={16} />, color: '#6366f1' },
+  { userId: 'u1', role: 'facility_manager' as UserRole, label: 'Facility Manager', desc: 'Site operations & requests', icon: <Building2 size={16} />, color: '#7a8c3c' },
+  { userId: 'u3', role: 'procurement' as UserRole, label: 'Procurement', desc: 'Vendor & PO management', icon: <ShoppingCart size={16} />, color: '#5a7a3c' },
+  { userId: 'u4', role: 'supervisor' as UserRole, label: 'Supervisor', desc: 'Approvals & governance', icon: <CheckSquare size={16} />, color: '#4a6a2c' },
+  { userId: 'u5', role: 'finance' as UserRole, label: 'Finance', desc: 'Payments & treasury', icon: <DollarSign size={16} />, color: '#6b7c34' },
+  { userId: 'u6', role: 'admin' as UserRole, label: 'System Admin', desc: 'Full system access', icon: <Shield size={16} />, color: '#8a9c44' },
+  { userId: 'u7', role: 'technician' as UserRole, label: 'Technician', desc: 'Tasks & job completion', icon: <Wrench size={16} />, color: '#c17a2a' },
 ];
 
 const ROLE_ROUTES: Record<UserRole, string> = {
@@ -20,18 +21,36 @@ const ROLE_ROUTES: Record<UserRole, string> = {
   supervisor: '/supervisor',
   finance: '/finance',
   admin: '/admin',
+  technician: '/technician',
 };
 
 export default function Login() {
   const { login: storeLogin } = useStore();
-  const { login: firebaseLogin } = useAuth();
+  const { login: supabaseLogin, resetPassword } = useAuth();
   const navigate = useNavigate();
 
-  const [mode, setMode] = useState<'demo' | 'email'>('demo');
+  const demoEnabled = import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEMO_MODE === 'true';
+  const [mode, setMode] = useState<'demo' | 'email'>('email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  const handleResetPassword = async () => {
+    setError('');
+    setNotice('');
+    if (!email.trim()) {
+      setError('Enter your email address first.');
+      return;
+    }
+    try {
+      await resetPassword(email.trim());
+      setNotice('Password reset email sent. Check your inbox.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Unable to send reset email');
+    }
+  };
 
   const handleDemoLogin = (userId: string, role: UserRole) => {
     storeLogin(userId);
@@ -43,70 +62,75 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      await firebaseLogin(email, password);
+      await supabaseLogin(email, password);
       // AuthContext.onAuthStateChanged will call storeLogin and set currentUser
       // Navigate based on role resolved from Firestore user doc
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Login failed';
-      setError(msg.replace('Firebase: ', '').replace(/\(auth\/.*?\)\.?/, '').trim());
+      setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
       setLoading(false);
     }
   };
 
   const brandPanel = (
-    <div className="hidden lg:flex w-80 flex-col justify-between p-10" style={{ background: '#111827' }}>
+    <div className="hidden lg:flex w-80 flex-col justify-between p-10" style={{ background: '#1e2110' }}>
       <div>
         <div className="flex items-center gap-2.5 mb-12">
-          <div className="w-7 h-7 rounded bg-indigo-600 flex items-center justify-center">
-            <Zap size={14} className="text-white" fill="currentColor" />
+          <div className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0" style={{ background: '#7a8c3c' }}>
+            <Home size={15} className="text-white" />
           </div>
-          <span className="text-white font-semibold text-sm">FacilityOps</span>
+          <div>
+            <div className="text-white font-bold text-sm leading-tight">Propel Works Management Systems</div>
+            <div className="text-xs" style={{ color: '#a8cf45' }}>Propel Properties &amp; Facilities Services Ltd</div>
+          </div>
         </div>
         <h2 className="text-2xl font-semibold text-white leading-snug mb-3">
           Multi-Site Facility Operations
         </h2>
         <p className="text-slate-400 text-sm leading-relaxed">
-          End-to-end procurement, maintenance, and financial governance for enterprise facility teams.
+          End-to-end procurement, maintenance, and financial governance for your facility teams.
         </p>
         <div className="mt-8 space-y-3">
           {['Full audit trail on every request', 'SLA enforcement by priority', 'WHT tax calculation built-in', 'Budget governance per site'].map(f => (
             <div key={f} className="flex items-center gap-2.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0" />
+              <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#7a8c3c' }} />
               <span className="text-slate-400 text-sm">{f}</span>
             </div>
           ))}
         </div>
       </div>
-      <p className="text-slate-600 text-xs">v2.0 · Enterprise</p>
+      <p className="text-slate-600 text-xs">Propel Works Management Systems · Propel Properties &amp; Facilities Services Ltd</p>
     </div>
   );
 
   return (
-    <div className="min-h-screen flex" style={{ background: '#f4f5f7' }}>
+    <div className="h-screen flex overflow-y-auto" style={{ background: '#f4f5f7' }}>
       {brandPanel}
 
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex-1 flex items-center justify-center p-8 min-h-full">
         <div className="w-full max-w-lg">
 
           {/* Mobile logo */}
           <div className="flex lg:hidden items-center gap-2 mb-8">
-            <div className="w-7 h-7 rounded bg-indigo-600 flex items-center justify-center">
-              <Zap size={14} className="text-white" fill="currentColor" />
+            <div className="w-7 h-7 rounded flex items-center justify-center" style={{ background: '#7a8c3c' }}>
+              <Home size={14} className="text-white" />
             </div>
-            <span className="text-slate-900 font-semibold text-sm">FacilityOps</span>
+            <div>
+              <div className="text-slate-900 font-bold text-xs leading-tight">Propel Properties</div>
+              <div className="text-[10px]" style={{ color: '#7a8c3c' }}>& Facilities Services</div>
+            </div>
           </div>
 
           {/* Mode toggle */}
           <div className="flex gap-1 p-1 bg-slate-100 rounded-lg mb-8 w-fit">
             <button onClick={() => setMode('email')}
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${mode === 'email' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${mode === 'email' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`} style={mode === 'email' ? {} : {}}>
               Sign In
             </button>
-            <button onClick={() => setMode('demo')}
+            {demoEnabled && <button onClick={() => setMode('demo')}
               className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${mode === 'demo' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
               Demo Access
-            </button>
+            </button>}
           </div>
 
           {mode === 'email' ? (
@@ -120,6 +144,7 @@ export default function Login() {
                   {error}
                 </div>
               )}
+              {notice && <div className="p-3 mb-5 bg-lime-50 border border-lime-200 rounded-lg text-sm text-lime-800">{notice}</div>}
 
               <form onSubmit={handleEmailLogin} className="space-y-4">
                 <div>
@@ -146,15 +171,16 @@ export default function Login() {
                     />
                   </div>
                 </div>
+                <div className="flex justify-end"><button type="button" onClick={handleResetPassword} className="text-xs font-medium hover:underline" style={{ color: '#7a8c3c' }}>Forgot password?</button></div>
                 <button type="submit" disabled={loading}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
+                  className="w-full flex items-center justify-center gap-2 py-2.5 text-slate-900 text-sm font-semibold rounded-lg transition-colors disabled:opacity-60" style={{ background: '#a8cf45' }}>
                   {loading && <Loader2 size={14} className="animate-spin" />}
                   {loading ? 'Signing in…' : 'Sign In'}
                 </button>
               </form>
 
               <p className="text-slate-400 text-xs mt-6 text-center">
-                No account? Switch to <button onClick={() => setMode('demo')} className="text-indigo-600 hover:underline">Demo Access</button> to explore.
+                No account? Switch to <button onClick={() => setMode('demo')} className="hover:underline" style={{ color: '#7a8c3c' }}>Demo Access</button> to explore.
               </p>
             </>
           ) : (
@@ -167,7 +193,7 @@ export default function Login() {
                   const user = MOCK_USERS.find(u => u.id === role.userId);
                   return (
                     <button key={role.userId} onClick={() => handleDemoLogin(role.userId, role.role)}
-                      className="w-full flex items-center gap-4 px-4 py-3.5 bg-white border border-slate-200 rounded-lg hover:border-slate-300 hover:shadow-sm transition-all duration-150 group text-left">
+                      className="w-full flex items-center gap-4 px-4 py-3.5 bg-white border border-slate-200 rounded-lg hover:shadow-sm transition-all duration-150 group text-left" style={{ borderColor: undefined }}>
                       <div className="w-8 h-8 rounded-md flex items-center justify-center text-white flex-shrink-0" style={{ background: role.color }}>
                         {role.icon}
                       </div>

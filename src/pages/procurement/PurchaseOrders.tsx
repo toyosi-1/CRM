@@ -15,7 +15,7 @@ export default function PurchaseOrders() {
     <div className="space-y-5">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="page-title">Purchase Orders</h1>
+          <h1 className="page-title">Purchase orders</h1>
           <p className="page-subtitle">{posRequests.length} POs generated · Total value: <strong className="text-slate-700">{formatCurrency(totalValue)}</strong></p>
         </div>
       </div>
@@ -24,7 +24,7 @@ export default function PurchaseOrders() {
         <table className="w-full">
           <thead>
             <tr className="border-b border-slate-100">
-              <th className="table-header">PO Number</th>
+              <th className="table-header">PO number</th>
               <th className="table-header">Request</th>
               <th className="table-header">Site</th>
               <th className="table-header">Vendor</th>

@@ -20,7 +20,7 @@ export default function FinanceDashboard() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">Finance</p>
-            <h1 className="text-xl font-semibold text-white">Finance Dashboard</h1>
+            <h1 className="text-xl font-semibold text-white">Finance dashboard</h1>
             <p className="text-slate-400 text-sm mt-0.5">Vendor payments · WHT management · treasury</p>
           </div>
           <div className="flex gap-6">
@@ -48,7 +48,7 @@ export default function FinanceDashboard() {
               : <span className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">Clear</span>}
           </div>
           <p className={`text-2xl font-bold tabular-nums ${paymentQueue.length > 0 ? 'text-amber-700' : 'text-slate-900'}`}>{paymentQueue.length}</p>
-          <p className="text-xs text-slate-500 mt-1">Payment Queue</p>
+          <p className="text-xs text-slate-500 mt-1">Payment queue</p>
         </div>
         <div className="bg-white border border-slate-200 rounded-lg p-4">
           <div className="flex items-center justify-between mb-4">
@@ -85,7 +85,7 @@ export default function FinanceDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-            <h2 className="section-title">Payment Queue</h2>
+            <h2 className="section-title">Payment queue</h2>
             <button onClick={() => navigate('/finance/payments')} className="btn-ghost text-xs text-brand-600 font-bold">Process All →</button>
           </div>
           <div className="divide-y divide-slate-100">

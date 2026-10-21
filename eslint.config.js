@@ -20,4 +20,8 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    files: ['src/lib/AuthContext.tsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
 ])

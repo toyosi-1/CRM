@@ -1,10 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import {
-  onAuthStateChanged, signInWithEmailAndPassword,
-  signOut, type User as FirebaseUser,
-} from 'firebase/auth';
-import { auth } from './firebase';
-import { fetchUserByEmail } from './firestore';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
+import { supabase } from './supabase';
+import { fetchUserByAuthId } from './firestore';
 import { useStore } from '../store/useStore';
 import type { User } from '../types';
 
@@ -14,71 +11,77 @@ const ROLE_ROUTES: Record<string, string> = {
   supervisor: '/supervisor',
   finance: '/finance',
   admin: '/admin',
+  technician: '/technician',
 };
 
 interface AuthContextValue {
-  firebaseUser: FirebaseUser | null;
+  supabaseUser: SupabaseUser | null;
   appUser: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
   const [appUser, setAppUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const storeLogin = useStore(s => s.login);
-  const storeLogout = useStore(s => s.logout);
-  const initFirebase = useStore(s => s.initFirebase);
+  const storeLogin = useStore(state => state.login);
+  const storeLogout = useStore(state => state.logout);
+  const initSupabase = useStore(state => state.initSupabase);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (fbUser) => {
-      setFirebaseUser(fbUser);
-      if (fbUser?.email) {
-        const user = await fetchUserByEmail(fbUser.email);
-        setAppUser(user);
-        if (user) {
-          storeLogin(user.id);
-          const route = ROLE_ROUTES[user.role] ?? '/login';
-          if (window.location.pathname === '/login') {
-            window.history.pushState({}, '', route);
-            window.dispatchEvent(new PopStateEvent('popstate'));
-          }
-        }
-      } else {
+    const resolveUser = async (authUser: SupabaseUser | null) => {
+      setSupabaseUser(authUser);
+      if (!authUser?.email) {
         setAppUser(null);
         storeLogout();
+        setLoading(false);
+        return;
+      }
+      const profile = await fetchUserByAuthId(authUser.id);
+      setAppUser(profile);
+      if (profile) {
+        await initSupabase();
+        storeLogin(profile.id);
+        if (window.location.pathname === '/login') {
+          window.history.pushState({}, '', ROLE_ROUTES[profile.role] ?? '/login');
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        }
+      } else {
+        await supabase.auth.signOut();
       }
       setLoading(false);
-    });
-    return unsub;
-  }, [storeLogin, storeLogout]);
+    };
 
-  useEffect(() => {
-    initFirebase();
-  }, [initFirebase]);
+    void supabase.auth.getUser().then(({ data }) => resolveUser(data.user));
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => { void resolveUser(session?.user ?? null); });
+    return () => data.subscription.unsubscribe();
+  }, [initSupabase, storeLogin, storeLogout]);
 
   const login = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+  };
+
+  const resetPassword = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/login` });
+    if (error) throw error;
   };
 
   const logout = async () => {
-    await signOut(auth);
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
   };
 
-  return (
-    <AuthContext.Provider value={{ firebaseUser, appUser, loading, login, logout }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={{ supabaseUser, appUser, loading, login, resetPassword, logout }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used inside AuthProvider');
-  return ctx;
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used inside AuthProvider');
+  return context;
 }

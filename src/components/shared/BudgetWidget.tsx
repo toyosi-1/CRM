@@ -38,7 +38,7 @@ export default function BudgetWidget({ budget, spent, remaining, utilizationPct,
       <div className="rounded-2xl p-3 border transition-all duration-200"
         style={{ background: tonalBg, borderColor: `${barColor}22` }}>
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Budget</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Annual budget</span>
           <span className={`text-xs font-black ${textColor}`}>{utilizationPct}%</span>
         </div>
         {/* Segmented bar */}
@@ -71,7 +71,7 @@ export default function BudgetWidget({ budget, spent, remaining, utilizationPct,
       {/* ── Header ─── */}
       <div className="flex items-start justify-between mb-5">
         <div>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Monthly Budget</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Annual Budget</p>
           <p className="text-2xl font-black text-slate-900 tracking-tight">{formatCurrency(budget)}</p>
         </div>
         <div className="w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-200"

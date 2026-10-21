@@ -1,25 +1,22 @@
 import { useNavigate } from 'react-router-dom';
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell
 } from 'recharts';
-import { Activity, TrendingUp, AlertTriangle, Clock, CheckCircle, Zap } from 'lucide-react';
+import { Activity, AlertTriangle, Clock, Building2, Users, UserPlus, Zap } from 'lucide-react';
 import { useStore } from '../../store/useStore';
-import { formatCurrency, PRIORITY_LABELS } from '../../utils/helpers';
+import { PRIORITY_LABELS } from '../../utils/helpers';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
 export default function AdminAnalytics() {
   const navigate = useNavigate();
-  const { requests, sites, checklists, getBudgetSummaries } = useStore();
+  const { requests, checklists } = useStore();
 
-  const budgets = getBudgetSummaries();
   const totalRequests = requests.length;
   const openRequests = requests.filter(r => !['PAID', 'CLOSED', 'REJECTED'].includes(r.status)).length;
   const slaBreached = requests.filter(r => r.slaBreached).length;
   const paid = requests.filter(r => r.status === 'PAID');
-  const totalDisbursed = paid.reduce((s, r) => s + (r.netPayment ?? r.invoiceAmount ?? 0), 0);
-  const totalWHT = paid.reduce((s, r) => s + (r.taxAmount ?? 0), 0);
   const emergencyBypasses = requests.filter(r => r.isEmergencyBypass).length;
 
   // Request status distribution
@@ -31,13 +28,6 @@ export default function AdminAnalytics() {
     { name: 'Paid', value: paid.length },
     { name: 'Rejected', value: requests.filter(r => r.status === 'REJECTED').length },
   ].filter(d => d.value > 0);
-
-  // Spend by site
-  const spendBySite = sites.map(s => ({
-    name: s.name.split(' ')[0],
-    spent: s.currentMonthSpend,
-    budget: s.monthlyBudget,
-  }));
 
   // TAT performance by department
   const tatData = [
@@ -86,7 +76,7 @@ export default function AdminAnalytics() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">Administration</p>
-            <h1 className="text-xl font-semibold text-white">Analytics Center</h1>
+            <h1 className="text-xl font-semibold text-white">Analytics center</h1>
             <p className="text-slate-400 text-sm mt-0.5">Operational intelligence across all sites</p>
           </div>
           <div className="flex gap-6">
@@ -94,16 +84,11 @@ export default function AdminAnalytics() {
               <p className="text-xl font-bold text-white tabular-nums">{totalRequests}</p>
               <p className="text-slate-500 text-xs mt-0.5">Total Requests</p>
             </div>
-            <div className="w-px bg-white/10" />
-            <div className="text-right">
-              <p className="text-xl font-bold text-emerald-400 tabular-nums">{formatCurrency(totalDisbursed)}</p>
-              <p className="text-slate-500 text-xs mt-0.5">Disbursed</p>
-            </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <div className="bg-white border border-slate-200 rounded-lg p-4">
           <div className="flex items-center justify-between mb-4">
             <div className="w-8 h-8 rounded-md bg-indigo-50 flex items-center justify-center">
@@ -113,16 +98,6 @@ export default function AdminAnalytics() {
           </div>
           <p className="text-2xl font-bold text-slate-900 tabular-nums">{totalRequests}</p>
           <p className="text-xs text-slate-500 mt-1">Total Requests</p>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-8 h-8 rounded-md bg-emerald-50 flex items-center justify-center">
-              <TrendingUp size={14} className="text-emerald-600" />
-            </div>
-            <span className="text-xs font-medium text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded">WHT {formatCurrency(totalWHT)}</span>
-          </div>
-          <p className="text-2xl font-bold text-emerald-700 tabular-nums">{formatCurrency(totalDisbursed)}</p>
-          <p className="text-xs text-slate-500 mt-1">Total Disbursed</p>
         </div>
         <div className={`border rounded-lg p-4 ${slaBreached > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}>
           <div className="flex items-center justify-between mb-4">
@@ -149,21 +124,7 @@ export default function AdminAnalytics() {
       </div>
 
       {/* Charts Row 1 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Spend vs Budget */}
-        <div className="card-elevated p-5">
-          <h2 className="section-title mb-4">Spend vs Budget by Site</h2>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={spendBySite}>
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `₦${(v / 1000000).toFixed(1)}M`} />
-              <Tooltip formatter={(v: unknown) => formatCurrency(Number(v ?? 0))} />
-              <Bar dataKey="budget" name="Budget" fill="#e2e8f0" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="spent" name="Spent" fill="#6366f1" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
+      <div className="grid grid-cols-1 gap-6">
         {/* Request Status Distribution */}
         <div className="card-elevated p-5">
           <h2 className="section-title mb-4">Request Pipeline Distribution</h2>
@@ -241,33 +202,17 @@ export default function AdminAnalytics() {
                 <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-500 transition-all duration-700" style={{ width: `${checklistCompliance}%` }} />
               </div>
             </div>
-            {budgets.map(b => (
-              <div key={b.siteId}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-semibold text-slate-500 truncate max-w-32">{b.siteName.split(' ')[0]}</span>
-                  <span className={`text-xs font-extrabold ${b.utilizationPct >= 90 ? 'text-red-600' : b.utilizationPct >= 75 ? 'text-amber-600' : 'text-emerald-600'}`}>{b.utilizationPct}%</span>
-                </div>
-                <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full bg-gradient-to-r transition-all duration-700 ${
-                      b.utilizationPct >= 90 ? 'from-red-400 to-red-500' :
-                      b.utilizationPct >= 75 ? 'from-amber-400 to-orange-400' : 'from-emerald-400 to-emerald-500'
-                    }`}
-                    style={{ width: `${Math.min(b.utilizationPct, 100)}%` }}
-                  />
-                </div>
-              </div>
-            ))}
+
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'All Requests', path: '/admin/requests', icon: <Activity size={14} />, color: 'text-indigo-600 bg-indigo-50' },
-          { label: 'Site Management', path: '/admin/sites', icon: <TrendingUp size={14} />, color: 'text-teal-600 bg-teal-50' },
+          { label: 'Facilities', path: '/admin/facilities', icon: <Building2 size={14} />, color: 'text-indigo-600 bg-indigo-50' },
+          { label: 'People', path: '/admin/people', icon: <Users size={14} />, color: 'text-teal-600 bg-teal-50' },
+          { label: 'Staff Access', path: '/admin/users', icon: <UserPlus size={14} />, color: 'text-emerald-600 bg-emerald-50' },
           { label: 'Full Audit Log', path: '/admin/audit', icon: <Clock size={14} />, color: 'text-violet-600 bg-violet-50' },
-          { label: 'Vendor Scores', path: '/admin/vendors', icon: <CheckCircle size={14} />, color: 'text-emerald-600 bg-emerald-50' },
         ].map(a => (
           <button key={a.path} onClick={() => navigate(a.path)}
             className="bg-white border border-slate-200 rounded-lg p-4 flex items-center gap-3 hover:border-slate-300 hover:shadow-sm transition-all duration-150 text-left">

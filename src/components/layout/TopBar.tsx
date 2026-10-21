@@ -1,118 +1,133 @@
-import { useState } from 'react';
-import { Bell, Search, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Bell, Building2, LifeBuoy, Menu, Moon, Search, Sun, X } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { ROLE_LABELS } from '../../utils/helpers';
-import type { UserRole } from '../../types';
+import { markNotificationRead, subscribeNotifications, type AppNotification } from '../../lib/firestore';
+import { enablePushNotifications, getPushSubscription, pushSupported } from '../../lib/push';
 
+interface TopBarProps {
+  darkMode: boolean;
+  onToggleTheme: () => void;
+  onOpenMenu: () => void;
+}
 
-const ROLE_AVATAR_GRADIENT: Record<UserRole, string> = {
-  facility_manager: 'from-teal-500 to-teal-600',
-  procurement:      'from-blue-500 to-blue-600',
-  supervisor:       'from-purple-500 to-purple-600',
-  finance:          'from-emerald-500 to-emerald-600',
-  admin:            'from-brand-500 to-brand-700',
+const PORTAL_TITLES: Record<string, string> = {
+  facility_manager: 'FM Portal',
+  procurement: 'Procurement Portal',
+  supervisor: 'Supervisor Portal',
+  finance: 'Finance Portal',
+  technician: 'Technician Portal',
+  admin: 'ICT Admin',
 };
 
-export default function TopBar() {
-  const { currentUser, requests } = useStore();
-  const [searchFocused, setSearchFocused] = useState(false);
+export default function TopBar({ darkMode, onToggleTheme, onOpenMenu }: TopBarProps) {
+  const navigate = useNavigate();
+  const { currentUser, requests, sites, activeSiteId, setActiveSiteId, users } = useStore();
+  const [search, setSearch] = useState('');
   const [showBell, setShowBell] = useState(false);
+  const [storedNotifications, setStoredNotifications] = useState<AppNotification[]>([]);
+  const [pushState, setPushState] = useState<'unsupported' | 'off' | 'on' | 'denied'>('off');
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushError, setPushError] = useState('');
+
+  useEffect(() => subscribeNotifications(setStoredNotifications), []);
+  useEffect(() => {
+    const check = async () => {
+      if (!pushSupported()) { setPushState('unsupported'); return; }
+      if (Notification.permission === 'denied') { setPushState('denied'); return; }
+      const sub = await getPushSubscription();
+      setPushState(sub ? 'on' : 'off');
+    };
+    void check();
+  }, []);
+
+  const enablePush = async () => {
+    if (!currentUser) return;
+    setPushBusy(true);
+    setPushError('');
+    const result = await enablePushNotifications(currentUser.id);
+    if (result.ok) setPushState('on'); else setPushError(result.reason ?? 'Unable to enable notifications.');
+    setPushBusy(false);
+  };
+
   if (!currentUser) return null;
 
-  const slaBreached = requests.filter(r =>
-    r.slaBreached && !['PAID', 'CLOSED', 'REJECTED'].includes(r.status)
-  ).length;
-
-  const role = currentUser.role;
-  const pendingCount =
-    role === 'procurement' ? requests.filter(r => r.status === 'REQUEST_CREATED').length
-    : role === 'supervisor' ? requests.filter(r => ['PO_GENERATED', 'SUPERVISOR_APPROVAL'].includes(r.status)).length
-    : role === 'finance'   ? requests.filter(r => ['PAYMENT_PENDING', 'ADMIN_APPROVED'].includes(r.status)).length
-    : role === 'admin'     ? requests.filter(r => !['PAID', 'CLOSED', 'REJECTED'].includes(r.status)).length
-    : 0;
-
-  const initials = currentUser.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
-  const avatarGrad = ROLE_AVATAR_GRADIENT[currentUser.role];
-
-  const notifications = [
-    slaBreached > 0 ? { type: 'critical', msg: `${slaBreached} SLA breach${slaBreached > 1 ? 'es' : ''} active` } : null,
-    pendingCount > 0 ? { type: 'info', msg: `${pendingCount} item${pendingCount > 1 ? 's' : ''} pending your action` } : null,
-  ].filter(Boolean);
+  // Only FM and technician work is site-scoped; other roles operate across all facilities
+  const siteScoped = currentUser.role === 'facility_manager' || currentUser.role === 'technician';
+  const assignedSiteIds = currentUser.siteIds?.length ? [...currentUser.siteIds] : (currentUser.siteId ? [currentUser.siteId] : []);
+  // Acting FM coverage (spec §5.8): include covered sites while the assignment window is live
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const covered = users.find(u => u.id === currentUser.actingForProfileId);
+  if (covered && currentUser.actingStart && currentUser.actingEnd && currentUser.actingStart <= todayIso && currentUser.actingEnd >= todayIso) {
+    (covered.siteIds?.length ? covered.siteIds : [covered.siteId].filter(Boolean)).forEach(id => {
+      if (id && !assignedSiteIds.includes(id)) assignedSiteIds.push(id);
+    });
+  }
+  const site = siteScoped ? sites.find(item => item.id === (activeSiteId ?? currentUser.siteId)) : undefined;
+  const siteLabel = site?.name ?? (siteScoped || currentUser.role === 'admin' ? 'All facilities' : ROLE_LABELS[currentUser.role]);
+  const slaBreached = requests.filter(request => request.slaBreached && !['PAID', 'CLOSED', 'REJECTED'].includes(request.status)).length;
+  const pendingCount = currentUser.role === 'procurement'
+    ? requests.filter(request => request.status === 'REQUEST_CREATED').length
+    : currentUser.role === 'supervisor'
+      ? requests.filter(request => ['PO_GENERATED', 'SUPERVISOR_APPROVAL'].includes(request.status)).length
+      : currentUser.role === 'finance'
+        ? requests.filter(request => ['PAYMENT_PENDING', 'ADMIN_APPROVED'].includes(request.status)).length
+        : currentUser.role === 'admin'
+          ? requests.filter(request => !['PAID', 'CLOSED', 'REJECTED'].includes(request.status)).length
+          : requests.filter(request => request.siteId === (activeSiteId ?? currentUser.siteId) && !['PAID', 'CLOSED', 'REJECTED'].includes(request.status)).length;
+  const term = search.trim().toLowerCase();
+  const results = term.length < 2 ? [] : requests.filter(request => [request.requestNumber, request.description, request.siteName, request.vendorName]
+    .some(value => value?.toLowerCase().includes(term))).slice(0, 6);
+  const actionNotifications = [
+    slaBreached > 0 ? `${slaBreached} active SLA breach${slaBreached === 1 ? '' : 'es'}` : null,
+    pendingCount > 0 ? `${pendingCount} item${pendingCount === 1 ? '' : 's'} pending your action` : null,
+  ].filter((item): item is string => Boolean(item));
+  const unreadCount = storedNotifications.filter(notification => !notification.readAt).length + actionNotifications.length;
+  const openNotification = async (notification: AppNotification) => {
+    if (!notification.readAt) {
+      await markNotificationRead(notification.id);
+      setStoredNotifications(current => current.map(item => item.id === notification.id ? { ...item, readAt: new Date().toISOString() } : item));
+    }
+    if (notification.link) navigate(notification.link);
+    setShowBell(false);
+  };
 
   return (
-    <header className="h-12 flex items-center px-5 gap-3 flex-shrink-0 bg-white border-b border-slate-200">
-
-      <div className="flex-1" />
-
-      {/* Search */}
-      <div className={`relative hidden md:flex items-center transition-all duration-200 ${searchFocused ? 'w-64' : 'w-48'}`}>
-        <Search size={13} className="absolute left-2.5 text-slate-400 pointer-events-none" />
-        <input
-          type="text"
-          placeholder="Search…"
-          onFocus={() => setSearchFocused(true)}
-          onBlur={() => setSearchFocused(false)}
-          className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-md bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-400 transition-colors placeholder:text-slate-400"
-        />
+    <header className="app-topbar">
+      <button className="topbar-icon mobile-menu" onClick={onOpenMenu} aria-label="Open navigation"><Menu size={17} /></button>
+      <div className="topbar-title">
+        <strong>{PORTAL_TITLES[currentUser.role] ?? ROLE_LABELS[currentUser.role]}</strong>
+        <span className="tb-sep" aria-hidden="true" />
+        <span className="tb-sub">{siteLabel} · {new Date().toLocaleDateString('en-NG', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</span>
       </div>
-
-      {/* SLA Breach */}
-      {slaBreached > 0 && (
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-red-50 border border-red-200 text-red-700 text-xs font-medium">
-          <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />
-          {slaBreached} SLA breach{slaBreached > 1 ? 'es' : ''}
-        </div>
-      )}
-
-      {/* Bell */}
-      <div className="relative">
-        <button
-          onClick={() => setShowBell(!showBell)}
-          className="relative btn-icon"
-        >
-          <Bell size={15} className="text-slate-500" />
-          {notifications.length > 0 && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-brand-600 text-white text-[9px] rounded-full flex items-center justify-center font-black shadow-sm">
-              {notifications.length}
-            </span>
-          )}
-        </button>
-
-        {showBell && (
-          <div className="absolute right-0 top-10 w-72 bg-white border border-slate-200 rounded-lg shadow-lg z-50 overflow-hidden animate-scale-in">
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100">
-              <span className="text-sm font-semibold text-slate-800">Notifications</span>
-              <button onClick={() => setShowBell(false)} className="text-slate-400 hover:text-slate-600 p-0.5">
-                <X size={13} />
+      <div className="global-search">
+        <Search size={14} />
+        <input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search requests, sites, vendors…" aria-label="Global search" />
+        {search && <button onClick={() => setSearch('')} aria-label="Clear search"><X size={13} /></button>}
+        {search.trim().length >= 2 && (
+          <div className="search-results">
+            {results.length ? results.map(request => (
+              <button key={request.id} onClick={() => { navigate(`/request/${request.id}`); setSearch(''); }}>
+                <strong>{request.requestNumber}</strong><span>{request.description}</span><small>{request.siteName}</small>
               </button>
-            </div>
-            {notifications.length === 0 ? (
-              <div className="px-4 py-6 text-center text-sm text-slate-400">No pending actions</div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {notifications.map((n, i) => (
-                  <div key={i} className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50">
-                    <span className={`mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0 ${n!.type === 'critical' ? 'bg-red-500' : 'bg-indigo-500'}`} />
-                    <p className="text-sm text-slate-600">{n!.msg}</p>
-                  </div>
-                ))}
-              </div>
-            )}
+            )) : <p>No matching requests</p>}
           </div>
         )}
       </div>
-
-      {/* Divider */}
-      <div className="h-6 w-px bg-slate-200" />
-
-      {/* User chip */}
-      <div className="flex items-center gap-2.5">
-        <div className="text-right hidden sm:block">
-          <div className="text-xs font-bold text-slate-800 leading-tight">{currentUser.name}</div>
-          <div className="text-[10px] text-slate-400 font-medium">{ROLE_LABELS[currentUser.role]}</div>
-        </div>
-        <div className={`w-7 h-7 rounded bg-gradient-to-br ${avatarGrad} flex items-center justify-center text-white text-xs font-semibold`}>
-          {initials}
+      <div className="topbar-actions">
+        {siteScoped && (assignedSiteIds.length > 1 ? (
+          <select className="site-pill bg-transparent" value={site?.id ?? ''} onChange={event => setActiveSiteId(event.target.value)} aria-label="Switch facility">
+            {assignedSiteIds.map(id => <option key={id} value={id}>{sites.find(item => item.id === id)?.name ?? id}</option>)}
+          </select>
+        ) : (
+          <span className="site-pill"><Building2 size={13} />{site?.name ?? 'All sites'}</span>
+        ))}
+        <button className="topbar-icon" onClick={() => navigate('/support')} title="Help & support" aria-label="Help and support"><LifeBuoy size={15} /></button>
+        <button className="topbar-icon" onClick={onToggleTheme} title={darkMode ? 'Use light mode' : 'Use dark mode'} aria-label="Toggle theme">{darkMode ? <Sun size={15} /> : <Moon size={15} />}</button>
+        <div className="notification-wrap">
+          <button className="topbar-icon" onClick={() => setShowBell(value => !value)} aria-label="Notifications"><Bell size={15} />{unreadCount > 0 && <span className="notification-dot" />}</button>
+          {showBell && <div className="notification-panel"><div><strong>Notifications</strong><button onClick={() => setShowBell(false)}><X size={13} /></button></div>{pushState === 'off' && <button className="block w-full text-left px-3 py-2 border-t border-slate-100 text-xs font-bold text-brand-600" onClick={() => void enablePush()} disabled={pushBusy}>{pushBusy ? 'Enabling…' : 'Enable push notifications on this device'}</button>}{pushState === 'denied' && <p className="px-3 py-2 border-t border-slate-100 text-xs text-amber-600">Push notifications are blocked — allow them in browser settings</p>}{pushError && <p className="px-3 py-2 text-xs text-red-600">{pushError}</p>}{actionNotifications.map(message => <p key={message}>{message}</p>)}{storedNotifications.map(notification => <button key={notification.id} className={`block w-full text-left px-3 py-2 border-t border-slate-100 ${notification.readAt ? 'opacity-60' : ''}`} onClick={() => void openNotification(notification)}><strong className="block text-xs">{notification.title}</strong><span className="text-xs text-slate-500">{notification.body}</span></button>)}{!actionNotifications.length && !storedNotifications.length && <p>No pending actions</p>}</div>}
         </div>
       </div>
     </header>
