@@ -10,7 +10,7 @@ const ROLES: Array<{ value: UserRole; label: string }> = [
   { value: 'supervisor', label: 'Supervisor' },
   { value: 'finance', label: 'Finance' },
   { value: 'technician', label: 'Technician' },
-  { value: 'admin', label: 'ICT Administrator' },
+  { value: 'admin', label: 'Administrator' },
 ];
 
 export default function AdminUsers() {
@@ -90,7 +90,7 @@ export default function AdminUsers() {
       <div className="dash-header">
         <div className="relative z-10 flex items-start justify-between gap-4">
           <div>
-            <p className="text-white/50 text-xs font-bold uppercase tracking-widest mb-1">ICT Administration</p>
+            <p className="text-white/50 text-xs font-bold uppercase tracking-widest mb-1">Administration</p>
             <h1 className="text-2xl font-black text-white tracking-tight">Staff access</h1>
             <p className="text-white/60 text-sm mt-1 font-medium">Invite staff and assign role-based access.</p>
           </div>
