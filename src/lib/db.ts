@@ -672,3 +672,21 @@ export async function uploadFile(path: string, file: File): Promise<string> {
   const { data: signed, error: signedError } = await supabase.storage.from('request-files').createSignedUrl(data!.path, 60 * 60 * 24 * 365); fail(signedError);
   return signed!.signedUrl;
 }
+
+/* ---------- FM monthly reports ---------- */
+export interface FmReportRow { payload: Record<string, unknown>; photos: Record<string, string>; }
+
+export async function fetchFmReport(siteId: string, period: string): Promise<FmReportRow | null> {
+  const { data, error } = await supabase.from('fm_reports').select('payload, photos').eq('site_id', siteId).eq('period', period).maybeSingle();
+  fail(error);
+  if (!data) return null;
+  return { payload: data.payload as Record<string, unknown>, photos: (data.photos as Record<string, string>) ?? {} };
+}
+
+export async function saveFmReport(siteId: string, period: string, payload: Record<string, unknown>, photos: Record<string, string>, userId?: string): Promise<void> {
+  const { error } = await supabase.from('fm_reports').upsert(
+    { site_id: siteId, period, payload, photos, updated_by: userId ?? null },
+    { onConflict: 'site_id,period' },
+  );
+  fail(error);
+}

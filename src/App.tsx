@@ -16,6 +16,7 @@ import FMTechnicians from './pages/fm/FMTechnicians';
 import FMVendors from './pages/fm/FMVendors';
 import FMPPM from './pages/fm/FMPPM';
 import FMSLA from './pages/fm/FMSLA';
+import FMReport from './pages/fm/report/FMReport';
 
 import ProcurementDashboard from './pages/procurement/ProcurementDashboard';
 import ProcurementQueue from './pages/procurement/ProcurementQueue';
@@ -122,6 +123,7 @@ export default function App() {
           <Route path="petty-cash" element={<FMPettyCash />} />
           <Route path="facility" element={<FMFacilityInfo />} />
           <Route path="technicians" element={<FMTechnicians />} />
+          <Route path="report" element={<FMReport />} />
         </Route>
 
         {/* Procurement */}

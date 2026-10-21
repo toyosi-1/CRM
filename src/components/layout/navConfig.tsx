@@ -16,6 +16,7 @@ const FM_NAV: NavSection[] = [
     { label: 'New request', path: '/fm/request/new', icon: <ShoppingCart size={15} /> },
     { label: 'Vendors', path: '/fm/vendors', icon: <Store size={15} /> },
     { label: 'PPM schedule', path: '/fm/ppm', icon: <Calendar size={15} /> },
+    { label: 'Monthly report', path: '/fm/report', icon: <FileText size={15} /> },
   ]},
   { section: 'Site', items: [
     { label: 'Assets', path: '/fm/assets', icon: <Package size={15} /> },
