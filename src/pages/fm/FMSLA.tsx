@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { AlertTriangle, Plus, Pencil, Trash2 } from 'lucide-react';
-import { useStore } from '../../store/useStore';
+import { useStore, reportSaveError } from '../../store/useStore';
 import { formatDate, vendorLabel } from '../../utils/helpers';
 
 function daysUntil(date: string) {
@@ -64,14 +64,19 @@ export default function FMSLA() {
       paymentModel: form.paymentModel,
       createdBy: currentUser.id,
     };
-    if (editing) {
-      await updateFacilityVendorSLA(editing, payload);
-    } else {
-      await createFacilityVendorSLA(payload);
+    try {
+      if (editing) {
+        await updateFacilityVendorSLA(editing, payload);
+      } else {
+        await createFacilityVendorSLA(payload);
+      }
+      resetForm();
+      setShowForm(false);
+    } catch (error) {
+      reportSaveError(error);
+    } finally {
+      setSaving(false);
     }
-    resetForm();
-    setShowForm(false);
-    setSaving(false);
   };
 
   const remove = async (id: string) => {

@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { Camera, CheckCircle, ClipboardCheck, Loader2 } from 'lucide-react';
-import { useStore } from '../../store/useStore';
+import { useStore, reportSaveError } from '../../store/useStore';
 import { useNavigate } from 'react-router-dom';
-import { uploadFile } from '../../lib/firestore';
+import { uploadFile } from '../../lib/db';
 import { formatDate } from '../../utils/helpers';
 
 function addMonths(date: string, months: number) {
@@ -32,17 +32,22 @@ export default function JobCompletion() {
     event.preventDefault();
     if (!currentUser || !schedule) return;
     setSaving(true);
-    const beforeUrl = beforeFile ? await uploadFile(`completions/${schedule.id}/before-${crypto.randomUUID()}-${beforeFile.name}`, beforeFile) : undefined;
-    const afterUrl = afterFile ? await uploadFile(`completions/${schedule.id}/after-${crypto.randomUUID()}-${afterFile.name}`, afterFile) : undefined;
-    const completedDate = new Date().toISOString().slice(0, 10);
-    await createJobCompletion({ ppmScheduleId: schedule.id, submittedBy: currentUser.id, narrative, beforePhotoUrl: beforeUrl, afterPhotoUrl: afterUrl });
-    await updatePPMSchedule(schedule.id, {
-      status: 'completed',
-      lastCompletedDate: completedDate,
-      nextDueDate: addMonths(completedDate, schedule.frequencyMonths),
-    });
-    setSelectedScheduleId(''); setNarrative(''); setBeforeFile(null); setAfterFile(null);
-    setSaving(false);
+    try {
+      const beforeUrl = beforeFile ? await uploadFile(`completions/${schedule.id}/before-${crypto.randomUUID()}-${beforeFile.name}`, beforeFile) : undefined;
+      const afterUrl = afterFile ? await uploadFile(`completions/${schedule.id}/after-${crypto.randomUUID()}-${afterFile.name}`, afterFile) : undefined;
+      const completedDate = new Date().toISOString().slice(0, 10);
+      await createJobCompletion({ ppmScheduleId: schedule.id, submittedBy: currentUser.id, narrative, beforePhotoUrl: beforeUrl, afterPhotoUrl: afterUrl });
+      await updatePPMSchedule(schedule.id, {
+        status: 'completed',
+        lastCompletedDate: completedDate,
+        nextDueDate: addMonths(completedDate, schedule.frequencyMonths),
+      });
+      setSelectedScheduleId(''); setNarrative(''); setBeforeFile(null); setAfterFile(null);
+    } catch (error) {
+      reportSaveError(error);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (

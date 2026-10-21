@@ -4,7 +4,7 @@ import { useStore } from '../../store/useStore';
 import { formatCurrency } from '../../utils/helpers';
 
 export default function SiteRules() {
-  const { sites, updateSite } = useStore();
+  const { sites, updateSite, getSiteMonthSpend } = useStore();
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<Record<string, { floatLimit: number; pettyCashEnabled: boolean; monthlyBudget: number }>>({});
 
@@ -36,7 +36,8 @@ export default function SiteRules() {
         {sites.map(site => {
           const isEditing = editing === site.id;
           const d = draft[site.id];
-          const utilPct = site.monthlyBudget > 0 ? Math.round((site.currentMonthSpend / site.monthlyBudget) * 100) : 0;
+          const monthSpend = getSiteMonthSpend(site.id);
+          const utilPct = site.monthlyBudget > 0 ? Math.round((monthSpend / site.monthlyBudget) * 100) : 0;
 
           return (
             <div key={site.id} className="card-hover p-5">
@@ -121,7 +122,7 @@ export default function SiteRules() {
                       <p className="text-xl font-bold text-slate-800">{formatCurrency(site.monthlyBudget)}</p>
                       <div className="mt-2">
                         <div className="flex justify-between text-xs text-slate-500 mb-1">
-                          <span>{formatCurrency(site.currentMonthSpend)} spent</span>
+                          <span>{formatCurrency(monthSpend)} spent</span>
                           <span>{utilPct}%</span>
                         </div>
                         <div className="w-full bg-slate-200 rounded-full h-1.5">

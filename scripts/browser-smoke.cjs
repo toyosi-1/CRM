@@ -58,7 +58,7 @@ const puppeteer = require('puppeteer');
 
   await demoLoginAs('Supervisor');
   await clickNav('Checklist Builder');
-  checks.push({ name: 'Checklist builder', ok: (await page.evaluate(() => document.body.innerText)).includes('Checklist Builder') });
+  checks.push({ name: 'Checklist builder', ok: (await page.evaluate(() => document.body.innerText)).toLowerCase().includes('checklist builder') });
 
   await demoLoginAs('Technician');
   await clickNav('Job Completion');

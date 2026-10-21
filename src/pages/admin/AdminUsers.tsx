@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { Loader2, Mail, Pencil, ShieldCheck, UserPlus, Users, XCircle } from 'lucide-react';
 import { useStore } from '../../store/useStore';
-import { fetchUsers, inviteStaff, updateStaff } from '../../lib/firestore';
+import { fetchUsers, inviteStaff, updateStaff } from '../../lib/db';
 import type { User, UserRole } from '../../types';
 
 const ROLES: Array<{ value: UserRole; label: string }> = [

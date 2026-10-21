@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DollarSign, Eye, CheckCircle } from 'lucide-react';
 import { useStore } from '../../store/useStore';
-import { uploadFile } from '../../lib/firestore';
+import { uploadFile } from '../../lib/db';
 import { PriorityBadge, StatusBadge } from '../../components/shared/Badges';
 import { formatCurrency, getSlaStatus, TAX_LABELS } from '../../utils/helpers';
 import type { TaxType } from '../../types';

@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { Loader2, UserPlus, Pencil, Wrench, X } from 'lucide-react';
 import { useStore } from '../../store/useStore';
-import { fetchUsers, createStaff, updateStaff } from '../../lib/firestore';
+import { fetchUsers, createStaff, updateStaff } from '../../lib/db';
 import type { User } from '../../types';
 
 export default function FMTechnicians() {

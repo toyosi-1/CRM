@@ -1,5 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+import { compressImage } from '../utils/imageCompression';
 import type { User, Site, Vendor, Asset, MaintenanceRequest, Checklist, TreasuryEntry, PPMSchedule, Incident, PettyCashEntry, SupportTicket, Tenant, JobCompletion, ChecklistTemplate, ReconciliationEntry, FacilityVendorSLA } from '../types';
 
 export interface AppNotification {
@@ -660,7 +661,14 @@ export async function markNotificationRead(id: string): Promise<void> {
 }
 
 export async function uploadFile(path: string, file: File): Promise<string> {
-  const { data, error } = await supabase.storage.from('request-files').upload(path, file, { upsert: false, contentType: file.type }); fail(error);
+  let payload = file;
+  if (file.type.startsWith('image/')) {
+    try {
+      const compressed = await compressImage(file, { maxSizeKB: 400, quality: 0.8 });
+      if (compressed.compressedSize < file.size) payload = compressed.file;
+    } catch { /* fall back to the original file */ }
+  }
+  const { data, error } = await supabase.storage.from('request-files').upload(path, payload, { upsert: false, contentType: payload.type }); fail(error);
   const { data: signed, error: signedError } = await supabase.storage.from('request-files').createSignedUrl(data!.path, 60 * 60 * 24 * 365); fail(signedError);
   return signed!.signedUrl;
 }

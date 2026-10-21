@@ -1,13 +1,13 @@
 import { useNavigate } from 'react-router-dom';
 import { AlertCircle, FilePlus, CheckCircle, Hourglass, CalendarCheck, Wallet, FileBadge, ChevronRight, ArrowUp } from 'lucide-react';
 import { useStore } from '../../store/useStore';
-import { acknowledgeHandover } from '../../lib/firestore';
+import { acknowledgeHandover } from '../../lib/db';
 import { StatusBadge } from '../../components/shared/Badges';
 import { formatCurrency } from '../../utils/helpers';
 
 export default function FMDashboard() {
   const navigate = useNavigate();
-  const { currentUser, requests, sites, checklists, ppmSchedules, vendors, pettyCash, activeSiteId, users, facilityVendorSLAs } = useStore();
+  const { currentUser, requests, sites, checklists, ppmSchedules, vendors, pettyCash, activeSiteId, users, facilityVendorSLAs, getSiteMonthSpend } = useStore();
 
   // Acting FM handover acknowledgement (spec §5.8)
   const todayIso = new Date().toISOString().slice(0, 10);
@@ -60,7 +60,7 @@ export default function FMDashboard() {
 
   const completionPct = myRequests.length ? Math.round((executed.length / myRequests.length) * 100) : 0;
   const budget = site?.monthlyBudget ?? 0;
-  const spent = site?.currentMonthSpend ?? 0;
+  const spent = site ? getSiteMonthSpend(site.id) : 0;
   const budgetPct = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
   const budgetColor = budgetPct >= 90 ? 'var(--red)' : budgetPct >= 70 ? 'var(--amber)' : 'var(--green)';
   const monthLabel = new Date().toLocaleDateString('en-NG', { month: 'long', year: 'numeric' });

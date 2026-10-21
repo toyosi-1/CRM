@@ -20,7 +20,7 @@ import {
   createPettyCashEntry, updatePettyCashEntry, createSupportTicket, updateSupportTicket,
   createTenant, updateTenant, createJobCompletion, createChecklistTemplate, updateChecklistTemplate,
   upsertVendor, createFacilityVendorSLA, updateFacilityVendorSLA, deleteFacilityVendorSLA,
-} from '../lib/firestore';
+} from '../lib/db';
 import { supabase } from '../lib/supabase';
 import { titleCase, sentenceCase, normalizeFloor } from '../utils/helpers';
 
@@ -49,6 +49,7 @@ interface AppState {
   activeRequestId: string | null;
   activeSiteId: string | null;
   supabaseReady: boolean;
+  saveError: string | null;
 
   initSupabase: () => Promise<void>;
   login: (userId: string) => void;
@@ -56,6 +57,7 @@ interface AppState {
 
   setActiveRequest: (id: string | null) => void;
   setActiveSiteId: (siteId: string) => void;
+  clearSaveError: () => void;
 
   getPPMForUser: () => PPMSchedule[];
   getOpenIncidentsForUser: () => Incident[];
@@ -71,7 +73,7 @@ interface AppState {
     action: string,
     comment?: string
   ) => void;
-  generatePO: (requestId: string, actorId: string) => void;
+  generatePO: (requestId: string, actorId: string) => Promise<void>;
   processPayment: (requestId: string, taxType: TaxType, actorId: string) => void;
   markPaid: (requestId: string, actorId: string, receiptUrl?: string) => void;
 
@@ -116,6 +118,7 @@ interface AppState {
 
   addTreasuryEntry: (entry: Omit<TreasuryEntry, 'id'>) => void;
 
+  getSiteMonthSpend: (siteId: string) => number;
   getBudgetSummaries: () => { siteId: string; siteName: string; monthlyBudget: number; spent: number; remaining: number; utilizationPct: number }[];
   getRequestsBySite: (siteId: string) => MaintenanceRequest[];
   getOpenRequestsForUser: () => MaintenanceRequest[];
@@ -126,6 +129,12 @@ const SLA_HOURS: Record<Priority, number> = {
 };
 
 const DEMO_MODE = import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEMO_MODE === 'true';
+
+/** Surfaces a user-visible error when a database write fails after an optimistic UI update. */
+export function reportSaveError(error: unknown) {
+  console.error('[persist] save failed:', error);
+  useStore.setState({ saveError: 'A change could not be saved — check your connection and try again. If it persists, reload the page.' });
+}
 
 function genId() {
   return Math.random().toString(36).slice(2, 10);
@@ -171,6 +180,9 @@ export const useStore = create<AppState>((set, get) => ({
   facilityVendorSLAs: [],
   activeRequestId: null,
   supabaseReady: false,
+  saveError: null,
+
+  clearSaveError: () => set({ saveError: null }),
 
   initSupabase: async () => {
     try {
@@ -325,14 +337,14 @@ export const useStore = create<AppState>((set, get) => ({
     set({ requests: [newReq, ...requests] });
     if (data.isIncident) {
       if (data.linkedIncidentId) {
-        await updateIncident(data.linkedIncidentId, { requestId: id, status: 'investigating' }).catch(console.error);
+        await updateIncident(data.linkedIncidentId, { requestId: id, status: 'investigating' }).catch(reportSaveError);
       } else {
         await createIncident({
           id: genId(), siteId: requestSiteId ?? '', requestId: id, reportedBy: currentUser.id,
           title: data.description?.split('\n')[0]?.slice(0, 120) || 'Significant incident',
           description: `Auto-created incident report linked to request ${reqNum}.\n\n${data.description ?? ''}`,
           severity: priority, status: 'open', attachments, occurredAt: now, createdAt: now, updatedAt: now,
-        }).catch(console.error);
+        }).catch(reportSaveError);
       }
     }
   },
@@ -378,20 +390,25 @@ export const useStore = create<AppState>((set, get) => ({
           updatedAt: now,
           auditTrail: [...r.auditTrail, entry],
         };
-        updateRequestInDB(requestId, updated).catch(console.error);
+        updateRequestInDB(requestId, updated).catch(reportSaveError);
         return updated;
       }),
     });
   },
 
-  generatePO: (requestId, actorId) => {
+  generatePO: async (requestId, actorId) => {
     const { users, requests, vendors } = get();
     const actor = users.find(u => u.id === actorId);
     const req = requests.find(r => r.id === requestId);
     if (!actor || !req) return;
     const vendor = vendors.find(v => v.id === req.vendorId);
     const now = new Date().toISOString();
-    const poNum = `PO-2026-${String(Math.floor(Math.random() * 9000) + 1000)}`;
+    const { data: poNumData, error: poNumError } = await supabase.rpc('generate_po_number', {
+      p_site_id: req.siteId,
+      p_created_at: now,
+    });
+    if (poNumError) { reportSaveError(poNumError); return; }
+    const poNum = String(poNumData);
     const po = {
       id: genId(), poNumber: poNum, requestId,
       vendorId: req.vendorId ?? '',
@@ -411,7 +428,7 @@ export const useStore = create<AppState>((set, get) => ({
       requests: requests.map(r => {
         if (r.id !== requestId) return r;
         const updated = { ...r, status: 'PO_GENERATED' as const, purchaseOrder: po, procurementHandledAt: now, supervisorReceivedAt: now, updatedAt: now, auditTrail: [...r.auditTrail, entry] };
-        updateRequestInDB(requestId, updated).catch(console.error);
+        updateRequestInDB(requestId, updated).catch(reportSaveError);
         return updated;
       }),
     });
@@ -438,7 +455,7 @@ export const useStore = create<AppState>((set, get) => ({
       requests: requests.map(r => {
         if (r.id !== requestId) return r;
         const updated = { ...r, taxType, grossAmount: gross, taxAmount: tax, netPayment: net, updatedAt: now, auditTrail: [...r.auditTrail, entry] };
-        updateRequestInDB(requestId, updated).catch(console.error);
+        updateRequestInDB(requestId, updated).catch(reportSaveError);
         return updated;
       }),
     });
@@ -466,12 +483,12 @@ export const useStore = create<AppState>((set, get) => ({
       requests: requests.map(r => {
         if (r.id !== requestId) return r;
         const updated = { ...r, status: 'PAID' as const, paymentReceiptUrl: receiptUrl, paidAt: now, updatedAt: now, auditTrail: [...r.auditTrail, entry] };
-        updateRequestInDB(requestId, updated).catch(console.error);
+        updateRequestInDB(requestId, updated).catch(reportSaveError);
         return updated;
       }),
       sites: updatedSites,
     });
-    updateSiteInDB(req.siteId, { currentMonthSpend: updatedSites.find(s => s.id === req.siteId)?.currentMonthSpend }).catch(console.error);
+    updateSiteInDB(req.siteId, { currentMonthSpend: updatedSites.find(s => s.id === req.siteId)?.currentMonthSpend }).catch(reportSaveError);
   },
 
   saveChecklist: (checklistId, items) => {
@@ -480,7 +497,7 @@ export const useStore = create<AppState>((set, get) => ({
         c.id === checklistId ? { ...c, items } : c
       ),
     }));
-    updateChecklistInDB(checklistId, { items }).catch(console.error);
+    updateChecklistInDB(checklistId, { items }).catch(reportSaveError);
   },
 
   submitChecklist: (checklistId, userId) => {
@@ -492,14 +509,14 @@ export const useStore = create<AppState>((set, get) => ({
         c.id === checklistId ? { ...c, ...data } : c
       ),
     }));
-    updateChecklistInDB(checklistId, data).catch(console.error);
+    updateChecklistInDB(checklistId, data).catch(reportSaveError);
   },
 
   updateSite: (siteId, data) => {
     set(state => ({
       sites: state.sites.map(s => s.id === siteId ? { ...s, ...data } : s),
     }));
-    updateSiteInDB(siteId, data).catch(console.error);
+    updateSiteInDB(siteId, data).catch(reportSaveError);
   },
 
   saveSite: async (site) => {
@@ -539,7 +556,7 @@ export const useStore = create<AppState>((set, get) => ({
   },
   updatePPMSchedule: async (id, data) => {
     set(state => ({ ppmSchedules: state.ppmSchedules.map(s => s.id === id ? { ...s, ...data, updatedAt: new Date().toISOString() } : s) }));
-    await updatePPMSchedule(id, data).catch(console.error);
+    await updatePPMSchedule(id, data).catch(reportSaveError);
   },
 
   createIncident: async (data) => {
@@ -560,7 +577,7 @@ export const useStore = create<AppState>((set, get) => ({
       ...(data.category !== undefined && { category: data.category ? titleCase(data.category) : data.category }),
     };
     set(state => ({ incidents: state.incidents.map(item => item.id === id ? { ...item, ...normalized, updatedAt: new Date().toISOString() } : item) }));
-    await updateIncident(id, normalized).catch(console.error);
+    await updateIncident(id, normalized).catch(reportSaveError);
   },
 
   createPettyCashEntry: async (data) => {
@@ -570,7 +587,7 @@ export const useStore = create<AppState>((set, get) => ({
   },
   updatePettyCashEntry: async (id, data) => {
     set(state => ({ pettyCash: state.pettyCash.map(item => item.id === id ? { ...item, ...data } : item) }));
-    await updatePettyCashEntry(id, data).catch(console.error);
+    await updatePettyCashEntry(id, data).catch(reportSaveError);
   },
 
   createSupportTicket: async (data) => {
@@ -580,7 +597,7 @@ export const useStore = create<AppState>((set, get) => ({
   },
   updateSupportTicket: async (id, data) => {
     set(state => ({ supportTickets: state.supportTickets.map(item => item.id === id ? { ...item, ...data, updatedAt: new Date().toISOString() } : item) }));
-    await updateSupportTicket(id, data).catch(console.error);
+    await updateSupportTicket(id, data).catch(reportSaveError);
   },
 
   upsertVendor: async (vendor) => {
@@ -598,7 +615,7 @@ export const useStore = create<AppState>((set, get) => ({
         ? state.vendors.map(v => v.id === normalized.id ? { ...v, ...normalized } : v)
         : [...state.vendors, normalized as Vendor],
     }));
-    await upsertVendor(normalized).catch(console.error);
+    await upsertVendor(normalized).catch(reportSaveError);
   },
 
   createFacilityVendorSLA: async (data) => {
@@ -619,7 +636,7 @@ export const useStore = create<AppState>((set, get) => ({
   },
   updateTenant: async (id, data) => {
     set(state => ({ tenants: state.tenants.map(item => item.id === id ? { ...item, ...data } : item) }));
-    await updateTenant(id, data).catch(console.error);
+    await updateTenant(id, data).catch(reportSaveError);
   },
 
   createJobCompletion: async (data) => {
@@ -634,16 +651,16 @@ export const useStore = create<AppState>((set, get) => ({
   },
   updateReconEntry: async (id, data) => {
     set(state => ({ reconciliationEntries: state.reconciliationEntries.map(e => e.id === id ? { ...e, ...data } : e) }));
-    await updateReconciliationEntry(id, data).catch(console.error);
+    await updateReconciliationEntry(id, data).catch(reportSaveError);
   },
   setRequestRecon: async (requestId, status, note, by) => {
     set(state => ({ requests: state.requests.map(r => r.id === requestId ? { ...r, reconStatus: status, reconNote: note, reconBy: by } : r) }));
-    await updateRequestInDB(requestId, { reconStatus: status, reconNote: note, reconBy: by }).catch(console.error);
+    await updateRequestInDB(requestId, { reconStatus: status, reconNote: note, reconBy: by }).catch(reportSaveError);
   },
 
   updateChecklistTemplate: async (id, data) => {
     set(state => ({ checklistTemplates: state.checklistTemplates.map(item => item.id === id ? { ...item, ...data } : item) }));
-    await updateChecklistTemplate(id, data).catch(console.error);
+    await updateChecklistTemplate(id, data).catch(reportSaveError);
   },
 
   addTreasuryEntry: (entry) => {
@@ -651,19 +668,35 @@ export const useStore = create<AppState>((set, get) => ({
     set(state => ({
       treasury: [newEntry, ...state.treasury],
     }));
-    addTreasuryEntryInDB(newEntry).catch(console.error);
+    addTreasuryEntryInDB(newEntry).catch(reportSaveError);
+  },
+
+  getSiteMonthSpend: (siteId) => {
+    const now = new Date();
+    const month = now.getMonth();
+    const year = now.getFullYear();
+    return get().requests
+      .filter(r => {
+        if (r.siteId !== siteId || r.status !== 'PAID' || !r.paidAt) return false;
+        const paid = new Date(r.paidAt);
+        return paid.getMonth() === month && paid.getFullYear() === year;
+      })
+      .reduce((sum, r) => sum + (r.netPayment ?? r.invoiceAmount ?? 0), 0);
   },
 
   getBudgetSummaries: () => {
     const { sites } = get();
-    return sites.map(s => ({
-      siteId: s.id,
-      siteName: s.name,
-      monthlyBudget: s.monthlyBudget,
-      spent: s.currentMonthSpend,
-      remaining: s.monthlyBudget - s.currentMonthSpend,
-      utilizationPct: s.monthlyBudget > 0 ? Math.round((s.currentMonthSpend / s.monthlyBudget) * 100) : 0,
-    }));
+    return sites.map(s => {
+      const spent = get().getSiteMonthSpend(s.id);
+      return {
+        siteId: s.id,
+        siteName: s.name,
+        monthlyBudget: s.monthlyBudget,
+        spent,
+        remaining: s.monthlyBudget - spent,
+        utilizationPct: s.monthlyBudget > 0 ? Math.round((spent / s.monthlyBudget) * 100) : 0,
+      };
+    });
   },
 
   getRequestsBySite: (siteId) => get().requests.filter(r => r.siteId === siteId),

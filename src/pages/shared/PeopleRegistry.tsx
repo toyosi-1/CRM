@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Filter, Mail, Phone, ShieldCheck, UserCheck, Users, Wrench, UserCog, XCircle } from 'lucide-react';
-import { useStore } from '../../store/useStore';
+import { useStore, reportSaveError } from '../../store/useStore';
 import { ROLE_LABELS, formatDate, formatCurrency } from '../../utils/helpers';
-import { assignActingFM, clearActingFM } from '../../lib/firestore';
+import { assignActingFM, clearActingFM } from '../../lib/db';
 import type { User, UserRole } from '../../types';
 
 function isActingActive(u: User) {
@@ -122,7 +122,7 @@ function PersonRow({ user, sites, users, canManage, onAssignActing }: { user: Us
       {canManage && user.role === 'facility_manager' && (
         <div className="flex gap-2">
           <button className="btn-ghost text-xs flex items-center gap-1" onClick={onAssignActing}><UserCog size={12} />{user.actingForProfileId ? 'Change acting FM' : 'Assign acting FM'}</button>
-          {user.actingForProfileId && <button className="btn-ghost text-xs text-red-600" onClick={() => clearActingFM(user.id).catch(e => alert(String(e)))}><XCircle size={12} />Clear</button>}
+          {user.actingForProfileId && <button className="btn-ghost text-xs text-red-600" onClick={() => clearActingFM(user.id).catch(reportSaveError)}><XCircle size={12} />Clear</button>}
         </div>
       )}
     </div>

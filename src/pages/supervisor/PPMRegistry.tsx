@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Calendar, CheckCircle, Clock, Loader2, Plus, Wrench, XCircle } from 'lucide-react';
-import { useStore } from '../../store/useStore';
+import { useStore, reportSaveError } from '../../store/useStore';
 import { formatDate, vendorLabel } from '../../utils/helpers';
 import type { PPMSchedule } from '../../types';
 
@@ -32,13 +32,18 @@ export default function PPMRegistry() {
     event.preventDefault();
     if (!title.trim() || !siteId || !dueDate) return;
     setSaving(true);
-    await createPPMSchedule({
-      title, description, siteId, assetId: assetId || undefined, vendorId: vendorId || undefined,
-      frequencyMonths: Number(frequency), nextDueDate: dueDate, assignedTo: assignedTo || undefined,
-    });
-    setTitle(''); setDescription(''); setSiteId(''); setAssetId(''); setVendorId(''); setFrequency('3'); setDueDate(''); setAssignedTo('');
-    setShowForm(false);
-    setSaving(false);
+    try {
+      await createPPMSchedule({
+        title, description, siteId, assetId: assetId || undefined, vendorId: vendorId || undefined,
+        frequencyMonths: Number(frequency), nextDueDate: dueDate, assignedTo: assignedTo || undefined,
+      });
+      setTitle(''); setDescription(''); setSiteId(''); setAssetId(''); setVendorId(''); setFrequency('3'); setDueDate(''); setAssignedTo('');
+      setShowForm(false);
+    } catch (error) {
+      reportSaveError(error);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const complete = (schedule: PPMSchedule) => {

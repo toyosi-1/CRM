@@ -12,7 +12,7 @@ const REQUEST_CATEGORIES = ['HVAC', 'Water treatment', 'Generator', 'Electrical'
 export default function CreateRequest() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { currentUser, vendors, assets, sites, requests, incidents, createRequest, activeSiteId, facilityVendorSLAs } = useStore();
+  const { currentUser, vendors, assets, sites, requests, incidents, createRequest, activeSiteId, facilityVendorSLAs, getSiteMonthSpend } = useStore();
   const siteId = activeSiteId ?? currentUser?.siteId;
   const site = sites.find(s => s.id === siteId);
   const siteAssets = assets.filter(a => a.siteId === siteId);
@@ -60,7 +60,7 @@ export default function CreateRequest() {
   const availableVendors = form.slaAvailable ? slaVendors : vendors;
   const effectiveVendorId = form.slaAvailable && slaVendors.length === 1 ? slaVendors[0].id : form.vendorId;
   const selectedVendor = vendors.find(v => v.id === effectiveVendorId);
-  const remaining = site ? site.monthlyBudget - site.currentMonthSpend : 0;
+  const remaining = site ? site.monthlyBudget - getSiteMonthSpend(site.id) : 0;
   const invoiceAmt = parseFloat(form.invoiceAmount.replace(/,/g, '')) || 0;
   const budgetWarning = invoiceAmt > 0 && invoiceAmt > remaining;
   const vendorReady = form.vendorType === 'recurring'

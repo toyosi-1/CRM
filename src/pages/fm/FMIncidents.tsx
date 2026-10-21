@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { AlertTriangle, CheckCircle, Loader2, Pencil, Plus, XCircle } from 'lucide-react';
-import { useStore } from '../../store/useStore';
-import { uploadFile } from '../../lib/firestore';
+import { useStore, reportSaveError } from '../../store/useStore';
+import { uploadFile } from '../../lib/db';
 import { formatDateTime } from '../../utils/helpers';
 import { formatFileSize } from '../../utils/imageCompression';
 import ImageUpload from '../../components/shared/ImageUpload';
@@ -35,20 +35,25 @@ export default function FMIncidents() {
     event.preventDefault();
     if (!currentUser || !siteId) return;
     setSaving(true);
-    const newAttachments = await Promise.all(photos.map(async (photo, index) => ({
-      name: photo.file.name,
-      url: await uploadFile(`incidents/${currentUser.id}/${Date.now()}-${index}-${photo.file.name}`, photo.file),
-      originalSize: photo.originalSize,
-      compressedSize: photo.compressedSize,
-    })));
-    if (editing) {
-      await updateIncident(editing.id, { title, description, category, severity, attachments: [...editing.attachments, ...newAttachments] });
-      setEditing(null);
-    } else {
-      await createIncident({ siteId, reportedBy: currentUser.id, title, description, category, severity, attachments: newAttachments });
+    try {
+      const newAttachments = await Promise.all(photos.map(async (photo, index) => ({
+        name: photo.file.name,
+        url: await uploadFile(`incidents/${currentUser.id}/${Date.now()}-${index}-${photo.file.name}`, photo.file),
+        originalSize: photo.originalSize,
+        compressedSize: photo.compressedSize,
+      })));
+      if (editing) {
+        await updateIncident(editing.id, { title, description, category, severity, attachments: [...editing.attachments, ...newAttachments] });
+        setEditing(null);
+      } else {
+        await createIncident({ siteId, reportedBy: currentUser.id, title, description, category, severity, attachments: newAttachments });
+      }
+      setTitle(''); setDescription(''); setCategory(''); setSeverity('medium'); setPhotos([]); setShowForm(false);
+    } catch (error) {
+      reportSaveError(error);
+    } finally {
+      setSaving(false);
     }
-    setTitle(''); setDescription(''); setCategory(''); setSeverity('medium'); setPhotos([]); setShowForm(false);
-    setSaving(false);
   };
 
   const startEdit = (incident: Incident) => {

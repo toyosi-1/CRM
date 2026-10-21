@@ -1,7 +1,7 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from './supabase';
-import { fetchUserByAuthId } from './firestore';
+import { fetchUserByAuthId } from './db';
 import { useStore } from '../store/useStore';
 import type { User } from '../types';
 
@@ -29,6 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
   const [appUser, setAppUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const initializedForRef = useRef<string | null>(null);
   const storeLogin = useStore(state => state.login);
   const storeLogout = useStore(state => state.logout);
   const initSupabase = useStore(state => state.initSupabase);
@@ -37,24 +38,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const resolveUser = async (authUser: SupabaseUser | null) => {
       setSupabaseUser(authUser);
       if (!authUser?.email) {
+        initializedForRef.current = null;
         setAppUser(null);
         storeLogout();
         setLoading(false);
         return;
       }
-      const profile = await fetchUserByAuthId(authUser.id);
-      setAppUser(profile);
-      if (profile) {
-        await initSupabase();
+      try {
+        const profile = await fetchUserByAuthId(authUser.id);
+        if (!profile) {
+          initializedForRef.current = null;
+          await supabase.auth.signOut();
+          return;
+        }
+        setAppUser(profile);
+        if (initializedForRef.current !== profile.id) {
+          initializedForRef.current = profile.id;
+          await initSupabase();
+        }
         storeLogin(profile.id);
         if (window.location.pathname === '/login') {
           window.history.pushState({}, '', ROLE_ROUTES[profile.role] ?? '/login');
           window.dispatchEvent(new PopStateEvent('popstate'));
         }
-      } else {
-        await supabase.auth.signOut();
+      } catch (error) {
+        console.error('[auth] failed to load profile or data:', error);
+        initializedForRef.current = null;
+        setAppUser(null);
+        await supabase.auth.signOut().catch(() => undefined);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     void supabase.auth.getUser().then(({ data }) => resolveUser(data.user));

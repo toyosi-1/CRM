@@ -7,9 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "migrate:supabase:dry": "node scripts/migrate-firebase-to-supabase.cjs",
-    "migrate:supabase": "node scripts/migrate-firebase-to-supabase.cjs --apply"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",
@@ -31,7 +29,6 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
-    "firebase": "^12.13.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.0",
     "lucide-react": "^0.577.0",
@@ -52,7 +49,6 @@
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
-    "firebase-admin": "^13.9.0",
     "globals": "^17.4.0",
     "postcss": "^8.5.8",
     "puppeteer": "^24.43.0",

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Building2, MapPin, Phone, Calendar, AlertTriangle, CheckCircle, TrendingUp, Layers, ChevronRight, DollarSign, Pencil, Plus, XCircle } from 'lucide-react';
-import { useStore } from '../../store/useStore';
+import { useStore, reportSaveError } from '../../store/useStore';
 import { formatCurrency, formatDate, titleCase } from '../../utils/helpers';
 import { FACILITY_TYPES, type Site } from '../../types';
 
@@ -13,7 +13,7 @@ const EMPTY_SITE = (): Site => ({
 });
 
 export default function AdminSiteManagement() {
-  const { sites, saveSite } = useStore();
+  const { sites, saveSite, getSiteMonthSpend } = useStore();
   const [selected, setSelected] = useState<string | null>(null);
   const [editing, setEditing] = useState<Site | null>(null);
   const [saving, setSaving] = useState(false);
@@ -22,25 +22,30 @@ export default function AdminSiteManagement() {
     event.preventDefault();
     const f = event.currentTarget.elements as unknown as Record<string, HTMLInputElement | HTMLSelectElement>;
     setSaving(true);
-    await saveSite({
-      ...editing!,
-      name: titleCase(f.name.value), address: titleCase(f.address.value), siteType: f.siteType.value as Site['siteType'],
-      size: f.size.value, floors: titleCase(f.floors.value), units: f.units.value, scope: f.scope.value,
-      contactName: titleCase(f.contactName.value), contactPhone: f.contactPhone.value, contactEmail: f.contactEmail.value.trim(),
-      monthlyBudget: Number(f.monthlyBudget.value) || 0, floatLimit: Number(f.floatLimit.value) || 0,
-      pettyCashEnabled: (f.pettyCash as HTMLInputElement).checked, slaExpiryDate: f.slaExpiryDate.value,
-      electricityBilling: f.electricityBilling.value as Site['electricityBilling'], meterAccountNo: f.meterAccountNo.value,
-      emergencyContact: f.emergencyContact.value, securityDesk: f.securityDesk.value,
-      status: f.status.value as Site['status'],
-    });
-    setEditing(null);
-    setSaving(false);
+    try {
+      await saveSite({
+        ...editing!,
+        name: titleCase(f.name.value), address: titleCase(f.address.value), siteType: f.siteType.value as Site['siteType'],
+        size: f.size.value, floors: titleCase(f.floors.value), units: f.units.value, scope: f.scope.value,
+        contactName: titleCase(f.contactName.value), contactPhone: f.contactPhone.value, contactEmail: f.contactEmail.value.trim(),
+        monthlyBudget: Number(f.monthlyBudget.value) || 0, floatLimit: Number(f.floatLimit.value) || 0,
+        pettyCashEnabled: (f.pettyCash as HTMLInputElement).checked, slaExpiryDate: f.slaExpiryDate.value,
+        electricityBilling: f.electricityBilling.value as Site['electricityBilling'], meterAccountNo: f.meterAccountNo.value,
+        emergencyContact: f.emergencyContact.value, securityDesk: f.securityDesk.value,
+        status: f.status.value as Site['status'],
+      });
+      setEditing(null);
+    } catch (error) {
+      reportSaveError(error);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const selectedSite = sites.find(s => s.id === selected);
   const slaExpiredSites = sites.filter(s => new Date(s.slaExpiryDate) < new Date());
   const totalBudget = sites.reduce((s, x) => s + x.monthlyBudget, 0);
-  const totalSpend = sites.reduce((s, x) => s + x.currentMonthSpend, 0);
+  const totalSpend = sites.reduce((s, x) => s + getSiteMonthSpend(x.id), 0);
   const overallPct = Math.round((totalSpend / totalBudget) * 100);
 
   return (
@@ -125,7 +130,8 @@ export default function AdminSiteManagement() {
         {/* ── Site Cards ───────────────────────────── */}
         <div className="lg:col-span-2 space-y-3">
           {sites.map((site, idx) => {
-            const utilPct = site.monthlyBudget > 0 ? Math.round((site.currentMonthSpend / site.monthlyBudget) * 100) : 0;
+            const monthSpend = getSiteMonthSpend(site.id);
+            const utilPct = site.monthlyBudget > 0 ? Math.round((monthSpend / site.monthlyBudget) * 100) : 0;
             const slaExpired = new Date(site.slaExpiryDate) < new Date();
             const isSelected = selected === site.id;
             const barColor = utilPct >= 90
@@ -200,7 +206,7 @@ export default function AdminSiteManagement() {
                     <div className="flex justify-between items-center mb-2">
                       <div className="flex items-center gap-1.5">
                         <DollarSign size={11} className="text-slate-400" />
-                        <span className="text-xs text-slate-500 font-semibold">{formatCurrency(site.currentMonthSpend)} <span className="text-slate-400 font-normal">of {formatCurrency(site.monthlyBudget)}</span></span>
+                        <span className="text-xs text-slate-500 font-semibold">{formatCurrency(monthSpend)} <span className="text-slate-400 font-normal">of {formatCurrency(site.monthlyBudget)}</span></span>
                       </div>
                       <span className={`text-xs font-black ${utilPct >= 90 ? 'text-red-600' : utilPct >= 75 ? 'text-amber-600' : 'text-emerald-600'}`}>
                         {utilPct}%
@@ -260,12 +266,12 @@ export default function AdminSiteManagement() {
                   </div>
                   <p className="text-2xl font-black text-slate-900">{formatCurrency(selectedSite.monthlyBudget)}</p>
                   <p className="text-xs text-slate-500 mt-1">
-                    <span className="font-bold text-brand-600">{formatCurrency(selectedSite.currentMonthSpend)}</span> spent to date
+                    <span className="font-bold text-brand-600">{formatCurrency(getSiteMonthSpend(selectedSite.id))}</span> spent this month
                   </p>
                   <div className="mt-3 w-full bg-white/70 rounded-full h-2 overflow-hidden">
                     <div
                       className="h-2 rounded-full bg-gradient-to-r from-brand-500 to-purple-600 transition-all duration-700"
-                      style={{ width: `${Math.min(selectedSite.monthlyBudget > 0 ? Math.round((selectedSite.currentMonthSpend / selectedSite.monthlyBudget) * 100) : 0, 100)}%` }}
+                      style={{ width: `${Math.min(selectedSite.monthlyBudget > 0 ? Math.round((getSiteMonthSpend(selectedSite.id) / selectedSite.monthlyBudget) * 100) : 0, 100)}%` }}
                     />
                   </div>
                 </div>

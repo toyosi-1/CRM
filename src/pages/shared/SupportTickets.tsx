@@ -1,7 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { Headphones, Loader2, MessageSquare, Paperclip, Plus, XCircle } from 'lucide-react';
 import { useStore } from '../../store/useStore';
-import { uploadFile } from '../../lib/firestore';
+import { uploadFile } from '../../lib/db';
 import Lightbox from '../../components/shared/Lightbox';
 import { formatDateTime } from '../../utils/helpers';
 import type { SupportTicket } from '../../types';

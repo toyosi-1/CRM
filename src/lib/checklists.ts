@@ -1,5 +1,5 @@
 import type { Checklist, ChecklistItem, ChecklistTemplate } from '../types';
-import { createChecklistIfMissing } from './firestore';
+import { createChecklistIfMissing } from './db';
 
 export function periodStart(frequency: string) {
   const now = new Date();

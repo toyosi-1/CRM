@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Award, CheckCircle, Pencil, Search, ShieldCheck, Store, User, XCircle } from 'lucide-react';
-import { useStore } from '../../store/useStore';
+import { useStore, reportSaveError } from '../../store/useStore';
 import { formatCurrency, vendorMatches } from '../../utils/helpers';
 import type { Vendor } from '../../types';
 
@@ -12,7 +12,6 @@ export default function VendorOnboarding() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Vendor | null>(null);
   const [verified, setVerified] = useState(false);
-  const [verifying, setVerifying] = useState(false);
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState('');
   const filteredVendors = vendors.filter(v => vendorMatches(v, query));
@@ -30,27 +29,31 @@ export default function VendorOnboarding() {
     if (!canManage) return;
     const form = event.currentTarget.elements as unknown as Record<string, HTMLInputElement | HTMLSelectElement>;
     setSaving(true);
-    await upsertVendor({
-      ...(editing ?? {
-        id: crypto.randomUUID(), type: 'recurring' as const, riskScore: 'low' as const,
-        totalJobsCompleted: 0, totalAmountPaid: 0, avgCompletionDays: 0, lastJobDate: '',
-        createdAt: new Date().toISOString(),
-      }),
-      name: form.vendorName.value, category: form.category.value,
-      rcNumber: form.rcNumber.value, exemptionNotes: form.exemptionNotes.value,
-      bankName: form.bank.value, accountNumber: form.accountNo.value, accountName: form.accountName.value,
-      contactPerson: form.contactPerson.value, phone: form.phone.value, email: form.email.value.trim(), alias: form.alias.value.trim(), tin: form.tin.value,
-      verified: editing ? editing.verified : verified,
-      guarantorProfileId: form.guarantor.value || undefined,
-    });
-    closeForm();
-    setSaving(false);
+    try {
+      await upsertVendor({
+        ...(editing ?? {
+          id: crypto.randomUUID(), type: 'recurring' as const, riskScore: 'low' as const,
+          totalJobsCompleted: 0, totalAmountPaid: 0, avgCompletionDays: 0, lastJobDate: '',
+          createdAt: new Date().toISOString(),
+        }),
+        name: form.vendorName.value, category: form.category.value,
+        rcNumber: form.rcNumber.value, exemptionNotes: form.exemptionNotes.value,
+        bankName: form.bank.value, accountNumber: form.accountNo.value, accountName: form.accountName.value,
+        contactPerson: form.contactPerson.value, phone: form.phone.value, email: form.email.value.trim(), alias: form.alias.value.trim(), tin: form.tin.value,
+        verified: editing ? editing.verified : verified,
+        guarantorProfileId: form.guarantor.value || undefined,
+      });
+      closeForm();
+    } catch (error) {
+      reportSaveError(error);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const verifyAccount = () => {
-    setVerifying(true);
-    setTimeout(() => { setVerifying(false); setVerified(true); }, 1200);
-  };
+  // No live bank API is wired up — this is an explicit manual confirmation that
+  // procurement has independently checked the account name against the bank.
+  const confirmAccount = () => setVerified(true);
 
   return (
     <div className="space-y-6">
@@ -87,7 +90,7 @@ export default function VendorOnboarding() {
               <div className="form-group"><label className="label">Bank</label><select name="bank" className="select" defaultValue={editing?.bankName}>{BANKS.map(b => <option key={b} value={b}>{b}</option>)}</select></div>
               <div className="form-group"><label className="label">Account number</label><input name="accountNo" className="input" maxLength={10} defaultValue={editing?.accountNumber} required /></div>
             </div>
-            {!editing && <button type="button" onClick={verifyAccount} className="btn-secondary w-full justify-center" disabled={verifying || verified}>{verified ? <><CheckCircle size={14} />Name verified</> : <>{verifying ? 'Checking bank…' : <><ShieldCheck size={14} />Verify account name with bank</>}</>}</button>}
+            {!editing && <button type="button" onClick={confirmAccount} className="btn-secondary w-full justify-center" disabled={verified}>{verified ? <><CheckCircle size={14} />Account details confirmed</> : <><ShieldCheck size={14} />I have confirmed the account name with the bank</>}</button>}
           </div>
           <button className="btn-primary" disabled={saving}>{saving ? 'Saving…' : editing ? 'Save changes' : 'Save vendor'}</button>
         </form>

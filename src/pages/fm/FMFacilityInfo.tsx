@@ -1,11 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { Building2, MapPin, Pencil, Zap } from 'lucide-react';
-import { useStore } from '../../store/useStore';
+import { useStore, reportSaveError } from '../../store/useStore';
 import { formatCurrency } from '../../utils/helpers';
 import { FACILITY_TYPES, type FacilityType } from '../../types';
 
 export default function FMFacilityInfo() {
-  const { currentUser, sites, users, activeSiteId, updateSite } = useStore();
+  const { currentUser, sites, users, activeSiteId, updateSite, getSiteMonthSpend } = useStore();
   const site = sites.find(s => s.id === (activeSiteId ?? currentUser?.siteId));
   const fm = users.find(u => u.id === site?.contactName || u.siteId === site?.id && u.role === 'facility_manager');
   const technicians = users.filter(u => u.role === 'technician' && u.siteId === site?.id);
@@ -32,14 +32,19 @@ export default function FMFacilityInfo() {
     event.preventDefault();
     if (!site || !form.siteType) return;
     setSaving(true);
-    await updateSite(site.id, {
-      name: form.name, address: form.address, size: form.size, floors: form.floors, units: form.units, scope: form.scope,
-      siteType: form.siteType, contactName: form.contactName, contactPhone: form.contactPhone, contactEmail: form.contactEmail,
-      electricityBilling: form.electricityBilling, meterAccountNo: form.meterAccountNo,
-      emergencyContact: form.emergencyContact, securityDesk: form.securityDesk,
-    });
-    setSaving(false);
-    setEditing(false);
+    try {
+      await updateSite(site.id, {
+        name: form.name, address: form.address, size: form.size, floors: form.floors, units: form.units, scope: form.scope,
+        siteType: form.siteType, contactName: form.contactName, contactPhone: form.contactPhone, contactEmail: form.contactEmail,
+        electricityBilling: form.electricityBilling, meterAccountNo: form.meterAccountNo,
+        emergencyContact: form.emergencyContact, securityDesk: form.securityDesk,
+      });
+      setEditing(false);
+    } catch (error) {
+      reportSaveError(error);
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (!site) return <div className="card p-10 text-center text-slate-500">No facility assigned.</div>;
@@ -102,7 +107,7 @@ export default function FMFacilityInfo() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Kpi label="Annual budget" value={formatCurrency(site.monthlyBudget)} icon={<Zap size={14} />} />
-        <Kpi label="Spent this month" value={formatCurrency(site.currentMonthSpend)} icon={<Zap size={14} />} />
+        <Kpi label="Spent this month" value={formatCurrency(getSiteMonthSpend(site.id))} icon={<Zap size={14} />} />
         <Kpi label="Float limit" value={formatCurrency(site.floatLimit)} icon={<Zap size={14} />} />
         <Kpi label="SLA expiry" value={site.slaExpiryDate} icon={<Zap size={14} />} />
       </div>

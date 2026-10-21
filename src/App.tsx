@@ -50,6 +50,7 @@ import AdminUsers from './pages/admin/AdminUsers';
 import RequestDetail from './pages/shared/RequestDetail';
 import SupportTickets from './pages/shared/SupportTickets';
 import UpdatePrompt from './components/shared/UpdatePrompt';
+import SaveErrorToast from './components/shared/SaveErrorToast';
 import type { UserRole } from './types';
 import { useAuth } from './lib/AuthContext';
 
@@ -186,6 +187,7 @@ export default function App() {
         <Route path="*" element={<HomeRoute />} />
       </Routes>
       <UpdatePrompt />
+      <SaveErrorToast />
     </BrowserRouter>
   );
 }

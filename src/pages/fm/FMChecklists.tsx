@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { CheckSquare, Square, Send, Clock } from 'lucide-react';
+import { CheckSquare, Square, Send, Clock, Flag } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import type { ChecklistItem } from '../../types';
-import { formatDate } from '../../utils/helpers';
+import { formatDate, formatDateTime } from '../../utils/helpers';
 import FMDailyWalk from './FMDailyWalk';
 import ChecklistBuilder from '../supervisor/ChecklistBuilder';
 
@@ -29,7 +29,7 @@ function SectionTabs({ tabs, section, onChange }: { tabs: { key: 'walk' | 'all' 
 
 export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech' }) {
   const [section, setSection] = useState<'walk' | 'all' | 'builder'>('walk');
-  const { currentUser, checklists, saveChecklist, submitChecklist, activeSiteId } = useStore();
+  const { currentUser, checklists, users, saveChecklist, submitChecklist, activeSiteId } = useStore();
   const siteId = activeSiteId ?? currentUser?.siteId;
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -100,7 +100,7 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
                   <span className="text-2xl">{CHECKLIST_ICONS[cl.type] ?? '📋'}</span>
                   <div>
                     <h3 className="text-sm font-bold text-slate-800">{cl.title}</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">{checkedCount}/{visibleItems.length} items complete</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{formatDate(cl.createdAt)} · {checkedCount}/{visibleItems.length} items complete</p>
                   </div>
                 </div>
                 <span className={`badge ${cl.submittedToAdmin ? 'bg-emerald-100 text-emerald-700' : pct === 100 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
@@ -122,18 +122,21 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
               {cl.submittedToAdmin && cl.completedAt && (
                 <div className="px-4 pb-4 flex items-center gap-1.5 text-xs text-emerald-600 font-semibold">
                   <Clock size={11} />
-                  <span>Submitted {formatDate(cl.completedAt)}</span>
+                  <span>
+                    Submitted {formatDate(cl.completedAt)}
+                    {cl.completedBy && ` · ${users.find(u => u.id === cl.completedBy)?.name ?? 'FM'}`}
+                  </span>
                 </div>
               )}
 
-              {/* Expanded items */}
-              {isActive && !cl.submittedToAdmin && (
+              {/* Expanded items — read-only once submitted */}
+              {isActive && (
                 <div className="border-t border-slate-100">
                   <div className="divide-y divide-slate-100">
                     {visibleItems.map(item => (
                       <div
                         key={item.id}
-                        className={`flex items-start gap-3 px-4 py-3.5 cursor-pointer hover:bg-brand-50/40 transition-colors ${item.checked ? 'opacity-60' : ''}`}
+                        className={`flex items-start gap-3 px-4 py-3.5 transition-colors ${cl.submittedToAdmin ? '' : 'cursor-pointer hover:bg-brand-50/40'} ${item.checked ? 'opacity-60' : ''}`}
                         onClick={() => toggleItem(cl.id, item.id)}
                       >
                         <div className="flex-shrink-0 mt-0.5">
@@ -148,23 +151,32 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
                           </p>
                           {item.checked && item.timestamp && (
                             <p className="text-xs text-emerald-600 mt-0.5 flex items-center gap-1 font-medium">
-                              <Clock size={10} /> Done · {formatDate(item.timestamp)}
+                              <Clock size={10} /> Done · {formatDateTime(item.timestamp)}
                             </p>
                           )}
+                          {item.value !== undefined && item.value !== '' && (
+                            <p className="text-xs text-slate-500 mt-0.5">Reading: {item.value}{item.unit ? ` ${item.unit}` : ''}</p>
+                          )}
+                          {item.comment && (
+                            <p className="text-xs text-slate-500 mt-0.5">{item.comment}</p>
+                          )}
                         </div>
+                        {item.flagged && <Flag size={13} className="text-amber-500 flex-shrink-0 mt-1" />}
                       </div>
                     ))}
                   </div>
-                  <div className="p-4 border-t border-slate-100 flex gap-3">
-                    <button
-                      onClick={() => handleSubmit(cl.id)}
-                      disabled={!allDone}
-                      className="btn-primary w-full disabled:opacity-40"
-                    >
-                      <Send size={14} />
-                      {!allDone ? `Complete all items first (${cl.items.filter(i => !i.checked).length} remaining)` : 'Submit to Admin'}
-                    </button>
-                  </div>
+                  {!cl.submittedToAdmin && (
+                    <div className="p-4 border-t border-slate-100 flex gap-3">
+                      <button
+                        onClick={() => handleSubmit(cl.id)}
+                        disabled={!allDone}
+                        className="btn-primary w-full disabled:opacity-40"
+                      >
+                        <Send size={14} />
+                        {!allDone ? `Complete all items first (${cl.items.filter(i => !i.checked).length} remaining)` : 'Submit to Admin'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, ImagePlus, Loader2 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
-import { uploadFile } from '../../lib/firestore';
+import { uploadFile } from '../../lib/db';
 import { workOrderDocument, mailtoVendorWorkOrder } from '../../lib/workOrder';
 import Lightbox from '../../components/shared/Lightbox';
 import DocPreview from '../../components/shared/DocPreview';

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, Building2, User, AlertTriangle, CheckCircle, XCircle, DollarSign, Zap, Clock, Trash2, Paperclip } from 'lucide-react';
-import { useStore } from '../../store/useStore';
-import { markVendorAttended, uploadFile } from '../../lib/firestore';
+import { useStore, reportSaveError } from '../../store/useStore';
+import { markVendorAttended, uploadFile } from '../../lib/db';
 import { StatusBadge, PriorityBadge } from '../../components/shared/Badges';
 import AuditTimeline from '../../components/shared/AuditTimeline';
 import BudgetWidget from '../../components/shared/BudgetWidget';
@@ -16,7 +16,7 @@ import {
 export default function RequestDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { requests, sites, vendors, currentUser, updateRequestStatus, updateRequest, generatePO, processPayment, markPaid, deleteRequest, facilityVendorSLAs, incidents } = useStore();
+  const { requests, sites, vendors, currentUser, updateRequestStatus, updateRequest, generatePO, processPayment, markPaid, deleteRequest, facilityVendorSLAs, incidents, getSiteMonthSpend } = useStore();
   const [now, setNow] = useState(0);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [completionFile, setCompletionFile] = useState<File | null>(null);
@@ -24,6 +24,7 @@ export default function RequestDetail() {
   const [fixInvoiceFile, setFixInvoiceFile] = useState<File | null>(null);
   const [fixFiles, setFixFiles] = useState<File[]>([]);
   const [resubmitting, setResubmitting] = useState(false);
+  const [poBusy, setPoBusy] = useState(false);
   const [poDoc, setPoDoc] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{ src: string; alt?: string } | null>(null);
   useEffect(() => {
@@ -45,9 +46,9 @@ export default function RequestDetail() {
     : null;
   const budgetSum = site ? {
     budget: site.monthlyBudget,
-    spent: site.currentMonthSpend,
-    remaining: site.monthlyBudget - site.currentMonthSpend,
-    utilizationPct: site.monthlyBudget > 0 ? Math.round((site.currentMonthSpend / site.monthlyBudget) * 100) : 0,
+    spent: getSiteMonthSpend(site.id),
+    remaining: site.monthlyBudget - getSiteMonthSpend(site.id),
+    utilizationPct: site.monthlyBudget > 0 ? Math.round((getSiteMonthSpend(site.id) / site.monthlyBudget) * 100) : 0,
   } : null;
 
   if (!req) {
@@ -77,8 +78,9 @@ export default function RequestDetail() {
     navigate(-1);
   };
 
-  const handleGeneratePO = () => {
-    generatePO(req.id, currentUser!.id);
+  const handleGeneratePO = async () => {
+    setPoBusy(true);
+    try { await generatePO(req.id, currentUser!.id); } finally { setPoBusy(false); }
   };
 
   const handleMoveToProcurement = () => {
@@ -524,8 +526,8 @@ export default function RequestDetail() {
               )}
               {/* Procurement: generate PO */}
               {(role === 'procurement' || role === 'admin') && req.status === 'PROCUREMENT_REVIEW' && (
-                <button onClick={handleGeneratePO} className="btn-primary">
-                  Generate Purchase Order
+                <button onClick={() => void handleGeneratePO()} disabled={poBusy} className="btn-primary disabled:opacity-50">
+                  {poBusy ? 'Generating…' : 'Generate Purchase Order'}
                 </button>
               )}
               {/* Procurement: reject at review stage */}
@@ -613,7 +615,7 @@ export default function RequestDetail() {
               {role === 'facility_manager' && vendor && !req.vendorAttendedAt && (
                 <button
                   onClick={async () => {
-                    try { await markVendorAttended(req.id); } catch (e) { alert(String(e instanceof Error ? e.message : e)); }
+                    try { await markVendorAttended(req.id); } catch (e) { reportSaveError(e); }
                   }}
                   className="btn-secondary"
                 >

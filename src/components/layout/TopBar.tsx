@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Bell, Building2, LifeBuoy, Menu, Moon, Search, Sun, X } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { ROLE_LABELS } from '../../utils/helpers';
-import { markNotificationRead, subscribeNotifications, type AppNotification } from '../../lib/firestore';
+import { markNotificationRead, subscribeNotifications, type AppNotification } from '../../lib/db';
 import { enablePushNotifications, getPushSubscription, pushSupported } from '../../lib/push';
 
 interface TopBarProps {

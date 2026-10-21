@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Eye } from 'lucide-react';
 import { useStore } from '../../store/useStore';
@@ -7,6 +8,7 @@ import { formatCurrency, formatDate, getSlaStatus } from '../../utils/helpers';
 export default function ProcurementQueue() {
   const navigate = useNavigate();
   const { currentUser, requests, generatePO, updateRequestStatus } = useStore();
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
 
   const queueRequests = requests.filter(r =>
     r.status === 'REQUEST_CREATED' || r.status === 'PROCUREMENT_REVIEW'
@@ -17,9 +19,11 @@ export default function ProcurementQueue() {
     updateRequestStatus(reqId, 'PROCUREMENT_REVIEW', currentUser!.id, 'Request accepted into Procurement Review queue.');
   };
 
-  const handleGeneratePO = (e: React.MouseEvent, reqId: string) => {
+  const handleGeneratePO = async (e: React.MouseEvent, reqId: string) => {
     e.stopPropagation();
-    generatePO(reqId, currentUser!.id);
+    if (generatingId) return;
+    setGeneratingId(reqId);
+    try { await generatePO(reqId, currentUser!.id); } finally { setGeneratingId(null); }
   };
 
   return (
@@ -75,8 +79,8 @@ export default function ProcurementQueue() {
                         <button onClick={e => handleAccept(e, req.id)} className="px-2.5 py-1 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors">Accept</button>
                       )}
                       {req.status === 'PROCUREMENT_REVIEW' && (
-                        <button onClick={e => handleGeneratePO(e, req.id)} className="px-2.5 py-1 bg-brand-600 text-white text-xs font-bold rounded-lg hover:bg-brand-700 flex items-center gap-1 transition-colors">
-                          <FileText size={11} /> Gen PO
+                        <button onClick={e => void handleGeneratePO(e, req.id)} disabled={generatingId === req.id} className="px-2.5 py-1 bg-brand-600 text-white text-xs font-bold rounded-lg hover:bg-brand-700 flex items-center gap-1 transition-colors disabled:opacity-50">
+                          <FileText size={11} /> {generatingId === req.id ? 'Generating…' : 'Gen PO'}
                         </button>
                       )}
                     </div>
