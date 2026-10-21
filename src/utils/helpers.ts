@@ -110,6 +110,14 @@ export const budgetWarningLevel = (utilizationPct: number): 'safe' | 'warning' |
   return 'safe';
 };
 
+// YYYY-MM-DD key for grouping records by calendar day.
+// `daysAgo` lets callers ask for yesterday etc. without touching Date in render.
+export const dayKey = (iso?: string, daysAgo = 0): string => {
+  const d = iso ? new Date(iso) : new Date();
+  if (daysAgo) d.setDate(d.getDate() - daysAgo);
+  return d.toISOString().slice(0, 10);
+};
+
 // Spec §5.2 — clamp to month end (31 Jan + 1 month = 28 Feb, never 31 Feb)
 export const addMonths = (iso: string, n: number): string => {
   const d = new Date(iso);

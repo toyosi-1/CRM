@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckSquare, Square, Send, Clock, Flag } from 'lucide-react';
+import { CheckSquare, Square, Send, Clock, Flag, ChevronDown, ChevronRight } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import FlagCommentPanel from '../../components/shared/FlagCommentPanel';
 import type { Checklist, ChecklistItem } from '../../types';
-import { formatDate, formatDateTime } from '../../utils/helpers';
+import { dayKey, formatDate, formatDateTime } from '../../utils/helpers';
 import FMDailyWalk from './FMDailyWalk';
 import ChecklistBuilder from '../supervisor/ChecklistBuilder';
 
@@ -35,10 +35,32 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
   const { currentUser, checklists, users, saveChecklist, submitChecklist, activeSiteId } = useStore();
   const siteId = activeSiteId ?? currentUser?.siteId;
   const [activeId, setActiveId] = useState<string | null>(null);
+  const todayKey = dayKey();
+  const yesterdayKey = dayKey(undefined, 1);
+  const [openDays, setOpenDays] = useState<Set<string>>(new Set([todayKey]));
 
   const myChecklists = checklists
     .filter(c => c.siteId === siteId)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  // Segment the history by calendar day so long lists stay scannable
+  const byDay = myChecklists.reduce<Map<string, Checklist[]>>((map, cl) => {
+    const day = cl.createdAt.slice(0, 10);
+    map.set(day, [...(map.get(day) ?? []), cl]);
+    return map;
+  }, new Map());
+
+  const dayLabel = (iso: string) => {
+    if (iso === todayKey) return 'Today';
+    return iso === yesterdayKey ? 'Yesterday' : formatDate(`${iso}T12:00:00`);
+  };
+
+  const toggleDay = (day: string) =>
+    setOpenDays(prev => {
+      const next = new Set(prev);
+      if (next.has(day)) next.delete(day); else next.add(day);
+      return next;
+    });
 
   const toggleItem = (checklistId: string, itemId: string) => {
     const cl = myChecklists.find(c => c.id === checklistId);
@@ -100,8 +122,27 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
     <div className="space-y-5">
       <SectionTabs tabs={tabs} section={section} onChange={setSection} />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {myChecklists.map(cl => {
+      <div className="space-y-4">
+        {[...byDay.entries()].map(([day, dayChecklists]) => {
+          const isOpen = openDays.has(day);
+          const submittedCount = dayChecklists.filter(c => c.submittedToAdmin).length;
+          return (
+            <div key={day} className="space-y-3">
+              <button
+                type="button"
+                onClick={() => toggleDay(day)}
+                className="w-full flex items-center gap-2 px-1 py-1 text-left group"
+              >
+                {isOpen
+                  ? <ChevronDown size={15} className="text-slate-400 group-hover:text-slate-600" />
+                  : <ChevronRight size={15} className="text-slate-400 group-hover:text-slate-600" />}
+                <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">{dayLabel(day)}</span>
+                <span className="badge b-neu">{dayChecklists.length} checklist{dayChecklists.length === 1 ? '' : 's'}</span>
+                {submittedCount > 0 && <span className="badge bg-emerald-100 text-emerald-700">{submittedCount} submitted</span>}
+              </button>
+              {isOpen && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {dayChecklists.map(cl => {
           const visibleItems = roleFilter ? cl.items.filter(i => !i.role || i.role === roleFilter || i.role === 'both') : cl.items;
           const checkedCount = visibleItems.filter(i => i.checked).length;
           const pct = visibleItems.length ? Math.round((checkedCount / visibleItems.length) * 100) : 0;
@@ -220,6 +261,11 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
                       </button>
                     </div>
                   )}
+                </div>
+              )}
+            </div>
+          );
+                  })}
                 </div>
               )}
             </div>
