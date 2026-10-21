@@ -514,7 +514,7 @@ export function subscribePPMSchedules(callback: (schedules: PPMSchedule[]) => vo
 
 export async function fetchTenants(): Promise<Tenant[]> {
   const { data, error } = await supabase.from('tenants').select('*').order('lease_expiry', { ascending: true, nullsFirst: false }); fail(error);
-  return (data ?? []).map(row => ({ id: row.id, siteId: row.site_id, name: row.name, unit: row.unit, email: row.email, phone: row.phone, monthlyRent: Number(row.monthly_rent), leaseExpiry: row.lease_expiry, lastPaymentDate: row.last_payment_date, status: row.status, createdAt: row.created_at, updatedAt: row.updated_at }));
+  return (data ?? []).map(row => ({ id: row.id, siteId: row.site_id, name: row.name, unit: row.unit, email: row.email, phone: row.phone, monthlyRent: Number(row.monthly_rent), serviceCharge: Number(row.service_charge ?? 0), leaseExpiry: row.lease_expiry, lastPaymentDate: row.last_payment_date, status: row.status, createdAt: row.created_at, updatedAt: row.updated_at }));
 }
 
 export function subscribeTenants(callback: (tenants: Tenant[]) => void): () => void {
@@ -524,7 +524,7 @@ export function subscribeTenants(callback: (tenants: Tenant[]) => void): () => v
 export async function createTenant(tenant: Partial<Tenant>): Promise<void> {
   const { error } = await supabase.from('tenants').insert({
     site_id: tenant.siteId, name: tenant.name, unit: tenant.unit, email: tenant.email, phone: tenant.phone,
-    monthly_rent: tenant.monthlyRent, lease_expiry: tenant.leaseExpiry, last_payment_date: tenant.lastPaymentDate, status: tenant.status ?? 'paid',
+    monthly_rent: tenant.monthlyRent, service_charge: tenant.serviceCharge ?? 0, lease_expiry: tenant.leaseExpiry, last_payment_date: tenant.lastPaymentDate, status: tenant.status ?? 'paid',
   }); fail(error);
 }
 
@@ -532,7 +532,7 @@ export async function updateTenant(tenantId: string, data: Partial<Tenant>): Pro
   const { error } = await supabase.from('tenants').update({
     ...(data.siteId !== undefined && { site_id: data.siteId }), ...(data.name !== undefined && { name: data.name }), ...(data.unit !== undefined && { unit: data.unit }),
     ...(data.email !== undefined && { email: data.email }), ...(data.phone !== undefined && { phone: data.phone }), ...(data.monthlyRent !== undefined && { monthly_rent: data.monthlyRent }),
-    ...(data.leaseExpiry !== undefined && { lease_expiry: data.leaseExpiry }), ...(data.lastPaymentDate !== undefined && { last_payment_date: data.lastPaymentDate }), ...(data.status !== undefined && { status: data.status }),
+    ...(data.leaseExpiry !== undefined && { lease_expiry: data.leaseExpiry }), ...(data.lastPaymentDate !== undefined && { last_payment_date: data.lastPaymentDate }), ...(data.serviceCharge !== undefined && { service_charge: data.serviceCharge }), ...(data.status !== undefined && { status: data.status }),
   }).eq('id', tenantId); fail(error);
 }
 

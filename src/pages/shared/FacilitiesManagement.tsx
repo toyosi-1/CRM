@@ -17,6 +17,7 @@ export default function FacilitiesManagement() {
   const [selected, setSelected] = useState<string | null>(null);
   const [showTenant, setShowTenant] = useState(false);
   const canEdit = currentUser?.role === 'admin' || currentUser?.role === 'ict_admin' || currentUser?.role === 'supervisor';
+  const canManageTenants = currentUser?.role === 'admin';
 
   const site = sites.find(s => s.id === selected);
   const siteTenants = tenants.filter(t => t.siteId === selected);
@@ -41,7 +42,7 @@ export default function FacilitiesManagement() {
     const form = event.currentTarget.elements as unknown as Record<string, HTMLInputElement>;
     await createTenant({
       siteId: site.id, name: form.tenantName.value, unit: form.unit.value, email: form.email.value,
-      phone: form.phone.value, monthlyRent: Number(form.monthlyRent.value), leaseExpiry: form.leaseExpiry.value,
+      phone: form.phone.value, monthlyRent: Number(form.monthlyRent.value), serviceCharge: Number(form.serviceCharge.value) || 0, leaseExpiry: form.leaseExpiry.value,
       lastPaymentDate: form.lastPaymentDate.value, status: 'paid',
     });
     setShowTenant(false);
@@ -92,20 +93,21 @@ export default function FacilitiesManagement() {
               </form>
 
               <div className="card p-5">
-                <div className="flex items-center justify-between mb-4"><h2 className="font-black text-slate-900 flex items-center gap-2"><Users size={16} className="text-brand-600" />Tenancy registry</h2>{canEdit && <button onClick={() => setShowTenant(true)} className="btn-primary"><Plus size={14} />Add tenant</button>}</div>
-                {showTenant && (
+                <div className="flex items-center justify-between mb-4"><h2 className="font-black text-slate-900 flex items-center gap-2"><Users size={16} className="text-brand-600" />Tenancy registry</h2>{canManageTenants && <button onClick={() => setShowTenant(true)} className="btn-primary"><Plus size={14} />Add tenant</button>}</div>
+                {showTenant && canManageTenants && (
                   <form onSubmit={addTenant} className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4 p-3 bg-slate-50 rounded-xl">
                     <input className="input" name="tenantName" placeholder="Tenant name" required />
                     <input className="input" name="unit" placeholder="Unit" />
                     <input className="input" name="email" type="email" placeholder="Email" />
                     <input className="input" name="phone" placeholder="Phone" />
-                    <input className="input" name="monthlyRent" type="number" placeholder="Monthly rent" />
+                    <input className="input" name="monthlyRent" type="number" min={0} placeholder="Monthly rent (₦)" required />
+                    <input className="input" name="serviceCharge" type="number" min={0} placeholder="Service charge (₦, if applicable)" />
                     <input className="input" name="leaseExpiry" type="date" placeholder="Lease expiry" />
                     <input className="input" name="lastPaymentDate" type="date" placeholder="Last payment" />
                     <div className="md:col-span-2 flex gap-2"><button className="btn-primary">Save tenant</button><button type="button" onClick={() => setShowTenant(false)} className="btn-secondary">Cancel</button></div>
                   </form>
                 )}
-                {siteTenants.length === 0 ? <p className="text-sm text-slate-500">No tenants recorded.</p> : <div className="divide-y divide-slate-100">{siteTenants.map(t => <TenantRow key={t.id} tenant={t} canEdit={canEdit} onUpdate={updateTenant} />)}</div>}
+                {siteTenants.length === 0 ? <p className="text-sm text-slate-500">No tenants recorded.</p> : <div className="divide-y divide-slate-100">{siteTenants.map(t => <TenantRow key={t.id} tenant={t} canEdit={canManageTenants} onUpdate={updateTenant} />)}</div>}
               </div>
 
               <div className="card p-5">
@@ -134,7 +136,7 @@ function TenantRow({ tenant, canEdit, onUpdate }: { tenant: Tenant; canEdit: boo
     <div className="p-3 flex items-center justify-between gap-3">
       <div>
         <p className="font-bold text-sm text-slate-800">{tenant.name}</p>
-        <p className="text-xs text-slate-500">{tenant.unit} · {tenant.phone} · {formatCurrency(tenant.monthlyRent)}/month</p>
+        <p className="text-xs text-slate-500">{tenant.unit} · {tenant.phone} · {formatCurrency(tenant.monthlyRent)}/month{(tenant.serviceCharge ?? 0) > 0 && ` + ${formatCurrency(tenant.serviceCharge!)} service charge`}</p>
       </div>
       <div className="text-right">
         {editing ? <div className="flex gap-2"><select className="select text-xs" value={status} onChange={e => setStatus(e.target.value as Tenant['status'])}><option value="paid">Paid</option><option value="expiring_soon">Expiring soon</option><option value="overdue">Overdue</option></select><button onClick={saveStatus} className="btn-success text-xs py-1">Save</button></div> : <span className={`badge ${tenant.status === 'overdue' ? 'bg-red-100 text-red-700' : tenant.status === 'expiring_soon' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>{tenant.status.replace('_', ' ')}</span>}

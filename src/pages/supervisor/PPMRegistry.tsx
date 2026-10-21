@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Calendar, CheckCircle, Clock, Loader2, Plus, Wrench, XCircle } from 'lucide-react';
+import { Calendar, CheckCircle, ChevronDown, ChevronRight, Clock, Loader2, Plus, Wrench, XCircle } from 'lucide-react';
 import { useStore, reportSaveError } from '../../store/useStore';
 import { formatDate, vendorLabel } from '../../utils/helpers';
 import type { PPMSchedule } from '../../types';
@@ -15,6 +15,7 @@ const STATUS_COLORS: Record<PPMSchedule['status'], string> = {
 export default function PPMRegistry() {
   const { currentUser, sites, assets, vendors, users, ppmSchedules, createPPMSchedule, updatePPMSchedule } = useStore();
   const [showForm, setShowForm] = useState(false);
+  const [collapsed, setCollapsed] = useState<Set<string> | null>(null);
   const [saving, setSaving] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -60,6 +61,18 @@ export default function PPMRegistry() {
     void updatePPMSchedule(schedule.id, { status: 'deferred', deferralReason: 'Rescheduled by supervisor', nextDueDate: next.toISOString().slice(0, 10) });
   };
 
+  const actionable = (siteId: string) =>
+    ppmSchedules.some(s => s.siteId === siteId && (s.status === 'due' || s.status === 'overdue'));
+  const isCollapsed = (siteId: string) =>
+    collapsed === null ? !actionable(siteId) : collapsed.has(siteId);
+  const toggleSite = (siteId: string) =>
+    setCollapsed(prev => {
+      const base = prev ?? new Set(sites.filter(s => !actionable(s.id)).map(s => s.id));
+      const next = new Set(base);
+      if (next.has(siteId)) next.delete(siteId); else next.add(siteId);
+      return next;
+    });
+
   return (
     <div className="space-y-6">
       <div className="dash-header">
@@ -98,11 +111,26 @@ export default function PPMRegistry() {
           .filter(group => group.schedules.length > 0)
           .map(({ site, schedules: siteSchedules }) => (
             <div key={site.id} className="card overflow-hidden">
-              <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-                <div className="flex items-center gap-2"><Calendar size={18} className="text-brand-600" /><h2 className="font-black text-slate-900">{site.name}</h2></div>
-                <span className="badge bg-slate-100 text-slate-600">{siteSchedules.length} schedule{siteSchedules.length === 1 ? '' : 's'}</span>
-              </div>
-              <div className="divide-y divide-slate-100">{siteSchedules.map(schedule => <div key={schedule.id} className="p-4 flex items-start justify-between gap-3"><div><p className="font-bold text-slate-800">{schedule.title}</p><p className="text-xs text-slate-500">{schedule.assetId ? assets.find(a => a.id === schedule.assetId)?.name : 'Site-wide'}</p><p className="text-xs text-slate-400 mt-1">{schedule.description}</p><div className="flex gap-2 mt-2"><span className={`badge ${STATUS_COLORS[schedule.status]}`}>{schedule.status}</span><span className="badge bg-slate-100 text-slate-600"><Clock size={10} />{formatDate(schedule.nextDueDate)}</span></div></div><div className="text-right space-y-1"><p className="text-xs text-slate-500">{schedule.frequencyMonths} month{schedule.frequencyMonths === 1 ? '' : 's'}</p>{schedule.assignedTo && <p className="text-xs text-brand-600 flex items-center justify-end gap-1"><Wrench size={10} />{users.find(u => u.id === schedule.assignedTo)?.name}</p>}{(canManage || currentUser?.id === schedule.assignedTo) && schedule.status !== 'completed' && <div className="flex gap-2 mt-2"><button onClick={() => complete(schedule)} className="btn-success text-xs py-1"><CheckCircle size={12} />Complete</button><button onClick={() => defer(schedule)} className="btn-secondary text-xs py-1">Defer</button></div>}</div></div>)}</div>
+              <button
+                type="button"
+                onClick={() => toggleSite(site.id)}
+                className="w-full p-5 border-b border-slate-100 flex items-center justify-between hover:bg-slate-50 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  {isCollapsed(site.id) ? <ChevronRight size={15} className="text-slate-400" /> : <ChevronDown size={15} className="text-slate-400" />}
+                  <Calendar size={18} className="text-brand-600" /><h2 className="font-black text-slate-900">{site.name}</h2>
+                </div>
+                <div className="flex items-center gap-2">
+                  {siteSchedules.filter(s => s.status === 'overdue').length > 0 && (
+                    <span className="badge bg-red-100 text-red-700">{siteSchedules.filter(s => s.status === 'overdue').length} overdue</span>
+                  )}
+                  {siteSchedules.filter(s => s.status === 'due').length > 0 && (
+                    <span className="badge bg-blue-100 text-blue-700">{siteSchedules.filter(s => s.status === 'due').length} due</span>
+                  )}
+                  <span className="badge bg-slate-100 text-slate-600">{siteSchedules.length} schedule{siteSchedules.length === 1 ? '' : 's'}</span>
+                </div>
+              </button>
+              {!isCollapsed(site.id) && <div className="divide-y divide-slate-100">{siteSchedules.map(schedule => <div key={schedule.id} className="p-4 flex items-start justify-between gap-3"><div><p className="font-bold text-slate-800">{schedule.title}</p><p className="text-xs text-slate-500">{schedule.assetId ? assets.find(a => a.id === schedule.assetId)?.name : 'Site-wide'}</p><p className="text-xs text-slate-400 mt-1">{schedule.description}</p><div className="flex gap-2 mt-2"><span className={`badge ${STATUS_COLORS[schedule.status]}`}>{schedule.status}</span><span className="badge bg-slate-100 text-slate-600"><Clock size={10} />{formatDate(schedule.nextDueDate)}</span></div></div><div className="text-right space-y-1"><p className="text-xs text-slate-500">{schedule.frequencyMonths} month{schedule.frequencyMonths === 1 ? '' : 's'}</p>{schedule.assignedTo && <p className="text-xs text-brand-600 flex items-center justify-end gap-1"><Wrench size={10} />{users.find(u => u.id === schedule.assignedTo)?.name}</p>}{(canManage || currentUser?.id === schedule.assignedTo) && schedule.status !== 'completed' && <div className="flex gap-2 mt-2"><button onClick={() => complete(schedule)} className="btn-success text-xs py-1"><CheckCircle size={12} />Complete</button><button onClick={() => defer(schedule)} className="btn-secondary text-xs py-1">Defer</button></div>}</div></div>)}</div>}
             </div>
           ))
       )}

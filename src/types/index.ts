@@ -395,6 +395,7 @@ export interface Tenant {
   email: string;
   phone: string;
   monthlyRent: number;
+  serviceCharge?: number;
   leaseExpiry?: string;
   lastPaymentDate?: string;
   status: 'paid' | 'expiring_soon' | 'overdue';
