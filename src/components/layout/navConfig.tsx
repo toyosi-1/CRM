@@ -81,17 +81,26 @@ const TECHNICIAN_NAV: NavSection[] = [
 ];
 
 const ADMIN_NAV: NavSection[] = [
-  { section: 'Workspace', items: [
-    { label: 'Analytics', path: '/admin', icon: <BarChart3 size={15} /> },
+  { section: 'Global', items: [
+    { label: 'Dashboard', path: '/admin', icon: <LayoutDashboard size={15} /> },
+    { label: 'All requests', path: '/admin/requests', icon: <ClipboardList size={15} /> },
+    { label: 'Audit view', path: '/admin/audit', icon: <BookOpen size={15} /> },
   ]},
-  { section: 'Management', items: [
+  { section: 'Finance', items: [
+    { label: 'Treasury', path: '/admin/treasury', icon: <Wallet size={15} /> },
+  ]},
+  { section: 'Oversight', items: [
+    { label: 'Report factory', path: '/admin/reports', icon: <BarChart3 size={15} /> },
+    { label: 'Vendor scorecard', path: '/admin/vendors', icon: <Store size={15} /> },
+  ]},
+  { section: 'Config', items: [
     { label: 'Facilities', path: '/admin/facilities', icon: <Building2 size={15} /> },
-    { label: 'Site rules', path: '/admin/sites', icon: <Settings size={15} /> },
+    { label: 'Site management', path: '/admin/site-management', icon: <Settings size={15} /> },
+    { label: 'Site rules', path: '/admin/sites', icon: <ShieldCheck size={15} /> },
+    { label: 'PPM registry', path: '/admin/ppm', icon: <Calendar size={15} /> },
     { label: 'People', path: '/admin/people', icon: <Users size={15} /> },
-    { label: 'Staff access', path: '/admin/users', icon: <UserPlus size={15} /> },
-  ]},
-  { section: 'Governance', items: [
-    { label: 'Audit log', path: '/admin/audit', icon: <BookOpen size={15} /> },
+    { label: 'Checklist builder', path: '/admin/checklist-builder', icon: <ClipboardEdit size={15} /> },
+    { label: 'User management', path: '/admin/users', icon: <UserPlus size={15} /> },
   ]},
 ];
 

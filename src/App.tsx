@@ -45,7 +45,12 @@ import JobCompletion from './pages/technician/JobCompletion';
 
 import AdminAnalytics from './pages/admin/AdminAnalytics';
 import AdminAuditLog from './pages/admin/AdminAuditLog';
+import AdminReports from './pages/admin/AdminReports';
+import AdminRequests from './pages/admin/AdminRequests';
+import AdminSiteManagement from './pages/admin/AdminSiteManagement';
+import AdminTreasury from './pages/admin/AdminTreasury';
 import AdminUsers from './pages/admin/AdminUsers';
+import AdminVendors from './pages/admin/AdminVendors';
 import IctDashboard from './pages/ict/IctDashboard';
 
 import RequestDetail from './pages/shared/RequestDetail';
@@ -160,11 +165,17 @@ export default function App() {
           <ProtectedRoute role="admin"><Layout /></ProtectedRoute>
         }>
           <Route index element={<AdminAnalytics />} />
+          <Route path="requests" element={<AdminRequests />} />
           <Route path="audit" element={<AdminAuditLog />} />
-          <Route path="users" element={<AdminUsers />} />
+          <Route path="treasury" element={<AdminTreasury />} />
+          <Route path="reports" element={<AdminReports />} />
+          <Route path="vendors" element={<AdminVendors />} />
           <Route path="facilities" element={<FacilitiesManagement />} />
+          <Route path="site-management" element={<AdminSiteManagement />} />
           <Route path="sites" element={<SiteRules />} />
+          <Route path="ppm" element={<PPMRegistry />} />
           <Route path="people" element={<PeopleRegistry />} />
+          <Route path="users" element={<AdminUsers />} />
           <Route path="checklist-builder" element={<ChecklistBuilder />} />
         </Route>
 

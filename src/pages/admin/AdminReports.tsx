@@ -5,7 +5,6 @@ import { formatCurrency, PRIORITY_LABELS } from '../../utils/helpers';
 
 export default function AdminReports() {
   const { requests, checklists, treasury, getBudgetSummaries } = useStore();
-  const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
 
   const budgets = getBudgetSummaries();
@@ -50,11 +49,29 @@ export default function AdminReports() {
   }));
 
   const handleGenerate = () => {
-    setGenerating(true);
-    setTimeout(() => {
-      setGenerating(false);
-      setGenerated(true);
-    }, 2000);
+    const month = new Date().toISOString().slice(0, 7);
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>FacilityOps Monthly Report ${month}</title>
+<style>body{font-family:system-ui,sans-serif;color:#1e293b;margin:40px}h1{font-size:20px}h2{font-size:14px;text-transform:uppercase;color:#64748b;margin-top:28px}table{width:100%;border-collapse:collapse;font-size:12px}td,th{border:1px solid #e2e8f0;padding:6px 10px;text-align:left}.num{font-weight:700}</style></head><body>
+<h1>Propel Properties &amp; Facilities Services Ltd. — Monthly Facility Operations Report</h1><p>Generated ${new Date().toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+<h2>Executive summary</h2><table>
+<tr><th>Total requests</th><th>Total disbursed</th><th>WHT withheld</th><th>Treasury inflow</th><th>SLA breaches</th><th>Checklist compliance</th></tr>
+<tr><td class="num">${requests.length}</td><td class="num">${formatCurrency(totalDisbursed)}</td><td class="num">${formatCurrency(totalWHT)}</td><td class="num">${formatCurrency(treasuryInflow)}</td><td class="num">${slaBreached}</td><td class="num">${checklistCompliance}%</td></tr></table>
+<h2>Spend vs budget</h2><table><tr><th>Site</th><th>Spent</th><th>Budget</th><th>Utilization</th></tr>
+${budgets.map(b => `<tr><td>${b.siteName}</td><td>${formatCurrency(b.spent)}</td><td>${formatCurrency(b.monthlyBudget)}</td><td>${b.utilizationPct}%</td></tr>`).join('')}</table>
+<h2>Incidents by priority</h2><table><tr><th>Priority</th><th>Count</th><th>SLA breached</th></tr>
+${priorityBreakdown.map(p => `<tr><td>${p.label}</td><td>${p.count}</td><td>${p.breached}</td></tr>`).join('')}</table>
+<h2>Department TAT (avg hours)</h2><table><tr><th>Department</th><th>Avg TAT</th></tr>
+${tatByDept.map(d => `<tr><td>${d.dept}</td><td>${d.avgHours}h</td></tr>`).join('')}</table>
+<h2>Checklist log</h2><table><tr><th>Checklist</th><th>Status</th></tr>
+${checklists.map(c => `<tr><td>${c.title}</td><td>${c.submittedToAdmin ? 'Submitted' : 'Pending'}</td></tr>`).join('')}</table>
+</body></html>`;
+    const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `FacilityOps_Monthly_Report_${month}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setGenerated(true);
   };
 
   return (
@@ -64,22 +81,8 @@ export default function AdminReports() {
           <h1 className="page-title">Report Factory</h1>
           <p className="page-subtitle">Monthly Facility Operations Report · {new Date().toLocaleDateString('en-NG', { month: 'long', year: 'numeric' })}</p>
         </div>
-        <button
-          onClick={handleGenerate}
-          disabled={generating}
-          className="btn-primary"
-        >
-          {generating ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Generating...
-            </>
-          ) : (
-            <>
-              <Download size={16} />
-              {generated ? 'Re-generate PDF' : 'Generate PDF Report'}
-            </>
-          )}
+        <button onClick={handleGenerate} className="btn-primary">
+          <Download size={16} /> Download report
         </button>
       </div>
 
@@ -89,11 +92,11 @@ export default function AdminReports() {
             <FileText size={15} className="text-emerald-600" />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-bold text-emerald-800">Report Generated Successfully</p>
-            <p className="text-xs text-emerald-600 mt-0.5">FacilityOps_Monthly_Report_{new Date().toISOString().slice(0, 7)}.pdf</p>
+            <p className="text-sm font-bold text-emerald-800">Report Downloaded</p>
+            <p className="text-xs text-emerald-600 mt-0.5">FacilityOps_Monthly_Report_{new Date().toISOString().slice(0, 7)}.html — open it in a browser, then Print → Save as PDF.</p>
           </div>
-          <button className="btn-success text-xs py-1.5">
-            <Download size={12} /> Download
+          <button onClick={handleGenerate} className="btn-success text-xs py-1.5">
+            <Download size={12} /> Re-download
           </button>
         </div>
       )}
