@@ -5,7 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const roles = new Set(['facility_manager', 'procurement', 'supervisor', 'finance', 'admin', 'technician']);
+const roles = new Set(['facility_manager', 'procurement', 'supervisor', 'finance', 'admin', 'ict_admin', 'technician']);
+const executiveRoles = new Set(['admin', 'ict_admin']);
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -25,10 +26,11 @@ Deno.serve(async (request) => {
 
   const admin = createClient(url, serviceKey);
   const { data: actor } = await admin.from('profiles').select('id, role, site_id, site_ids, active').eq('auth_user_id', user.id).maybeSingle();
-  if (!actor?.active || (actor.role !== 'admin' && actor.role !== 'facility_manager' && actor.role !== 'supervisor')) {
+  if (!actor?.active || (actor.role !== 'admin' && actor.role !== 'ict_admin' && actor.role !== 'facility_manager' && actor.role !== 'supervisor')) {
     return response({ error: 'Administrator, supervisor, or facility manager access required' }, 403);
   }
   const isAdmin = actor.role === 'admin';
+  const isIct = actor.role === 'ict_admin';
   const isSupervisor = actor.role === 'supervisor';
   const actorSites: string[] = [actor.site_id, ...(actor.site_ids ?? [])].filter(Boolean);
 
@@ -56,7 +58,10 @@ Deno.serve(async (request) => {
     if (!name || !email || !roles.has(role) || !password) {
       return response({ error: 'Name, email, password, and a valid role are required' }, 400);
     }
-    if (!isAdmin) {
+    if (isIct && executiveRoles.has(role)) {
+      return response({ error: 'ICT admins cannot create executive/administrator accounts' }, 403);
+    }
+    if (!isAdmin && !isIct) {
       if (role !== 'technician') return response({ error: 'Facility managers and supervisors can only create technicians' }, 403);
       if (!isSupervisor && (!siteId || !actorSites.includes(siteId))) return response({ error: 'Technicians can only be assigned to your facility' }, 403);
     }
@@ -76,7 +81,7 @@ Deno.serve(async (request) => {
     if (createError || !created.user) return response({ error: createError?.message ?? 'Unable to create user' }, 400);
 
     const profileId = crypto.randomUUID();
-    const allSiteIds = isAdmin && siteIds.length ? siteIds : (siteId ? [siteId] : []);
+    const allSiteIds = (isAdmin || isIct) && siteIds.length ? siteIds : (siteId ? [siteId] : []);
     const { error: profileError } = await admin.from('profiles').insert({
       id: profileId,
       auth_user_id: created.user.id,
@@ -168,7 +173,10 @@ Deno.serve(async (request) => {
     const { data: target } = await admin.from('profiles').select('id, role, site_id').eq('id', profileId).maybeSingle();
     if (!target) return response({ error: 'Staff member not found' }, 404);
 
-    if (!isAdmin) {
+    if (isIct && executiveRoles.has(target.role)) {
+      return response({ error: 'ICT admins cannot modify executive/administrator accounts' }, 403);
+    }
+    if (!isAdmin && !isIct) {
       if (target.role !== 'technician' || (!isSupervisor && !actorSites.includes(target.site_id))) {
         return response({ error: 'You can only edit technicians assigned to your facility' }, 403);
       }
@@ -180,12 +188,13 @@ Deno.serve(async (request) => {
     if (body.trade !== undefined) updates.trade = String(body.trade).trim();
     if (body.notes !== undefined) updates.notes = String(body.notes).trim();
     if (body.active !== undefined) updates.active = Boolean(body.active);
-    if (isAdmin && body.siteId !== undefined) updates.site_id = body.siteId ? String(body.siteId) : null;
-    if (isAdmin && body.siteIds !== undefined) updates.site_ids = Array.isArray(body.siteIds) ? body.siteIds.map(String).filter(Boolean) : [];
-    if (isAdmin && body.department !== undefined) updates.department = String(body.department).trim();
-    if (isAdmin && body.role !== undefined) {
+    if ((isAdmin || isIct) && body.siteId !== undefined) updates.site_id = body.siteId ? String(body.siteId) : null;
+    if ((isAdmin || isIct) && body.siteIds !== undefined) updates.site_ids = Array.isArray(body.siteIds) ? body.siteIds.map(String).filter(Boolean) : [];
+    if ((isAdmin || isIct) && body.department !== undefined) updates.department = String(body.department).trim();
+    if ((isAdmin || isIct) && body.role !== undefined) {
       const role = String(body.role);
       if (!roles.has(role)) return response({ error: 'Invalid role' }, 400);
+      if (isIct && executiveRoles.has(role)) return response({ error: 'ICT admins cannot assign executive/administrator roles' }, 403);
       updates.role = role;
     }
     if (Object.keys(updates).length === 0) return response({ error: 'Nothing to update' }, 400);
@@ -215,11 +224,14 @@ Deno.serve(async (request) => {
   const redirectTo = String(body.redirectTo ?? '').trim();
 
   if (!name || !email || !roles.has(role)) return response({ error: 'Name, email, and a valid role are required' }, 400);
-  if (!isAdmin) {
+  if (isIct && executiveRoles.has(role)) {
+    return response({ error: 'ICT admins cannot invite executive/administrator accounts' }, 403);
+  }
+  if (!isAdmin && !isIct) {
     if (role !== 'technician') return response({ error: 'Facility managers and supervisors can only invite technicians' }, 403);
     if (!isSupervisor && (!siteId || !actorSites.includes(siteId))) return response({ error: 'Technicians can only be assigned to your facility' }, 403);
   }
-  const allSiteIds = isAdmin && siteIds.length ? siteIds : (siteId ? [siteId] : []);
+  const allSiteIds = (isAdmin || isIct) && siteIds.length ? siteIds : (siteId ? [siteId] : []);
   if ((role === 'facility_manager' || role === 'technician') && !siteId) return response({ error: 'This role must be assigned to a site' }, 400);
   if (!redirectTo.startsWith('https://') && !redirectTo.startsWith('http://localhost:')) return response({ error: 'Invalid invitation redirect URL' }, 400);
 

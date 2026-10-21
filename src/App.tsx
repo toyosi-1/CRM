@@ -46,6 +46,7 @@ import JobCompletion from './pages/technician/JobCompletion';
 import AdminAnalytics from './pages/admin/AdminAnalytics';
 import AdminAuditLog from './pages/admin/AdminAuditLog';
 import AdminUsers from './pages/admin/AdminUsers';
+import IctDashboard from './pages/ict/IctDashboard';
 
 import RequestDetail from './pages/shared/RequestDetail';
 import SupportTickets from './pages/shared/SupportTickets';
@@ -61,6 +62,7 @@ const ROLE_ROUTES: Record<UserRole, string> = {
   supervisor: '/supervisor',
   finance: '/finance',
   admin: '/admin',
+  ict_admin: '/ict',
   technician: '/technician',
 };
 
@@ -163,6 +165,18 @@ export default function App() {
           <Route path="facilities" element={<FacilitiesManagement />} />
           <Route path="sites" element={<SiteRules />} />
           <Route path="people" element={<PeopleRegistry />} />
+          <Route path="checklist-builder" element={<ChecklistBuilder />} />
+        </Route>
+
+        {/* ICT Admin — staff onboarding, system & facility settings; no business data */}
+        <Route path="/ict" element={
+          <ProtectedRoute role="ict_admin"><Layout /></ProtectedRoute>
+        }>
+          <Route index element={<IctDashboard />} />
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="people" element={<PeopleRegistry />} />
+          <Route path="facilities" element={<FacilitiesManagement />} />
+          <Route path="sites" element={<SiteRules />} />
           <Route path="checklist-builder" element={<ChecklistBuilder />} />
         </Route>
 

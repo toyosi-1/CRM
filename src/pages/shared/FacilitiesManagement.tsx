@@ -16,7 +16,7 @@ export default function FacilitiesManagement() {
   const { currentUser, sites, users, tenants, updateSite, createTenant, updateTenant } = useStore();
   const [selected, setSelected] = useState<string | null>(null);
   const [showTenant, setShowTenant] = useState(false);
-  const canEdit = currentUser?.role === 'admin' || currentUser?.role === 'supervisor';
+  const canEdit = currentUser?.role === 'admin' || currentUser?.role === 'ict_admin' || currentUser?.role === 'supervisor';
 
   const site = sites.find(s => s.id === selected);
   const siteTenants = tenants.filter(t => t.siteId === selected);

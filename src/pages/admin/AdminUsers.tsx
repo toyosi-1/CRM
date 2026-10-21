@@ -11,10 +11,15 @@ const ROLES: Array<{ value: UserRole; label: string }> = [
   { value: 'finance', label: 'Finance' },
   { value: 'technician', label: 'Technician' },
   { value: 'admin', label: 'Administrator' },
+  { value: 'ict_admin', label: 'ICT Admin' },
 ];
 
+// Only the executive admin may create or modify admin-level accounts.
+const EXECUTIVE_ROLES: UserRole[] = ['admin', 'ict_admin'];
+
 export default function AdminUsers() {
-  const { users, sites } = useStore();
+  const { currentUser, users, sites } = useStore();
+  const roleOptions = currentUser?.role === 'admin' ? ROLES : ROLES.filter(r => !EXECUTIVE_ROLES.includes(r.value));
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -110,7 +115,7 @@ export default function AdminUsers() {
           <div className="form-group"><label className="label" htmlFor="staff-name">Full name</label><input id="staff-name" className="input" value={name} onChange={e => setName(e.target.value)} required /></div>
           <div className="form-group"><label className="label" htmlFor="staff-email">Work email</label><input id="staff-email" className="input" type="email" value={email} onChange={e => setEmail(e.target.value)} required /></div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="form-group"><label className="label" htmlFor="staff-role">Role</label><select id="staff-role" className="select" value={role} onChange={e => setRole(e.target.value as UserRole)}>{ROLES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
+            <div className="form-group"><label className="label" htmlFor="staff-role">Role</label><select id="staff-role" className="select" value={role} onChange={e => setRole(e.target.value as UserRole)}>{roleOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
             <div className="form-group"><label className="label" htmlFor="staff-phone">Phone</label><input id="staff-phone" className="input" value={phone} onChange={e => setPhone(e.target.value)} /></div>
           </div>
           {role === 'technician' && <div className="form-group"><label className="label" htmlFor="staff-trade">Trade / specialty</label><input id="staff-trade" className="input" placeholder="e.g. Electrical, HVAC, Plumbing" value={trade} onChange={e => setTrade(e.target.value)} required /></div>}
@@ -129,7 +134,9 @@ export default function AdminUsers() {
               </div>
               <div className="text-right flex items-center gap-3">
                 <div><span className="badge bg-brand-50 text-brand-700">{ROLES.find(item => item.value === user.role)?.label ?? user.role}</span><p className="text-[11px] text-slate-400 mt-1">{(user.siteIds?.length ? user.siteIds : user.siteId ? [user.siteId] : []).map(id => sites.find(s => s.id === id)?.name).filter(Boolean).join(', ') || user.department}</p></div>
-                <button onClick={() => openEdit(user)} className="btn-secondary !py-1 !px-2 text-xs"><Pencil size={12} />Edit</button>
+                {(currentUser?.role === 'admin' || !EXECUTIVE_ROLES.includes(user.role)) && (
+                  <button onClick={() => openEdit(user)} className="btn-secondary !py-1 !px-2 text-xs"><Pencil size={12} />Edit</button>
+                )}
               </div>
             </div>))}
           </div>}
@@ -156,7 +163,7 @@ export default function AdminUsers() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             <div className="form-group"><label className="label" htmlFor="edit-name">Full name</label><input id="edit-name" name="editName" className="input" defaultValue={editing.name} required /></div>
             <div className="form-group"><label className="label" htmlFor="edit-phone">Phone</label><input id="edit-phone" name="editPhone" className="input" defaultValue={editing.phone} /></div>
-            <div className="form-group"><label className="label" htmlFor="edit-role">Role</label><select id="edit-role" name="editRole" className="select" defaultValue={editing.role}>{ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}</select></div>
+            <div className="form-group"><label className="label" htmlFor="edit-role">Role</label><select id="edit-role" name="editRole" className="select" defaultValue={editing.role}>{roleOptions.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}</select></div>
             <div className="form-group"><label className="label" htmlFor="edit-trade">Trade / specialty</label><input id="edit-trade" name="editTrade" className="input" defaultValue={editing.trade} placeholder="Technicians only" /></div>
           </div>
           <div className="form-group">

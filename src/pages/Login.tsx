@@ -21,6 +21,7 @@ const ROLE_ROUTES: Record<UserRole, string> = {
   supervisor: '/supervisor',
   finance: '/finance',
   admin: '/admin',
+  ict_admin: '/ict',
   technician: '/technician',
 };
 

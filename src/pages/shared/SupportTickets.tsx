@@ -23,8 +23,8 @@ export default function SupportTickets() {
   const [error, setError] = useState('');
   const [lightbox, setLightbox] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const canManage = currentUser?.role === 'admin';
-  const myTickets = currentUser?.role === 'admin' ? supportTickets : supportTickets.filter(t => t.raisedBy === currentUser?.id);
+  const canManage = currentUser?.role === 'admin' || currentUser?.role === 'ict_admin';
+  const myTickets = canManage ? supportTickets : supportTickets.filter(t => t.raisedBy === currentUser?.id);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();

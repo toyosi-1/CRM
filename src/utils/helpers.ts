@@ -75,6 +75,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   supervisor: 'Supervisor',
   finance: 'Finance',
   admin: 'Admin',
+  ict_admin: 'ICT Admin',
   technician: 'Technician',
 };
 
@@ -84,6 +85,7 @@ export const ROLE_COLORS: Record<UserRole, string> = {
   supervisor: 'bg-purple-100 text-purple-700',
   finance: 'bg-emerald-100 text-emerald-700',
   admin: 'bg-slate-800 text-white',
+  ict_admin: 'bg-cyan-100 text-cyan-700',
   technician: 'bg-orange-100 text-orange-700',
 };
 

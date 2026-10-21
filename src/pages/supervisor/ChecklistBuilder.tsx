@@ -74,7 +74,7 @@ function TemplateForm({ siteId, templateId, template, onCreated }: { siteId: str
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>(template?.daysOfWeek ?? []);
   const [zones, setZones] = useState<ChecklistTemplateZone[]>(template?.zones ?? DEFAULT_ZONES);
   const [saving, setSaving] = useState(false);
-  const canManage = currentUser?.role === 'supervisor' || currentUser?.role === 'admin' || currentUser?.role === 'facility_manager';
+  const canManage = currentUser?.role === 'supervisor' || currentUser?.role === 'admin' || currentUser?.role === 'ict_admin' || currentUser?.role === 'facility_manager';
 
   const toggleDay = (day: number) => {
     setDaysOfWeek(current => current.includes(day) ? current.filter(d => d !== day) : [...current, day].sort((a, b) => a - b));

@@ -19,6 +19,7 @@ const PORTAL_TITLES: Record<string, string> = {
   finance: 'Finance Portal',
   technician: 'Technician Portal',
   admin: 'Admin Portal',
+  ict_admin: 'ICT Admin',
 };
 
 export default function TopBar({ darkMode, onToggleTheme, onOpenMenu }: TopBarProps) {

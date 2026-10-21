@@ -1,4 +1,4 @@
-export type UserRole = 'facility_manager' | 'procurement' | 'supervisor' | 'finance' | 'admin' | 'technician';
+export type UserRole = 'facility_manager' | 'procurement' | 'supervisor' | 'finance' | 'admin' | 'ict_admin' | 'technician';
 
 export type RequestStatus =
   | 'REQUEST_CREATED'

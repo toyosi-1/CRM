@@ -12,6 +12,7 @@ const ROLE_COLOR: Record<UserRole, string> = {
   supervisor:       '#4a6a2c',
   finance:          '#6b7c34',
   admin:            '#8a9c44',
+  ict_admin:        '#2a7a8c',
   technician:       '#5c8f1a',
 };
 

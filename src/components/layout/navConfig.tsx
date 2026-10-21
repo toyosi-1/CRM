@@ -95,11 +95,25 @@ const ADMIN_NAV: NavSection[] = [
   ]},
 ];
 
+const ICT_NAV: NavSection[] = [
+  { section: 'Workspace', items: [
+    { label: 'Dashboard', path: '/ict', icon: <LayoutDashboard size={15} /> },
+  ]},
+  { section: 'Management', items: [
+    { label: 'Staff access', path: '/ict/users', icon: <UserPlus size={15} /> },
+    { label: 'People', path: '/ict/people', icon: <Users size={15} /> },
+    { label: 'Facilities', path: '/ict/facilities', icon: <Building2 size={15} /> },
+    { label: 'Site rules', path: '/ict/sites', icon: <Settings size={15} /> },
+    { label: 'Checklist builder', path: '/ict/checklist-builder', icon: <ClipboardEdit size={15} /> },
+  ]},
+];
+
 export const NAV_MAP: Record<UserRole, NavSection[]> = {
   facility_manager: FM_NAV,
   procurement: PROCUREMENT_NAV,
   supervisor: SUPERVISOR_NAV,
   finance: FINANCE_NAV,
   admin: ADMIN_NAV,
+  ict_admin: ICT_NAV,
   technician: TECHNICIAN_NAV,
 };

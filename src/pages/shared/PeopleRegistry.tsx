@@ -15,7 +15,7 @@ export default function PeopleRegistry() {
   const { currentUser, users, sites, requests, pettyCash, ppmSchedules, vendors, assets, facilityVendorSLAs } = useStore();
   const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all');
   const [assignFor, setAssignFor] = useState<User | null>(null);
-  const canManage = currentUser?.role === 'admin' || currentUser?.role === 'supervisor';
+  const canManage = currentUser?.role === 'admin' || currentUser?.role === 'ict_admin' || currentUser?.role === 'supervisor';
   const filtered = useMemo(() => {
     if (roleFilter === 'all') return users.filter(u => u.active !== false);
     return users.filter(u => u.role === roleFilter && u.active !== false);
