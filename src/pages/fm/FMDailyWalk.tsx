@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Route, Send, CheckCircle } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { ensureChecklistInstances, instanceId, isDueToday, scheduleLabel } from '../../lib/checklists';
+import FlagCommentPanel from '../../components/shared/FlagCommentPanel';
 import type { Checklist, ChecklistItem } from '../../types';
 import { formatDate } from '../../utils/helpers';
 
@@ -84,20 +85,12 @@ export default function FMDailyWalk({ embedded }: { embedded?: boolean } = {}) {
           )}
         </div>
         {item.flagged && (
-          <div className="mt-2 space-y-2">
-            <textarea
-              className="input resize-none text-xs"
-              rows={2}
-              placeholder="Comment required — describe the issue, and add a photo on the request if needed"
-              defaultValue={item.comment ?? ''}
-              onBlur={e => updateItem(cl, item.id, { comment: e.target.value })}
-            />
-            <button
-              type="button"
-              className="btn-secondary text-xs"
-              onClick={() => navigate(`/fm/request/new?prefill=${encodeURIComponent(`${cl.title} — ${item.zone ?? 'General'} — ${item.label}: ${item.comment ?? 'flagged during daily walk'}`)}`)}
-            >Raise request</button>
-          </div>
+          <FlagCommentPanel
+            item={item}
+            submitted={false}
+            onSave={comment => updateItem(cl, item.id, { comment })}
+            onRaiseRequest={comment => navigate(`/fm/request/new?prefill=${encodeURIComponent(`${cl.title} — ${item.zone ?? 'General'} — ${item.label}: ${comment || 'flagged during daily walk'}`)}`)}
+          />
         )}
       </div>
     );

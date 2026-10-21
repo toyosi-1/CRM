@@ -51,6 +51,7 @@ import RequestDetail from './pages/shared/RequestDetail';
 import SupportTickets from './pages/shared/SupportTickets';
 import UpdatePrompt from './components/shared/UpdatePrompt';
 import SaveErrorToast from './components/shared/SaveErrorToast';
+import InstallPrompt from './components/shared/InstallPrompt';
 import type { UserRole } from './types';
 import { useAuth } from './lib/AuthContext';
 
@@ -188,6 +189,7 @@ export default function App() {
       </Routes>
       <UpdatePrompt />
       <SaveErrorToast />
+      <InstallPrompt />
     </BrowserRouter>
   );
 }

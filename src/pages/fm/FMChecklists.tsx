@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckSquare, Square, Send, Clock, Flag } from 'lucide-react';
 import { useStore } from '../../store/useStore';
+import FlagCommentPanel from '../../components/shared/FlagCommentPanel';
 import type { Checklist, ChecklistItem } from '../../types';
 import { formatDate, formatDateTime } from '../../utils/helpers';
 import FMDailyWalk from './FMDailyWalk';
@@ -193,26 +194,12 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
                           {item.flagged && cl.submittedToAdmin && <Flag size={13} className="text-amber-500 flex-shrink-0 mt-1" />}
                         </div>
                         {item.flagged && (
-                          <div className="mt-2 space-y-2">
-                            {cl.submittedToAdmin ? (
-                              item.comment && <p className="text-xs text-slate-500">{item.comment}</p>
-                            ) : (
-                              <>
-                                <textarea
-                                  className="input resize-none text-xs"
-                                  rows={2}
-                                  placeholder="Comment required — describe the issue, and add a photo on the request if needed"
-                                  defaultValue={item.comment ?? ''}
-                                  onBlur={e => updateItem(cl, item.id, { comment: e.target.value })}
-                                />
-                                <button
-                                  type="button"
-                                  className="btn-secondary text-xs"
-                                  onClick={() => navigate(`/fm/request/new?prefill=${encodeURIComponent(`${cl.title} — ${item.zone ?? 'General'} — ${item.label}: ${item.comment ?? 'flagged on checklist'}`)}`)}
-                                >Raise request</button>
-                              </>
-                            )}
-                          </div>
+                          <FlagCommentPanel
+                            item={item}
+                            submitted={cl.submittedToAdmin}
+                            onSave={comment => updateItem(cl, item.id, { comment })}
+                            onRaiseRequest={comment => navigate(`/fm/request/new?prefill=${encodeURIComponent(`${cl.title} — ${item.zone ?? 'General'} — ${item.label}: ${comment || 'flagged on checklist'}`)}`)}
+                          />
                         )}
                       </div>
                     ))}
