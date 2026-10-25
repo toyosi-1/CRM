@@ -177,6 +177,7 @@ export default function App() {
           <Route path="sites" element={<SiteRules />} />
           <Route path="ppm" element={<PPMRegistry />} />
           <Route path="people" element={<PeopleRegistry />} />
+          <Route path="technicians" element={<FMTechnicians />} />
           <Route path="users" element={<AdminUsers />} />
           <Route path="checklist-builder" element={<ChecklistBuilder />} />
         </Route>

@@ -72,11 +72,11 @@ const TECHNICIAN_NAV: NavSection[] = [
   { section: 'Workspace', items: [
     { label: 'Dashboard', path: '/technician', icon: <LayoutDashboard size={15} /> },
     { label: 'My tasks', path: '/technician/tasks', icon: <Wrench size={15} /> },
-    { label: 'Checklists', path: '/technician/checklists', icon: <CheckSquare size={15} /> },
+    { label: 'Technical checks', path: '/technician/checklists', icon: <CheckSquare size={15} /> },
   ]},
   { section: 'Operations', items: [
     { label: 'Assets', path: '/technician/assets', icon: <Package size={15} /> },
-    { label: 'PPM schedule', path: '/technician/ppm', icon: <Calendar size={15} /> },
+    { label: 'PPM assigned', path: '/technician/ppm', icon: <Calendar size={15} /> },
     { label: 'Job completion', path: '/technician/jobs', icon: <ClipboardCheck size={15} /> },
   ]},
 ];
@@ -100,6 +100,7 @@ const ADMIN_NAV: NavSection[] = [
     { label: 'Site rules', path: '/admin/sites', icon: <ShieldCheck size={15} /> },
     { label: 'PPM registry', path: '/admin/ppm', icon: <Calendar size={15} /> },
     { label: 'People', path: '/admin/people', icon: <Users size={15} /> },
+    { label: 'Technicians', path: '/admin/technicians', icon: <Wrench size={15} /> },
     { label: 'Checklist builder', path: '/admin/checklist-builder', icon: <ClipboardEdit size={15} /> },
     { label: 'User management', path: '/admin/users', icon: <UserPlus size={15} /> },
   ]},

@@ -7,11 +7,12 @@ interface Props {
   submitted: boolean;
   onSave: (comment: string) => void;
   onRaiseRequest: (comment: string) => void;
+  canRaiseRequest?: boolean;
 }
 
 // Shown under a flagged checklist item: mandatory comment + optional request shortcut.
 // Once saved, the comment collapses to a read view so it's clear the note is stored.
-export default function FlagCommentPanel({ item, submitted, onSave, onRaiseRequest }: Props) {
+export default function FlagCommentPanel({ item, submitted, onSave, onRaiseRequest, canRaiseRequest = true }: Props) {
   const [editing, setEditing] = useState(!(item.comment ?? '').trim());
   const [draft, setDraft] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -44,9 +45,9 @@ export default function FlagCommentPanel({ item, submitted, onSave, onRaiseReque
           <button type="button" className="btn-ghost text-xs" onClick={() => setEditing(true)}>
             <Pencil size={12} />Edit comment
           </button>
-          <button type="button" className="btn-secondary text-xs" onClick={raise}>
+          {canRaiseRequest && <button type="button" className="btn-secondary text-xs" onClick={raise}>
             <FilePlus size={13} />Raise request
-          </button>
+          </button>}
         </div>
       </div>
     );
@@ -65,9 +66,9 @@ export default function FlagCommentPanel({ item, submitted, onSave, onRaiseReque
         <button type="button" className="btn-secondary text-xs" onClick={save}>
           <CheckCircle size={13} />Save comment
         </button>
-        <button type="button" className="btn-secondary text-xs" onClick={raise}>
+        {canRaiseRequest && <button type="button" className="btn-secondary text-xs" onClick={raise}>
           <FilePlus size={13} />Raise request
-        </button>
+        </button>}
       </div>
     </div>
   );

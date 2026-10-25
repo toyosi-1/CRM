@@ -15,7 +15,7 @@ function hoursBetween(a: string, b: string) {
 
 export default function AdminAnalytics() {
   const navigate = useNavigate();
-  const { requests, checklists, sites, users, facilityVendorSLAs, getSiteMonthSpend } = useStore();
+  const { requests, checklists, sites, users, facilityVendorSLAs, pettyCash, getSiteMonthSpend } = useStore();
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -64,12 +64,16 @@ export default function AdminAnalytics() {
     (checklists.filter(c => c.submittedToAdmin).length / Math.max(checklists.length, 1)) * 100
   );
 
-  // Site health map — month spend vs monthly budget
+  // Site health map — month spend vs monthly budget, remaining balance + live petty cash float
   const siteHealth = sites.map(s => {
     const spent = getSiteMonthSpend(s.id);
     const pct = s.monthlyBudget > 0 ? Math.round((spent / s.monthlyBudget) * 100) : 0;
     const health = pct >= 90 ? 'overspent' : pct >= 75 ? 'watch' : 'healthy';
-    return { ...s, spent, pct, health };
+    const balance = s.monthlyBudget - spent;
+    const float = pettyCash
+      .filter(p => p.siteId === s.id && p.status === 'approved')
+      .reduce((sum, p) => sum + (p.type === 'top_up' ? p.amount : -p.amount), 0);
+    return { ...s, spent, pct, health, balance, float };
   });
 
   const statCards = [
@@ -137,6 +141,10 @@ export default function AdminAnalytics() {
                     </span>
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5">{formatCurrency(s.spent)} / {formatCurrency(s.monthlyBudget)} · {s.pct}%</p>
+                  <p className="text-xs mt-0.5">
+                    <span className={`font-semibold ${s.balance < 0 ? 'text-red-600' : 'text-emerald-700'}`}>Balance {formatCurrency(s.balance)}</span>
+                    {s.pettyCashEnabled && <span className="text-slate-400"> · Float {formatCurrency(s.float)}</span>}
+                  </p>
                 </div>
               </div>
             ))}

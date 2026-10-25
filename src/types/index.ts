@@ -224,6 +224,7 @@ export interface MaintenanceRequest {
   isIncident?: boolean;
   linkedIncidentId?: string;
   jobCompletionUrl?: string;
+  assignedTo?: string;
   reconStatus?: 'confirmed' | 'flagged';
   reconNote?: string;
   reconBy?: string;

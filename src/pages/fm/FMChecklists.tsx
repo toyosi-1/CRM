@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckSquare, Square, Send, Clock, Flag, ChevronDown, ChevronRight } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import FlagCommentPanel from '../../components/shared/FlagCommentPanel';
@@ -32,16 +32,23 @@ function SectionTabs({ tabs, section, onChange }: { tabs: { key: 'walk' | 'all' 
 
 export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech' }) {
   const navigate = useNavigate();
-  const [section, setSection] = useState<'walk' | 'all' | 'builder'>('walk');
   const { currentUser, checklists, checklistTemplates, users, saveChecklist, submitChecklist, activeSiteId } = useStore();
   const siteId = activeSiteId ?? currentUser?.siteId;
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+  const focusId = searchParams.get('checklist');
+  // Deep link (?checklist=<id>) — open that card expanded on first render
+  const focusChecklist = focusId ? checklists.find(c => c.id === focusId) : undefined;
+  const focusDay = focusChecklist ? checklistDate(focusChecklist) : null;
+  const [section, setSection] = useState<'walk' | 'all' | 'builder'>(focusId ? 'all' : 'walk');
+  const [activeId, setActiveId] = useState<string | null>(focusId);
   const todayKey = dayKey();
   const yesterdayKey = dayKey(undefined, 1);
-  const [openDays, setOpenDays] = useState<Set<string>>(new Set([todayKey]));
+  const [openDays, setOpenDays] = useState<Set<string>>(() => new Set(focusDay ? [todayKey, focusDay] : [todayKey]));
 
+  const isTech = currentUser?.role === 'technician';
   const myChecklists = checklists
     .filter(c => c.siteId === siteId)
+    .filter(c => !isTech || c.items.some(i => i.role === 'tech' || i.role === 'both'))
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   // Segment the history by scheduled day so long lists stay scannable
@@ -63,15 +70,28 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
       return next;
     });
 
+  const siteHasTech = (siteId: string) => users.some(u => u.role === 'technician' && u.active !== false
+    && (u.siteIds?.includes(siteId) || u.siteId === siteId));
+
+  // Tech-only items are read-only for FMs once a technician covers the site;
+  // technicians can only touch tech-scoped items.
+  const canEditItem = (item: ChecklistItem, cl: Checklist) => {
+    if (cl.submittedToAdmin || isChecklistMissed(cl, checklistTemplates)) return false;
+    if (isTech) return item.role === 'tech' || item.role === 'both';
+    if (currentUser?.role !== 'facility_manager') return false;
+    return !(item.role === 'tech' && siteHasTech(cl.siteId));
+  };
+
   const toggleItem = (checklistId: string, itemId: string) => {
     const cl = myChecklists.find(c => c.id === checklistId);
-    if (!cl || cl.submittedToAdmin || isChecklistMissed(cl, checklistTemplates)) return;
-    const updated: ChecklistItem[] = cl.items.map(item =>
-      item.id === itemId
-        ? item.checked
-          ? { ...item, checked: false, timestamp: undefined, flagged: false, comment: undefined }
-          : { ...item, checked: true, timestamp: new Date().toISOString() }
-        : item
+    const item = cl?.items.find(i => i.id === itemId);
+    if (!cl || !item || !canEditItem(item, cl)) return;
+    const updated: ChecklistItem[] = cl.items.map(i =>
+      i.id === itemId
+        ? i.checked
+          ? { ...i, checked: false, timestamp: undefined, flagged: false, comment: undefined }
+          : { ...i, checked: true, timestamp: new Date().toISOString() }
+        : i
     );
     saveChecklist(checklistId, updated);
   };
@@ -81,7 +101,7 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
   };
 
   const flagItem = (cl: Checklist, item: ChecklistItem) => {
-    if (cl.submittedToAdmin || isChecklistMissed(cl, checklistTemplates)) return;
+    if (!canEditItem(item, cl)) return;
     updateItem(cl, item.id, item.flagged
       ? { flagged: false, comment: undefined }
       : { flagged: true, checked: true, timestamp: new Date().toISOString() });
@@ -146,7 +166,11 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
               {isOpen && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   {dayChecklists.map(cl => {
-          const visibleItems = roleFilter ? cl.items.filter(i => !i.role || i.role === roleFilter || i.role === 'both') : cl.items;
+          const visibleItems = roleFilter === 'tech'
+            ? cl.items.filter(i => i.role === 'tech' || i.role === 'both')
+            : roleFilter
+              ? cl.items.filter(i => !i.role || i.role === roleFilter || i.role === 'both')
+              : cl.items;
           const checkedCount = visibleItems.filter(i => i.checked).length;
           const pct = visibleItems.length ? Math.round((checkedCount / visibleItems.length) * 100) : 0;
           const allDone = cl.items.every(i => i.checked);
@@ -199,11 +223,14 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
               {isActive && (
                 <div className="border-t border-slate-100">
                   <div className="divide-y divide-slate-100">
-                    {visibleItems.map(item => (
+                    {visibleItems.map(item => {
+                      const itemEditable = canEditItem(item, cl);
+                      const techOwned = !isTech && item.role === 'tech';
+                      return (
                       <div key={item.id} className={`px-4 py-3.5 transition-colors ${item.flagged ? 'bg-amber-50/60' : ''} ${item.checked && !item.flagged ? 'opacity-60' : ''}`}>
                         <div className="flex items-start gap-3">
                           <div
-                            className={`flex-shrink-0 mt-0.5 ${locked ? '' : 'cursor-pointer'}`}
+                            className={`flex-shrink-0 mt-0.5 ${itemEditable ? 'cursor-pointer' : ''}`}
                             onClick={() => toggleItem(cl.id, item.id)}
                           >
                             {item.checked
@@ -212,12 +239,15 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
                             }
                           </div>
                           <div
-                            className={`flex-1 ${locked ? '' : 'cursor-pointer'}`}
+                            className={`flex-1 ${itemEditable ? 'cursor-pointer' : ''}`}
                             onClick={() => toggleItem(cl.id, item.id)}
                           >
                             <p className={`text-sm font-medium ${item.checked && !item.flagged ? 'line-through text-slate-400' : 'text-slate-700'}`}>
                               {item.label}
                             </p>
+                            {techOwned && !item.checked && !locked && (
+                              <p className="text-xs text-cyan-700 mt-0.5 font-medium">Tech check — awaiting technician</p>
+                            )}
                             {item.checked && item.timestamp && (
                               <p className="text-xs text-emerald-600 mt-0.5 flex items-center gap-1 font-medium">
                                 <Clock size={10} /> Done · {formatDateTime(item.timestamp)}
@@ -227,7 +257,21 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
                               <p className="text-xs text-slate-500 mt-0.5">Reading: {item.value}{item.unit ? ` ${item.unit}` : ''}</p>
                             )}
                           </div>
-                          {!locked && (
+                          {itemEditable && item.responseType === 'numeric' && (
+                            <input
+                              type="number"
+                              className="input !w-20 !py-1 text-xs flex-shrink-0"
+                              placeholder="0"
+                              defaultValue={item.value ?? ''}
+                              key={`${item.id}-${item.checked}`}
+                              onBlur={e => {
+                                const v = e.target.value;
+                                if (v === '' || Number(v) === item.value) return;
+                                updateItem(cl, item.id, { value: Number(v), checked: true, timestamp: new Date().toISOString() });
+                              }}
+                            />
+                          )}
+                          {itemEditable && (
                             <button
                               type="button"
                               title={item.flagged ? 'Remove fail flag' : 'Mark as failed'}
@@ -242,13 +286,15 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
                         {item.flagged && (
                           <FlagCommentPanel
                             item={item}
-                            submitted={locked}
+                            submitted={locked || !itemEditable}
+                            canRaiseRequest={!isTech}
                             onSave={comment => updateItem(cl, item.id, { comment })}
                             onRaiseRequest={comment => navigate(`/fm/request/new?prefill=${encodeURIComponent(`${cl.title} — ${item.zone ?? 'General'} — ${item.label}: ${comment || 'flagged on checklist'}`)}`)}
                           />
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   {missed && (
                     <div className="px-4 py-3 border-t border-slate-100 flex items-center gap-2 text-xs font-semibold text-red-600 bg-red-50/60">
@@ -256,7 +302,7 @@ export default function FMChecklists({ roleFilter }: { roleFilter?: 'fm' | 'tech
                       Missed — this checklist was due {formatDate(`${checklistDate(cl)}T12:00:00`)} and can no longer be completed.
                     </div>
                   )}
-                  {!locked && (
+                  {!locked && !isTech && (
                     <div className="p-4 border-t border-slate-100 flex gap-3">
                       <button
                         onClick={() => handleSubmit(cl.id)}

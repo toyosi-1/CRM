@@ -131,6 +131,7 @@ function requestFromRow(row: Record<string, unknown>): MaintenanceRequest {
     isBudgetWarning: Boolean(row.is_budget_warning), isIncident: Boolean(row.is_incident),
     linkedIncidentId: row.linked_incident_id ? String(row.linked_incident_id) : undefined,
     jobCompletionUrl: row.job_completion_url ? String(row.job_completion_url) : undefined,
+    assignedTo: row.assigned_to ? String(row.assigned_to) : undefined,
     reconStatus: row.recon_status ? (row.recon_status as MaintenanceRequest['reconStatus']) : undefined,
     reconNote: row.recon_note ? String(row.recon_note) : undefined, reconBy: row.recon_by ? String(row.recon_by) : undefined,
     slaDeadline: String(row.sla_deadline), slaBreached: Boolean(row.sla_breached),
@@ -165,6 +166,7 @@ function requestToRow(request: Partial<MaintenanceRequest>) {
     ...(request.isIncident !== undefined && { is_incident: request.isIncident }),
     ...(request.linkedIncidentId !== undefined && { linked_incident_id: request.linkedIncidentId || null }),
     ...(request.jobCompletionUrl !== undefined && { job_completion_url: request.jobCompletionUrl || null }),
+    ...(request.assignedTo !== undefined && { assigned_to: request.assignedTo || null }),
     ...(request.reconStatus !== undefined && { recon_status: request.reconStatus }), ...(request.reconNote !== undefined && { recon_note: request.reconNote }),
     ...(request.reconBy !== undefined && { recon_by: request.reconBy }),
     ...(request.slaDeadline !== undefined && { sla_deadline: request.slaDeadline }), ...(request.slaBreached !== undefined && { sla_breached: request.slaBreached }),
@@ -224,6 +226,11 @@ export async function clearActingFM(actingProfileId: string): Promise<string> {
 // The acting FM acknowledges their handover pack (spec §5.8) — logged on their own profile.
 export async function acknowledgeHandover(profileId: string): Promise<void> {
   const { error } = await supabase.from('profiles').update({ acting_acknowledged_at: new Date().toISOString() }).eq('id', profileId); fail(error);
+}
+
+// Route a request to a technician. Server-enforced: FMs may only assign requests at their own sites.
+export async function assignTechnician(requestId: string, technicianId: string | null): Promise<void> {
+  const { error } = await supabase.rpc('assign_technician', { p_request_id: requestId, p_technician_id: technicianId }); fail(error);
 }
 
 // Stops the vendor SLA response clock (spec §5.11)

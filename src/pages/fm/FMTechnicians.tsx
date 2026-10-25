@@ -26,7 +26,7 @@ export default function FMTechnicians() {
   const canManage = currentUser?.role === 'admin' || currentUser?.role === 'supervisor';
   const siteName = sites.find(site => site.id === siteId)?.name ?? 'your facility';
   const technicians = useMemo(
-    () => users.filter(user => user.role === 'technician' && user.siteId === siteId),
+    () => users.filter(user => user.role === 'technician' && (user.siteIds?.includes(siteId ?? '') || user.siteId === siteId)),
     [users, siteId],
   );
 

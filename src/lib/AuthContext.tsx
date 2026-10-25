@@ -11,6 +11,7 @@ const ROLE_ROUTES: Record<string, string> = {
   supervisor: '/supervisor',
   finance: '/finance',
   admin: '/admin',
+  ict_admin: '/ict',
   technician: '/technician',
 };
 

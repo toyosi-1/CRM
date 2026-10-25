@@ -1,13 +1,12 @@
 import { useNavigate } from 'react-router-dom';
 import { AlertCircle, FilePlus, CheckCircle, Hourglass, CalendarCheck, Wallet, FileBadge, ChevronRight, ArrowUp } from 'lucide-react';
-import { useStore } from '../../store/useStore';
-import { acknowledgeHandover } from '../../lib/db';
+import { useStore, reportSaveError } from '../../store/useStore';
 import { StatusBadge } from '../../components/shared/Badges';
 import { formatCurrency } from '../../utils/helpers';
 
 export default function FMDashboard() {
   const navigate = useNavigate();
-  const { currentUser, requests, sites, checklists, ppmSchedules, vendors, pettyCash, activeSiteId, users, facilityVendorSLAs, getSiteMonthSpend } = useStore();
+  const { currentUser, requests, sites, checklists, ppmSchedules, vendors, pettyCash, activeSiteId, users, facilityVendorSLAs, getSiteMonthSpend, acknowledgeActingHandover } = useStore();
 
   // Acting FM handover acknowledgement (spec §5.8)
   const todayIso = new Date().toISOString().slice(0, 10);
@@ -86,7 +85,7 @@ export default function FMDashboard() {
                 <span>Assets under repair: {(handover.criticalAssets as unknown[] | undefined)?.length ?? 0}</span>
               </div>
             </div>
-            <button className="btn-acc" onClick={() => currentUser && acknowledgeHandover(currentUser.id)}>Acknowledge handover</button>
+            <button className="btn-acc" onClick={() => void acknowledgeActingHandover().catch(reportSaveError)}>Acknowledge handover</button>
           </div>
         </div>
       )}

@@ -16,9 +16,15 @@ const RATING_OPTS: { value: string; label: string; flagged: boolean; cls: string
 
 export default function FMDailyWalk({ embedded }: { embedded?: boolean } = {}) {
   const navigate = useNavigate();
-  const { currentUser, checklists, checklistTemplates, saveChecklist, submitChecklist, activeSiteId, sites } = useStore();
+  const { currentUser, checklists, checklistTemplates, saveChecklist, submitChecklist, activeSiteId, sites, users } = useStore();
   const siteId = activeSiteId ?? currentUser?.siteId;
   const site = sites.find(s => s.id === siteId);
+  const isTech = currentUser?.role === 'technician';
+  // `tech` items belong to the site technician — the FM can only record them
+  // when no active technician is assigned to the facility.
+  const siteHasTech = users.some(u => u.role === 'technician' && u.active !== false
+    && (u.siteIds?.includes(siteId ?? '') || u.siteId === siteId));
+  const techItems = (cl: Checklist) => cl.items.filter(i => i.role === 'tech' || i.role === 'both');
 
   useEffect(() => {
     if (!siteId || !currentUser) return;
@@ -28,7 +34,8 @@ export default function FMDailyWalk({ embedded }: { embedded?: boolean } = {}) {
   const dueTemplates = checklistTemplates.filter(t => t.siteId === siteId && isDueToday(t));
   const dueIds = new Set(dueTemplates.map(instanceId));
   const scheduleById = new Map(dueTemplates.map(t => [instanceId(t), scheduleLabel(t)]));
-  const walks = checklists.filter(c => c.siteId === siteId && dueIds.has(c.id) && !c.submittedToAdmin);
+  const walks = checklists.filter(c => c.siteId === siteId && dueIds.has(c.id) && !c.submittedToAdmin)
+    .filter(c => !isTech || techItems(c).length > 0);
   const submitted = checklists.filter(c => c.siteId === siteId && dueIds.has(c.id) && c.submittedToAdmin);
   const missed = checklists.filter(c => c.siteId === siteId && isChecklistMissed(c, checklistTemplates));
 
@@ -47,6 +54,22 @@ export default function FMDailyWalk({ embedded }: { embedded?: boolean } = {}) {
 
   const renderItem = (cl: Checklist, item: ChecklistItem) => {
     const type = item.responseType ?? 'passfail';
+    const editable = isTech ? true : !(item.role === 'tech' && siteHasTech);
+    if (!editable) {
+      return (
+        <div key={item.id} className={`px-4 py-3 ${item.flagged ? 'bg-amber-50/60' : ''}`}>
+          <div className="flex items-center gap-3 flex-wrap">
+            <p className={`text-sm font-medium flex-1 min-w-[160px] ${item.checked ? 'text-slate-500' : 'text-slate-800'}`}>{item.label}</p>
+            {item.checked ? (
+              <span className="badge bg-emerald-50 text-emerald-700">{item.value !== undefined && item.value !== '' ? `Recorded: ${item.value}${item.unit ? ` ${item.unit}` : ''}` : 'Recorded'}</span>
+            ) : (
+              <span className="badge bg-cyan-50 text-cyan-700">Tech check — awaiting technician</span>
+            )}
+          </div>
+          {item.flagged && item.comment && <p className="text-xs text-slate-500 mt-2">{item.comment}</p>}
+        </div>
+      );
+    }
     return (
       <div key={item.id} className={`px-4 py-3 ${item.flagged ? 'bg-amber-50/60' : ''}`}>
         <div className="flex items-center gap-3 flex-wrap">
@@ -90,6 +113,7 @@ export default function FMDailyWalk({ embedded }: { embedded?: boolean } = {}) {
           <FlagCommentPanel
             item={item}
             submitted={false}
+            canRaiseRequest={!isTech}
             onSave={comment => updateItem(cl, item.id, { comment })}
             onRaiseRequest={comment => navigate(`/fm/request/new?prefill=${encodeURIComponent(`${cl.title} — ${item.zone ?? 'General'} — ${item.label}: ${comment || 'flagged during daily walk'}`)}`)}
           />
@@ -130,10 +154,13 @@ export default function FMDailyWalk({ embedded }: { embedded?: boolean } = {}) {
       )}
 
       {walks.map(cl => {
-        const done = cl.items.filter(i => i.checked).length;
-        const flagged = cl.items.filter(i => i.flagged).length;
-        const pct = cl.items.length ? Math.round((done / cl.items.length) * 100) : 0;
-        const zones = [...new Set(cl.items.map(i => i.zone ?? 'General'))];
+        const items = isTech ? techItems(cl) : cl.items;
+        const done = items.filter(i => i.checked).length;
+        const flagged = items.filter(i => i.flagged).length;
+        const pct = items.length ? Math.round((done / items.length) * 100) : 0;
+        const zones = [...new Set(items.map(i => i.zone ?? 'General'))];
+        const pendingTech = isTech ? 0 : cl.items.filter(i => i.role === 'tech' && !i.checked).length;
+        const pendingOwn = items.filter(i => i.role !== 'tech' && !i.checked).length;
 
         return (
           <div key={cl.id} className="space-y-3">
@@ -153,19 +180,27 @@ export default function FMDailyWalk({ embedded }: { embedded?: boolean } = {}) {
                   <span className="text-[11px] font-mono uppercase tracking-wider text-brand-600">{zone}</span>
                 </div>
                 <div className="divide-y divide-slate-100">
-                  {cl.items.filter(i => (i.zone ?? 'General') === zone).map(item => renderItem(cl, item))}
+                  {items.filter(i => (i.zone ?? 'General') === zone).map(item => renderItem(cl, item))}
                 </div>
               </div>
             ))}
 
-            <button
-              className="btn-primary w-full"
-              disabled={!walkComplete(cl)}
-              onClick={() => currentUser && submitChecklist(cl.id, currentUser.id)}
-            >
-              <Send size={14} />
-              {walkComplete(cl) ? `Submit walk — ${cl.title}` : `Complete all items first (${cl.items.length - done} remaining${flagged ? ', comments required on flagged items' : ''})`}
-            </button>
+            {!isTech && (
+              <button
+                className="btn-primary w-full"
+                disabled={!walkComplete(cl)}
+                onClick={() => currentUser && submitChecklist(cl.id, currentUser.id)}
+              >
+                <Send size={14} />
+                {walkComplete(cl)
+                  ? `Submit walk — ${cl.title}`
+                  : `${[
+                      pendingOwn > 0 ? `${pendingOwn} item${pendingOwn === 1 ? '' : 's'} remaining` : null,
+                      pendingTech > 0 ? `awaiting ${pendingTech} technician check${pendingTech === 1 ? '' : 's'}` : null,
+                      flagged ? 'comments required on flagged items' : null,
+                    ].filter(Boolean).join(' · ')}`}
+              </button>
+            )}
           </div>
         );
       })}

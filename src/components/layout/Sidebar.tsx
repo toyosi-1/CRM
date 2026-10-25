@@ -5,6 +5,7 @@ import { ROLE_LABELS } from '../../utils/helpers';
 import { useStore } from '../../store/useStore';
 import { useAuth } from '../../lib/AuthContext';
 import { NAV_MAP } from './navConfig';
+import { instanceId, isDueToday } from '../../lib/checklists';
 
 const ROLE_COLOR: Record<UserRole, string> = {
   facility_manager: '#7a8c3c',
@@ -17,7 +18,7 @@ const ROLE_COLOR: Record<UserRole, string> = {
 };
 
 export default function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { currentUser, logout: clearSession, sites } = useStore();
+  const { currentUser, logout: clearSession, sites, requests, checklists, checklistTemplates, ppmSchedules, activeSiteId } = useStore();
   const { supabaseUser, logout } = useAuth();
   if (!currentUser) return null;
 
@@ -25,6 +26,21 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
   const initials = currentUser.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
   const siteName = sites.find(s => s.id === currentUser.siteId)?.name;
   const roleColor = ROLE_COLOR[currentUser.role];
+
+  // Technician live nav badges (open tasks / technical checks / PPM assigned)
+  const navBadges: Record<string, number> = {};
+  if (currentUser.role === 'technician') {
+    const siteId = activeSiteId ?? currentUser.siteId;
+    const dueIds = new Set(checklistTemplates.filter(t => t.siteId === siteId && isDueToday(t)).map(instanceId));
+    const pendingChecks = checklists
+      .filter(c => c.siteId === siteId && dueIds.has(c.id) && !c.submittedToAdmin)
+      .reduce((n, c) => n + c.items.filter(i => (i.role === 'tech' || i.role === 'both') && !i.checked).length, 0);
+    const openWorkOrders = requests.filter(r => r.assignedTo === currentUser.id && !['PAID', 'CLOSED', 'REJECTED'].includes(r.status)).length;
+    const myPpm = ppmSchedules.filter(s => s.assignedTo === currentUser.id && s.status !== 'completed').length;
+    navBadges['/technician/tasks'] = openWorkOrders + myPpm;
+    navBadges['/technician/checklists'] = pendingChecks;
+    navBadges['/technician/ppm'] = myPpm;
+  }
   const handleLogout = async () => {
     if (supabaseUser) await logout();
     else clearSession();
@@ -78,6 +94,7 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
                 >
                   <span className="flex-shrink-0">{item.icon}</span>
                   <span>{item.label}</span>
+                  {(navBadges[item.path] ?? 0) > 0 && <span className="sidebar-badge">{navBadges[item.path]}</span>}
                 </NavLink>
               ))}
             </div>

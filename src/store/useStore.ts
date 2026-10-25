@@ -20,6 +20,7 @@ import {
   createPettyCashEntry, updatePettyCashEntry, createSupportTicket, updateSupportTicket,
   createTenant, updateTenant, createJobCompletion, createChecklistTemplate, updateChecklistTemplate,
   upsertVendor, createFacilityVendorSLA, updateFacilityVendorSLA, deleteFacilityVendorSLA,
+  assignTechnician as assignTechnicianDb, acknowledgeHandover,
 } from '../lib/db';
 import { supabase } from '../lib/supabase';
 import { isChecklistMissed } from '../lib/checklists';
@@ -80,6 +81,8 @@ interface AppState {
 
   saveChecklist: (checklistId: string, items: Checklist['items']) => void;
   submitChecklist: (checklistId: string, userId: string) => void;
+  assignTechnician: (requestId: string, technicianId: string | null) => Promise<void>;
+  acknowledgeActingHandover: () => Promise<void>;
 
   updateSite: (siteId: string, data: Partial<Site>) => void;
   saveSite: (site: Site) => Promise<void>;
@@ -493,10 +496,28 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   saveChecklist: (checklistId, items) => {
+    const { currentUser, users, checklistTemplates } = get();
     const cl = get().checklists.find(c => c.id === checklistId);
-    if (cl && isChecklistMissed(cl, get().checklistTemplates)) {
+    if (cl && isChecklistMissed(cl, checklistTemplates)) {
       reportSaveError(new Error('This checklist missed its scheduled day and can no longer be edited.'));
       return;
+    }
+    // Role enforcement on tech items: when a site has an active technician,
+    // only technicians may record `tech`-scoped items (FMs can still answer
+    // 'both'/unassigned items, and everything when no technician exists).
+    if (cl && currentUser) {
+      const siteHasTech = users.some(u => u.role === 'technician' && u.active !== false
+        && (u.siteIds?.includes(cl.siteId) || u.siteId === cl.siteId));
+      items = items.map(next => {
+        const prev = cl.items.find(i => i.id === next.id);
+        if (!prev) return next;
+        const changed = prev.checked !== next.checked || prev.value !== next.value
+          || prev.flagged !== next.flagged || prev.comment !== next.comment || prev.timestamp !== next.timestamp;
+        if (!changed) return next;
+        if (currentUser.role === 'technician') return (prev.role === 'tech' || prev.role === 'both') ? next : prev;
+        if (currentUser.role === 'facility_manager') return (prev.role === 'tech' && siteHasTech) ? prev : next;
+        return prev;
+      });
     }
     set(state => ({
       checklists: state.checklists.map(c =>
@@ -513,6 +534,10 @@ export const useStore = create<AppState>((set, get) => ({
       reportSaveError(new Error('This checklist missed its scheduled day and can no longer be submitted.'));
       return;
     }
+    if (users.find(u => u.id === userId)?.role === 'technician') {
+      reportSaveError(new Error('Technicians record check items — only the FM submits the walk.'));
+      return;
+    }
     const user = users.find(u => u.id === userId);
     const data = { submittedToAdmin: true, completedBy: userId, completedAt: new Date().toISOString(), completedByName: user?.name };
     set(state => ({
@@ -521,6 +546,24 @@ export const useStore = create<AppState>((set, get) => ({
       ),
     }));
     updateChecklistInDB(checklistId, data).catch(reportSaveError);
+  },
+
+  assignTechnician: async (requestId, technicianId) => {
+    await assignTechnicianDb(requestId, technicianId);
+    set(state => ({
+      requests: state.requests.map(r => r.id === requestId ? { ...r, assignedTo: technicianId ?? undefined, updatedAt: new Date().toISOString() } : r),
+    }));
+  },
+
+  acknowledgeActingHandover: async () => {
+    const { currentUser } = get();
+    if (!currentUser) return;
+    await acknowledgeHandover(currentUser.id);
+    const at = new Date().toISOString();
+    set(state => ({
+      currentUser: state.currentUser ? { ...state.currentUser, actingAcknowledgedAt: at } : state.currentUser,
+      users: state.users.map(u => u.id === currentUser.id ? { ...u, actingAcknowledgedAt: at } : u),
+    }));
   },
 
   updateSite: (siteId, data) => {

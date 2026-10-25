@@ -16,7 +16,7 @@ import {
 export default function RequestDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { requests, sites, vendors, currentUser, updateRequestStatus, updateRequest, generatePO, processPayment, markPaid, deleteRequest, facilityVendorSLAs, incidents, getSiteMonthSpend } = useStore();
+  const { requests, sites, vendors, users, currentUser, updateRequestStatus, updateRequest, generatePO, processPayment, markPaid, deleteRequest, facilityVendorSLAs, incidents, getSiteMonthSpend, assignTechnician } = useStore();
   const [now, setNow] = useState(0);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [completionFile, setCompletionFile] = useState<File | null>(null);
@@ -354,6 +354,38 @@ export default function RequestDetail() {
               )}
             </div>
           </div>
+
+          {/* Assigned technician — FM/supervisor/admin route the job to a site technician */}
+          {(() => {
+            const canAssign = ['facility_manager', 'supervisor', 'admin'].includes(currentUser?.role ?? '');
+            const assignedTech = req.assignedTo ? users.find(u => u.id === req.assignedTo) : null;
+            const siteTechs = users.filter(u => u.role === 'technician' && u.active !== false
+              && (u.siteIds?.includes(req.siteId) || u.siteId === req.siteId));
+            if (!canAssign && !assignedTech) return null;
+            return (
+              <div className="card p-5">
+                <h2 className="section-title mb-4">Assigned technician</h2>
+                {canAssign ? (
+                  siteTechs.length === 0 ? (
+                    <p className="text-xs text-slate-500">No active technicians at this facility — add one under People → Technicians.</p>
+                  ) : (
+                    <select
+                      className="select"
+                      value={req.assignedTo ?? ''}
+                      onChange={e => void assignTechnician(req.id, e.target.value || null).catch(reportSaveError)}
+                    >
+                      <option value="">Not assigned</option>
+                      {siteTechs.map(t => (
+                        <option key={t.id} value={t.id}>{t.name}{t.trade ? ` — ${t.trade}` : ''}</option>
+                      ))}
+                    </select>
+                  )
+                ) : (
+                  <p className="text-sm font-semibold text-slate-800">{assignedTech?.name ?? 'Unassigned'}{assignedTech?.trade ? <span className="text-xs font-normal text-slate-500"> · {assignedTech.trade}</span> : null}</p>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Vendor Info */}
           {(vendor || req.oneTimeVendor?.name) && (
