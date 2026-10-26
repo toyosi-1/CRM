@@ -1,61 +1,63 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 import { useStore } from './store/useStore';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
 import SetPassword from './pages/SetPassword';
 
-import FMDashboard from './pages/fm/FMDashboard';
-import FMRequests from './pages/fm/FMRequests';
-import CreateRequest from './pages/fm/CreateRequest';
-import FMChecklists from './pages/fm/FMChecklists';
-import FMAssets from './pages/fm/FMAssets';
-import FMIncidents from './pages/fm/FMIncidents';
-import FMPettyCash from './pages/fm/FMPettyCash';
-import FMFacilityInfo from './pages/fm/FMFacilityInfo';
-import FMTechnicians from './pages/fm/FMTechnicians';
-import FMVendors from './pages/fm/FMVendors';
-import FMPPM from './pages/fm/FMPPM';
-import FMSLA from './pages/fm/FMSLA';
-import FMReport from './pages/fm/report/FMReport';
+// Route-level code splitting: each portal downloads only what it uses
+const FMDashboard = lazy(() => import('./pages/fm/FMDashboard'));
+const FMRequests = lazy(() => import('./pages/fm/FMRequests'));
+const CreateRequest = lazy(() => import('./pages/fm/CreateRequest'));
+const FMChecklists = lazy(() => import('./pages/fm/FMChecklists'));
+const FMAssets = lazy(() => import('./pages/fm/FMAssets'));
+const FMIncidents = lazy(() => import('./pages/fm/FMIncidents'));
+const FMPettyCash = lazy(() => import('./pages/fm/FMPettyCash'));
+const FMFacilityInfo = lazy(() => import('./pages/fm/FMFacilityInfo'));
+const FMTechnicians = lazy(() => import('./pages/fm/FMTechnicians'));
+const FMVendors = lazy(() => import('./pages/fm/FMVendors'));
+const FMPPM = lazy(() => import('./pages/fm/FMPPM'));
+const FMSLA = lazy(() => import('./pages/fm/FMSLA'));
+const FMReport = lazy(() => import('./pages/fm/report/FMReport'));
 
-import ProcurementDashboard from './pages/procurement/ProcurementDashboard';
-import ProcurementQueue from './pages/procurement/ProcurementQueue';
-import VendorOnboarding from './pages/procurement/VendorOnboarding';
-import PurchaseOrders from './pages/procurement/PurchaseOrders';
-import VendorScorecardPage from './pages/procurement/VendorScorecardPage';
+const ProcurementDashboard = lazy(() => import('./pages/procurement/ProcurementDashboard'));
+const ProcurementQueue = lazy(() => import('./pages/procurement/ProcurementQueue'));
+const VendorOnboarding = lazy(() => import('./pages/procurement/VendorOnboarding'));
+const PurchaseOrders = lazy(() => import('./pages/procurement/PurchaseOrders'));
+const VendorScorecardPage = lazy(() => import('./pages/procurement/VendorScorecardPage'));
 
-import SupervisorDashboard from './pages/supervisor/SupervisorDashboard';
-import SupervisorApprovals from './pages/supervisor/SupervisorApprovals';
-import SiteRules from './pages/supervisor/SiteRules';
-import PPMRegistry from './pages/supervisor/PPMRegistry';
-import ChecklistBuilder from './pages/supervisor/ChecklistBuilder';
-import FacilitiesManagement from './pages/shared/FacilitiesManagement';
-import PeopleRegistry from './pages/shared/PeopleRegistry';
+const SupervisorDashboard = lazy(() => import('./pages/supervisor/SupervisorDashboard'));
+const SupervisorApprovals = lazy(() => import('./pages/supervisor/SupervisorApprovals'));
+const SiteRules = lazy(() => import('./pages/supervisor/SiteRules'));
+const PPMRegistry = lazy(() => import('./pages/supervisor/PPMRegistry'));
+const ChecklistBuilder = lazy(() => import('./pages/supervisor/ChecklistBuilder'));
+const FacilitiesManagement = lazy(() => import('./pages/shared/FacilitiesManagement'));
+const PeopleRegistry = lazy(() => import('./pages/shared/PeopleRegistry'));
 
-import FinanceDashboard from './pages/finance/FinanceDashboard';
-import FinancePettyCash from './pages/finance/FinancePettyCash';
-import PaymentQueue from './pages/finance/PaymentQueue';
-import TreasuryLedger from './pages/finance/TreasuryLedger';
-import Reconciliation from './pages/finance/Reconciliation';
+const FinanceDashboard = lazy(() => import('./pages/finance/FinanceDashboard'));
+const FinancePettyCash = lazy(() => import('./pages/finance/FinancePettyCash'));
+const PaymentQueue = lazy(() => import('./pages/finance/PaymentQueue'));
+const TreasuryLedger = lazy(() => import('./pages/finance/TreasuryLedger'));
+const Reconciliation = lazy(() => import('./pages/finance/Reconciliation'));
 
-import TechnicianDashboard from './pages/technician/TechnicianDashboard';
-import TechnicianTasks from './pages/technician/TechnicianTasks';
-import TechnicianChecklists from './pages/technician/TechnicianChecklists';
-import TechnicianAssets from './pages/technician/TechnicianAssets';
-import JobCompletion from './pages/technician/JobCompletion';
+const TechnicianDashboard = lazy(() => import('./pages/technician/TechnicianDashboard'));
+const TechnicianTasks = lazy(() => import('./pages/technician/TechnicianTasks'));
+const TechnicianChecklists = lazy(() => import('./pages/technician/TechnicianChecklists'));
+const TechnicianAssets = lazy(() => import('./pages/technician/TechnicianAssets'));
+const JobCompletion = lazy(() => import('./pages/technician/JobCompletion'));
 
-import AdminAnalytics from './pages/admin/AdminAnalytics';
-import AdminAuditLog from './pages/admin/AdminAuditLog';
-import AdminReports from './pages/admin/AdminReports';
-import AdminRequests from './pages/admin/AdminRequests';
-import AdminSiteManagement from './pages/admin/AdminSiteManagement';
-import AdminTreasury from './pages/admin/AdminTreasury';
-import AdminUsers from './pages/admin/AdminUsers';
-import AdminVendors from './pages/admin/AdminVendors';
-import IctDashboard from './pages/ict/IctDashboard';
+const AdminAnalytics = lazy(() => import('./pages/admin/AdminAnalytics'));
+const AdminAuditLog = lazy(() => import('./pages/admin/AdminAuditLog'));
+const AdminReports = lazy(() => import('./pages/admin/AdminReports'));
+const AdminRequests = lazy(() => import('./pages/admin/AdminRequests'));
+const AdminSiteManagement = lazy(() => import('./pages/admin/AdminSiteManagement'));
+const AdminTreasury = lazy(() => import('./pages/admin/AdminTreasury'));
+const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
+const AdminVendors = lazy(() => import('./pages/admin/AdminVendors'));
+const IctDashboard = lazy(() => import('./pages/ict/IctDashboard'));
 
-import RequestDetail from './pages/shared/RequestDetail';
-import SupportTickets from './pages/shared/SupportTickets';
+const RequestDetail = lazy(() => import('./pages/shared/RequestDetail'));
+const SupportTickets = lazy(() => import('./pages/shared/SupportTickets'));
 import AutoUpdate from './components/shared/AutoUpdate';
 import SaveErrorToast from './components/shared/SaveErrorToast';
 import InstallPrompt from './components/shared/InstallPrompt';
@@ -91,6 +93,7 @@ function HomeRoute() {
 export default function App() {
   return (
     <BrowserRouter>
+      <Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-500">Loading…</div>}>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/set-password" element={<SetPassword />} />
@@ -215,6 +218,7 @@ export default function App() {
 
         <Route path="*" element={<HomeRoute />} />
       </Routes>
+      </Suspense>
       <AutoUpdate />
       <SaveErrorToast />
       <InstallPrompt />
