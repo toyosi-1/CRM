@@ -420,6 +420,94 @@ export interface ServiceChargeInvoice {
   createdAt: string;
 }
 
+/* ---------- GlassHouse Finance ledger ---------- */
+export type FinAccountType =
+  | 'Cash' | 'Bank' | 'Accounts Receivable' | 'Other Current Asset' | 'Fixed Asset'
+  | 'Accounts Payable' | 'Other Current Liability' | 'Long Term Liability'
+  | 'Equity' | 'Income' | 'Other Income' | 'Cost of Goods Sold' | 'Expense' | 'Other Expense';
+
+export interface FinAccount {
+  id: string;
+  code: string;
+  name: string;
+  type: FinAccountType;
+  locked: boolean;
+}
+
+export interface FinJournalEntry {
+  id: string;
+  no: string;
+  source: 'journal' | 'invoice' | 'receipt' | 'bill' | 'payment' | 'expense' | 'bank' | 'fx';
+  sourceId?: string;
+  date: string;
+  ref?: string;
+  notes?: string;
+  status: 'draft' | 'published' | 'void';
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface FinJournalLine {
+  id: string;
+  entryId: string;
+  accountId: string;
+  debit: number;
+  credit: number;
+  memo?: string;
+}
+
+export interface FinContact {
+  id: string;
+  name: string;
+  type: 'customer' | 'vendor' | 'both';
+  email?: string;
+  phone?: string;
+  address?: string;
+}
+
+export interface FinItem {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  accountId?: string;
+}
+
+export type FinDocKind = 'invoice' | 'receipt' | 'bill' | 'payment' | 'expense' | 'bank' | 'project' | 'timesheet' | 'journal' | 'fx';
+export type FinDocStatus = 'draft' | 'issued' | 'part_paid' | 'paid' | 'void' | 'published' | 'reconciled';
+
+export interface FinDocument {
+  id: string;
+  kind: FinDocKind;
+  no: string;
+  date: string;
+  status: FinDocStatus;
+  contactId?: string;
+  siteId?: string;
+  projectId?: string;
+  total: number;
+  paid: number;
+  dueDate?: string;
+  payload: Record<string, unknown>;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface FinBudget {
+  id: string;
+  name: string;
+  period: string;
+  lines: { accountId: string; amount: number }[];
+}
+
+export interface FinActivity {
+  id: string;
+  actor: string;
+  action: string;
+  ref?: string;
+  at: string;
+}
+
 export interface JobCompletion {
   id: string;
   requestId?: string;

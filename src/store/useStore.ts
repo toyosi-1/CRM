@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type {
   User, Site, Vendor, Asset, MaintenanceRequest,
   Checklist, TreasuryEntry, RequestStatus, TaxType, Priority,
-  PPMSchedule, Incident, PettyCashEntry, SupportTicket, Tenant, JobCompletion, ChecklistTemplate, ReconciliationEntry, FacilityVendorSLA, ServiceChargeInvoice
+  PPMSchedule, Incident, PettyCashEntry, SupportTicket, Tenant, JobCompletion, ChecklistTemplate, ReconciliationEntry, FacilityVendorSLA, ServiceChargeInvoice, FinAccount, FinJournalEntry, FinJournalLine, FinContact, FinItem, FinDocument, FinBudget, FinActivity
 } from '../types';
 import {
   MOCK_USERS, MOCK_SITES, MOCK_VENDORS, MOCK_ASSETS,
@@ -21,6 +21,8 @@ import {
   createTenant, updateTenant, createJobCompletion, createChecklistTemplate, updateChecklistTemplate, subscribeServiceChargeInvoices, createServiceChargeInvoice as createServiceChargeInvoiceDb,
   upsertVendor, createFacilityVendorSLA, updateFacilityVendorSLA, deleteFacilityVendorSLA,
   assignTechnician as assignTechnicianDb, acknowledgeHandover, markWorkCompleted,
+  subscribeFinAccounts, subscribeFinJournal, subscribeFinContacts, subscribeFinItems,
+  subscribeFinDocuments, subscribeFinBudgets, subscribeFinActivity,
 } from '../lib/db';
 import { supabase } from '../lib/supabase';
 import { isChecklistMissed } from '../lib/checklists';
@@ -45,6 +47,14 @@ interface AppState {
   supportTickets: SupportTicket[];
   tenants: Tenant[];
   serviceChargeInvoices: ServiceChargeInvoice[];
+  finAccounts: FinAccount[];
+  finJournalEntries: FinJournalEntry[];
+  finJournalLines: FinJournalLine[];
+  finContacts: FinContact[];
+  finItems: FinItem[];
+  finDocuments: FinDocument[];
+  finBudgets: FinBudget[];
+  finActivity: FinActivity[];
   jobCompletions: JobCompletion[];
   checklistTemplates: ChecklistTemplate[];
   reconciliationEntries: ReconciliationEntry[];
@@ -182,6 +192,14 @@ export const useStore = create<AppState>((set, get) => ({
   supportTickets: [],
   tenants: [],
   serviceChargeInvoices: [],
+  finAccounts: [],
+  finJournalEntries: [],
+  finJournalLines: [],
+  finContacts: [],
+  finItems: [],
+  finDocuments: [],
+  finBudgets: [],
+  finActivity: [],
   jobCompletions: [],
   checklistTemplates: [],
   reconciliationEntries: [],
@@ -228,6 +246,13 @@ export const useStore = create<AppState>((set, get) => ({
       if (_unsubTenants) _unsubTenants();
       _unsubTenants = subscribeTenants(tenants => set({ tenants }));
       subscribeServiceChargeInvoices(serviceChargeInvoices => set({ serviceChargeInvoices }));
+      subscribeFinAccounts(finAccounts => set({ finAccounts }));
+      subscribeFinJournal(j => set({ finJournalEntries: j.entries, finJournalLines: j.lines }));
+      subscribeFinContacts(finContacts => set({ finContacts }));
+      subscribeFinItems(finItems => set({ finItems }));
+      subscribeFinDocuments(finDocuments => set({ finDocuments }));
+      subscribeFinBudgets(finBudgets => set({ finBudgets }));
+      subscribeFinActivity(finActivity => set({ finActivity }));
 
       if (_unsubJobCompletions) _unsubJobCompletions();
       _unsubJobCompletions = subscribeJobCompletions(jobCompletions => set({ jobCompletions }));

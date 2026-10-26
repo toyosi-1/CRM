@@ -720,3 +720,142 @@ export async function saveFmReport(siteId: string, period: string, payload: Reco
   );
   fail(error);
 }
+
+/* ---------- GlassHouse Finance ledger ---------- */
+import type { FinAccount, FinJournalEntry, FinJournalLine, FinContact, FinItem, FinDocument, FinBudget, FinActivity } from '../types';
+
+export async function fetchFinAccounts(): Promise<FinAccount[]> {
+  const { data, error } = await supabase.from('fin_accounts').select('*').order('code'); fail(error);
+  return (data ?? []).map(r => ({ id: r.id, code: r.code, name: r.name, type: r.type, locked: r.locked }));
+}
+export function subscribeFinAccounts(cb: (v: FinAccount[]) => void): () => void {
+  const refresh = async () => cb(await fetchFinAccounts()); void refresh(); return subscribe('fin_accounts', refresh);
+}
+
+export async function fetchFinJournal(): Promise<{ entries: FinJournalEntry[]; lines: FinJournalLine[] }> {
+  const [e, l] = await Promise.all([
+    supabase.from('fin_journal_entries').select('*').order('date', { ascending: false }),
+    supabase.from('fin_journal_lines').select('*'),
+  ]);
+  fail(e.error); fail(l.error);
+  return {
+    entries: (e.data ?? []).map(r => ({ id: r.id, no: r.no, source: r.source, sourceId: r.source_id ?? undefined, date: r.date, ref: r.ref ?? undefined, notes: r.notes ?? undefined, status: r.status, createdBy: r.created_by, createdAt: r.created_at })),
+    lines: (l.data ?? []).map(r => ({ id: r.id, entryId: r.entry_id, accountId: r.account_id, debit: Number(r.debit), credit: Number(r.credit), memo: r.memo ?? undefined })),
+  };
+}
+export function subscribeFinJournal(cb: (v: { entries: FinJournalEntry[]; lines: FinJournalLine[] }) => void): () => void {
+  const refresh = async () => cb(await fetchFinJournal()); void refresh();
+  const a = subscribe('fin_journal_entries', refresh);
+  const b = subscribe('fin_journal_lines', refresh);
+  return () => { a(); b(); };
+}
+
+export async function fetchFinContacts(): Promise<FinContact[]> {
+  const { data, error } = await supabase.from('fin_contacts').select('*').order('name'); fail(error);
+  return (data ?? []).map(r => ({ id: r.id, name: r.name, type: r.type, email: r.email ?? undefined, phone: r.phone ?? undefined, address: r.address ?? undefined }));
+}
+export function subscribeFinContacts(cb: (v: FinContact[]) => void): () => void {
+  const refresh = async () => cb(await fetchFinContacts()); void refresh(); return subscribe('fin_contacts', refresh);
+}
+export async function createFinContact(c: Omit<FinContact, 'id'>): Promise<void> {
+  const { error } = await supabase.from('fin_contacts').insert({ name: c.name, type: c.type, email: c.email, phone: c.phone, address: c.address }); fail(error);
+}
+export async function updateFinContact(id: string, c: Partial<FinContact>): Promise<void> {
+  const { error } = await supabase.from('fin_contacts').update({ ...(c.name !== undefined && { name: c.name }), ...(c.type !== undefined && { type: c.type }), ...(c.email !== undefined && { email: c.email }), ...(c.phone !== undefined && { phone: c.phone }), ...(c.address !== undefined && { address: c.address }) }).eq('id', id); fail(error);
+}
+
+export async function fetchFinItems(): Promise<FinItem[]> {
+  const { data, error } = await supabase.from('fin_items').select('*').order('name'); fail(error);
+  return (data ?? []).map(r => ({ id: r.id, name: r.name, description: r.description ?? undefined, price: Number(r.price), accountId: r.account_id ?? undefined }));
+}
+export function subscribeFinItems(cb: (v: FinItem[]) => void): () => void {
+  const refresh = async () => cb(await fetchFinItems()); void refresh(); return subscribe('fin_items', refresh);
+}
+export async function upsertFinItem(item: Partial<FinItem> & { name: string }): Promise<void> {
+  const { error } = await supabase.from('fin_items').upsert({ ...(item.id && { id: item.id }), name: item.name, description: item.description, price: item.price ?? 0, account_id: item.accountId || null }); fail(error);
+}
+export async function deleteFinItem(id: string): Promise<void> {
+  const { error } = await supabase.from('fin_items').delete().eq('id', id); fail(error);
+}
+
+export async function fetchFinDocuments(kind?: string): Promise<FinDocument[]> {
+  let q = supabase.from('fin_documents').select('*').order('date', { ascending: false });
+  if (kind) q = q.eq('kind', kind);
+  const { data, error } = await q; fail(error);
+  return (data ?? []).map(r => ({ id: r.id, kind: r.kind, no: r.no, date: r.date, status: r.status, contactId: r.contact_id ?? undefined, siteId: r.site_id ?? undefined, projectId: r.project_id ?? undefined, total: Number(r.total), paid: Number(r.paid), dueDate: r.due_date ?? undefined, payload: r.payload ?? {}, createdBy: r.created_by, createdAt: r.created_at }));
+}
+export function subscribeFinDocuments(cb: (v: FinDocument[]) => void): () => void {
+  const refresh = async () => cb(await fetchFinDocuments()); void refresh(); return subscribe('fin_documents', refresh);
+}
+
+export async function fetchFinBudgets(): Promise<FinBudget[]> {
+  const { data, error } = await supabase.from('fin_budgets').select('*').order('name'); fail(error);
+  return (data ?? []).map(r => ({ id: r.id, name: r.name, period: r.period, lines: (r.lines as FinBudget['lines']) ?? [] }));
+}
+export function subscribeFinBudgets(cb: (v: FinBudget[]) => void): () => void {
+  const refresh = async () => cb(await fetchFinBudgets()); void refresh(); return subscribe('fin_budgets', refresh);
+}
+export async function upsertFinBudget(b: Partial<FinBudget> & { name: string; period: string }): Promise<void> {
+  const { error } = await supabase.from('fin_budgets').upsert({ ...(b.id && { id: b.id }), name: b.name, period: b.period, lines: b.lines ?? [] }); fail(error);
+}
+
+export async function fetchFinActivity(): Promise<FinActivity[]> {
+  const { data, error } = await supabase.from('fin_activity').select('*').order('at', { ascending: false }).limit(200); fail(error);
+  return (data ?? []).map(r => ({ id: r.id, actor: r.actor, action: r.action, ref: r.ref ?? undefined, at: r.at }));
+}
+export function subscribeFinActivity(cb: (v: FinActivity[]) => void): () => void {
+  const refresh = async () => cb(await fetchFinActivity()); void refresh(); return subscribe('fin_activity', refresh);
+}
+export async function logFinActivity(actor: string, action: string, ref?: string): Promise<void> {
+  const { error } = await supabase.from('fin_activity').insert({ actor, action, ref }); fail(error);
+}
+
+/* ---------- posting engine ---------- */
+// Every document posts a balanced journal entry. Lines: [{accountId, dr, cr, memo}]
+export interface PostLine { accountId: string; dr?: number; cr?: number; memo?: string }
+
+export async function postJournal(
+  meta: { no: string; source: FinJournalEntry['source']; sourceId?: string; date: string; ref?: string; notes?: string; status?: string; createdBy: string },
+  lines: PostLine[],
+): Promise<string> {
+  const drTotal = lines.reduce((s, l) => s + (l.dr ?? 0), 0);
+  const crTotal = lines.reduce((s, l) => s + (l.cr ?? 0), 0);
+  if (Math.abs(drTotal - crTotal) > 0.005) throw new Error(`Journal unbalanced: DR ${drTotal} ≠ CR ${crTotal}`);
+  const entryId = `je_${crypto.randomUUID()}`;
+  const { error } = await supabase.from('fin_journal_entries').insert({
+    id: entryId, no: meta.no, source: meta.source, source_id: meta.sourceId ?? null, date: meta.date,
+    ref: meta.ref ?? null, notes: meta.notes ?? null, status: meta.status ?? 'published', created_by: meta.createdBy,
+  });
+  fail(error);
+  const { error: lErr } = await supabase.from('fin_journal_lines').insert(
+    lines.filter(l => (l.dr ?? 0) > 0 || (l.cr ?? 0) > 0).map(l => ({ entry_id: entryId, account_id: l.accountId, debit: l.dr ?? 0, credit: l.cr ?? 0, memo: l.memo ?? null })),
+  );
+  fail(lErr);
+  return entryId;
+}
+
+export async function createFinDocument(doc: Omit<FinDocument, 'id' | 'createdAt'>, lines?: PostLine[]): Promise<string> {
+  const id = `doc_${crypto.randomUUID()}`;
+  const { error } = await supabase.from('fin_documents').insert({
+    id, kind: doc.kind, no: doc.no, date: doc.date, status: doc.status, contact_id: doc.contactId ?? null,
+    site_id: doc.siteId ?? null, project_id: doc.projectId ?? null, total: doc.total, paid: doc.paid, due_date: doc.dueDate ?? null, payload: doc.payload, created_by: doc.createdBy,
+  });
+  fail(error);
+  if (lines?.length) await postJournal({ no: doc.no, source: doc.kind === 'journal' ? 'journal' : doc.kind as FinJournalEntry['source'], sourceId: id, date: doc.date, createdBy: doc.createdBy }, lines);
+  return id;
+}
+
+export async function updateFinDocument(id: string, data: Partial<FinDocument>): Promise<void> {
+  const { error } = await supabase.from('fin_documents').update({
+    ...(data.status !== undefined && { status: data.status }), ...(data.paid !== undefined && { paid: data.paid }),
+    ...(data.payload !== undefined && { payload: data.payload }), ...(data.dueDate !== undefined && { due_date: data.dueDate }),
+    ...(data.contactId !== undefined && { contact_id: data.contactId }), ...(data.no !== undefined && { no: data.no }),
+  }).eq('id', id); fail(error);
+}
+
+// Void a document: mark it void and void its journal entry (balances unwind).
+export async function voidFinDocument(id: string, no: string, by: string): Promise<void> {
+  const { error } = await supabase.from('fin_documents').update({ status: 'void' }).eq('id', id); fail(error);
+  const { error: e2 } = await supabase.from('fin_journal_entries').update({ status: 'void' }).eq('source_id', id); fail(e2);
+  await logFinActivity(by, `Voided ${no}`, id).catch(() => undefined);
+}

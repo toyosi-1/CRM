@@ -39,6 +39,7 @@ const FinancePettyCash = lazy(() => import('./pages/finance/FinancePettyCash'));
 const PaymentQueue = lazy(() => import('./pages/finance/PaymentQueue'));
 const TreasuryLedger = lazy(() => import('./pages/finance/TreasuryLedger'));
 const Reconciliation = lazy(() => import('./pages/finance/Reconciliation'));
+const FinanceLedger = lazy(() => import('./pages/finance/FinanceLedger'));
 
 const TechnicianDashboard = lazy(() => import('./pages/technician/TechnicianDashboard'));
 const TechnicianTasks = lazy(() => import('./pages/technician/TechnicianTasks'));
@@ -159,6 +160,7 @@ export default function App() {
           <ProtectedRoute role="finance"><Layout /></ProtectedRoute>
         }>
           <Route index element={<FinanceDashboard />} />
+          <Route path="ledger" element={<FinanceLedger />} />
           <Route path="payments" element={<PaymentQueue />} />
           <Route path="petty-cash" element={<FinancePettyCash />} />
           <Route path="treasury" element={<TreasuryLedger />} />

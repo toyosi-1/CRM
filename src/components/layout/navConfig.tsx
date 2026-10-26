@@ -61,6 +61,7 @@ const SUPERVISOR_NAV: NavSection[] = [
 const FINANCE_NAV: NavSection[] = [
   { section: 'Workspace', items: [
     { label: 'Dashboard', path: '/finance', icon: <LayoutDashboard size={15} /> },
+    { label: 'Ledger', path: '/finance/ledger', icon: <BookOpen size={15} /> },
     { label: 'Payment queue', path: '/finance/payments', icon: <DollarSign size={15} /> },
     { label: 'Petty cash', path: '/finance/petty-cash', icon: <Wallet size={15} /> },
     { label: 'Treasury ledger', path: '/finance/treasury', icon: <BookOpen size={15} /> },
