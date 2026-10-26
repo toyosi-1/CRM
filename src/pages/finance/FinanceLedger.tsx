@@ -3,7 +3,7 @@ import { BookOpen, Users, Package, TrendingUp, TrendingDown, Landmark, BookMarke
 import { useStore } from '../../store/useStore';
 import {
   createFinContact, upsertFinItem, deleteFinItem, createFinDocument, updateFinDocument,
-  voidFinDocument, postJournal, logFinActivity, type PostLine,
+  voidFinDocument, postJournal, logFinActivity, upsertFinBudget, type PostLine,
 } from '../../lib/db';
 import { reportSaveError } from '../../store/useStore';
 import type { FinAccount, FinDocument, FinDocKind } from '../../types';
@@ -12,11 +12,12 @@ const fmt = (v: number) => `₦${v.toLocaleString('en-NG', { minimumFractionDigi
 const today = () => new Date().toISOString().slice(0, 10);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
-type Tab = 'home' | 'contacts' | 'items' | 'sales' | 'purchases' | 'banking' | 'journals' | 'reports' | 'activity';
+type Tab = 'home' | 'contacts' | 'items' | 'projects' | 'sales' | 'purchases' | 'banking' | 'journals' | 'reports' | 'activity';
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'home', label: 'Home', icon: <Landmark size={14} /> },
   { id: 'contacts', label: 'Contacts', icon: <Users size={14} /> },
   { id: 'items', label: 'Items', icon: <Package size={14} /> },
+  { id: 'projects', label: 'Projects', icon: <BookOpen size={14} /> },
   { id: 'sales', label: 'Sales', icon: <TrendingUp size={14} /> },
   { id: 'purchases', label: 'Purchases', icon: <TrendingDown size={14} /> },
   { id: 'banking', label: 'Banking', icon: <Landmark size={14} /> },
@@ -32,11 +33,15 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function FinanceLedger() {
-  const { finAccounts, finJournalEntries, finJournalLines, finContacts, finItems, finDocuments, finActivity, currentUser } = useStore();
+  const { finAccounts, finJournalEntries, finJournalLines, finContacts, finItems, finDocuments, finBudgets, finActivity, currentUser } = useStore();
   const [tab, setTab] = useState<Tab>('home');
   const [busy, setBusy] = useState(false);
-  const [report, setReport] = useState<'tb' | 'pl' | 'bs' | 'acct'>('tb');
+  const [report, setReport] = useState<'tb' | 'pl' | 'bs' | 'acct' | 'budget'>('tb');
   const [acctId, setAcctId] = useState('');
+  const [budId, setBudId] = useState('');
+  const [budName, setBudName] = useState('');
+  const [budPeriod, setBudPeriod] = useState(String(new Date().getFullYear()));
+  const [budLines, setBudLines] = useState<{ accountId: string; amount: string }[]>([{ accountId: '', amount: '' }]);
   const me = currentUser?.name ?? 'Finance';
 
   const byCode = useMemo(() => Object.fromEntries(finAccounts.map(a => [a.code, a])), [finAccounts]);
@@ -237,6 +242,56 @@ export default function FinanceLedger() {
         </div>
       )}
 
+      {/* ---------- PROJECTS + TIMESHEETS ---------- */}
+      {tab === 'projects' && (
+        <div className="space-y-4">
+          <form onSubmit={async e => { e.preventDefault(); const el = e.currentTarget.elements as unknown as Record<string, HTMLInputElement>; setBusy(true); try { await createFinDocument({ kind: 'project', no: `PRJ-${String(finDocuments.filter(d => d.kind === 'project').length + 1).padStart(3, '0')}`, date: today(), status: 'issued', total: 0, paid: 0, createdBy: me, payload: { name: el.pName.value, rate: Number(el.pRate.value) || 0, contactId: el.pContact.value || undefined } }); e.currentTarget.reset(); } catch (err) { reportSaveError(err); } finally { setBusy(false); } }} className="grid grid-cols-2 md:grid-cols-4 gap-2 card p-4">
+            <input name="pName" className="input" placeholder="Project name" required />
+            <input name="pRate" className="input" type="number" min={0} step="0.01" placeholder="Hourly rate (₦)" required />
+            <select name="pContact" className="select"><option value="">Client (optional)</option>{finContacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+            <button className="btn-primary" disabled={busy}><Plus size={13} />New project</button>
+          </form>
+
+          {finDocuments.filter(d => d.kind === 'project').map(p => {
+            const entries = finDocuments.filter(t => t.kind === 'timesheet' && t.projectId === p.id && t.status !== 'void');
+            const unbilled = entries.filter(t => t.status !== 'paid');
+            const unbilledHrs = unbilled.reduce((s, t) => s + Number(t.payload.hours ?? 0), 0);
+            const rate = Number(p.payload.rate ?? 0);
+            return (
+              <div key={p.id} className="card p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div><p className="font-bold text-slate-900">{String(p.payload.name ?? p.no)}</p><p className="text-xs text-slate-400">{fmt(rate)}/hr{contactName(p.payload.contactId as string | undefined) !== '—' ? ` · ${contactName(p.payload.contactId as string | undefined)}` : ''} · {entries.reduce((s, t) => s + Number(t.payload.hours ?? 0), 0)}h logged</p></div>
+                  {unbilledHrs > 0 && (
+                    <button onClick={async () => {
+                      const amt = r2(unbilledHrs * rate);
+                      if (!confirm(`Bill ${r2(unbilledHrs)}h → invoice for ${fmt(amt)}?`)) return;
+                      const invNo = nextNo('INV', 'invoice');
+                      await post({ kind: 'invoice', no: invNo, date: today(), status: 'issued', contactId: (p.payload.contactId as string | undefined), total: amt, paid: 0, createdBy: me, payload: { lines: [{ accountId: acct('4000'), amount: String(amt), memo: `${r2(unbilledHrs)}h × ${fmt(rate)} — ${String(p.payload.name)}` }], projectId: p.id } },
+                        [{ accountId: acct('1200')!, dr: amt, memo: 'AR' }, { accountId: acct('4000')!, cr: amt, memo: `${r2(unbilledHrs)}h — ${String(p.payload.name)}` }]);
+                      await Promise.all(unbilled.map(t => updateFinDocument(t.id, { status: 'paid' }).catch(reportSaveError)));
+                    }} disabled={busy} className="btn-primary text-xs">Bill {r2(unbilledHrs)}h → {fmt(r2(unbilledHrs * rate))}</button>
+                  )}
+                </div>
+                <form onSubmit={async e => { e.preventDefault(); const el = e.currentTarget.elements as unknown as Record<string, HTMLInputElement>; try { await createFinDocument({ kind: 'timesheet', no: `TS-${finDocuments.filter(t => t.kind === 'timesheet').length + 1}`, date: el.tsDate.value || today(), status: 'issued', total: 0, paid: 0, projectId: p.id, createdBy: me, payload: { hours: Number(el.tsHours.value) || 0, memo: el.tsMemo.value } }); e.currentTarget.reset(); } catch (err) { reportSaveError(err); } }} className="flex gap-2 items-center">
+                  <input name="tsDate" className="input w-36" type="date" defaultValue={today()} />
+                  <input name="tsHours" className="input w-24" type="number" min={0.25} step={0.25} placeholder="Hours" required />
+                  <input name="tsMemo" className="input flex-1" placeholder="What was done" />
+                  <button className="btn-secondary text-xs whitespace-nowrap">Log time</button>
+                </form>
+                {entries.length > 0 && (
+                  <div className="divide-y divide-slate-50 text-xs">
+                    {entries.map(t => (
+                      <div key={t.id} className="py-1.5 flex gap-3"><span className="text-slate-400 w-20 flex-shrink-0">{t.date}</span><span className="font-bold w-12">{String(t.payload.hours)}h</span><span className="flex-1 text-slate-500">{String(t.payload.memo ?? '')}</span><span className={`badge ${t.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{t.status === 'paid' ? 'billed' : 'unbilled'}</span></div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {finDocuments.filter(d => d.kind === 'project').length === 0 && <div className="card p-8 text-center text-sm text-slate-400">No projects — create one above, then log hours against it.</div>}
+        </div>
+      )}
+
       {/* ---------- SALES / PURCHASES / BANKING / JOURNALS ---------- */}
       {['sales', 'purchases', 'banking', 'journals'].includes(tab) && (
         <div className="space-y-4">
@@ -244,12 +299,12 @@ export default function FinanceLedger() {
             {tab === 'sales' && <><button onClick={() => openForm('invoice')} className="btn-primary"><Plus size={13} />New invoice</button><button onClick={() => openForm('receipt')} className="btn-secondary"><Plus size={13} />Record receipt</button></>}
             {tab === 'purchases' && <><button onClick={() => openForm('bill')} className="btn-primary"><Plus size={13} />New bill</button><button onClick={() => openForm('payment')} className="btn-secondary"><Plus size={13} />Record payment</button><button onClick={() => openForm('expense')} className="btn-secondary"><Plus size={13} />New expense</button></>}
             {tab === 'banking' && <button onClick={() => openForm('bank')} className="btn-primary"><Plus size={13} />New bank transaction</button>}
-            {tab === 'journals' && <button onClick={() => openForm('journal')} className="btn-primary"><Plus size={13} />New manual journal</button>}
+            {tab === 'journals' && <><button onClick={() => openForm('journal')} className="btn-primary"><Plus size={13} />New manual journal</button><button onClick={() => { openForm('journal'); setF(v => ({ ...v, fx: '1' })); }} className="btn-secondary"><Plus size={13} />New FX adjustment</button></>}
           </div>
 
           {form && (
             <div className="card p-5 space-y-3 border-2 border-brand-200">
-              <div className="flex items-center justify-between"><h3 className="font-black text-slate-900">{form.kind === 'journal' ? 'Manual journal' : `New ${KIND_LABEL[form.kind]?.toLowerCase()}`}</h3><button onClick={() => setForm(null)} className="text-xs text-slate-400">Cancel</button></div>
+              <div className="flex items-center justify-between"><h3 className="font-black text-slate-900">{form.kind === 'journal' ? (f.fx ? 'FX currency adjustment' : 'Manual journal') : `New ${KIND_LABEL[form.kind]?.toLowerCase()}`}</h3><button onClick={() => setForm(null)} className="text-xs text-slate-400">Cancel</button></div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 <div><label className="label">Number</label><input className="input" value={f.no ?? ''} placeholder={nextNo(form.kind.slice(0, 3).toUpperCase(), form.kind)} onChange={e => setF(v => ({ ...v, no: e.target.value }))} /></div>
                 <div><label className="label">Date</label><input className="input" type="date" value={f.date ?? today()} onChange={e => setF(v => ({ ...v, date: e.target.value }))} /></div>
@@ -304,7 +359,7 @@ export default function FinanceLedger() {
                 <button onClick={() => {
                   if (form.kind === 'journal') {
                     setBusy(true);
-                    postJournal({ no: f.no || nextNo('MJ', 'journal'), source: 'journal', date: f.date || today(), notes: f.memo, createdBy: me },
+                    postJournal({ no: f.no || nextNo(f.fx ? 'FX' : 'MJ', 'journal'), source: f.fx ? 'fx' : 'journal', date: f.date || today(), notes: f.memo, createdBy: me },
                       lines.map(l => ({ accountId: l.accountId, dr: Number(l.dr) || 0, cr: Number(l.cr) || 0, memo: l.memo })))
                       .then(() => setForm(null)).catch(reportSaveError).finally(() => setBusy(false));
                   } else void submitDoc();
@@ -326,7 +381,7 @@ export default function FinanceLedger() {
       {tab === 'reports' && (
         <div className="space-y-4">
           <div className="flex gap-2">
-            {([['tb', 'Trial balance'], ['pl', 'Profit & loss'], ['bs', 'Balance sheet'], ['acct', 'Account transactions']] as const).map(([id, label]) => (
+            {([['tb', 'Trial balance'], ['pl', 'Profit & loss'], ['bs', 'Balance sheet'], ['acct', 'Account transactions'], ['budget', 'Budget vs actual']] as const).map(([id, label]) => (
               <button key={id} onClick={() => setReport(id)} className={`px-3.5 py-2 text-xs font-bold rounded-lg ${report === id ? 'bg-brand-600 text-white' : 'bg-white border border-slate-200 text-slate-500'}`}>{label}</button>
             ))}
           </div>
@@ -395,6 +450,56 @@ export default function FinanceLedger() {
           )}
         </div>
       )}
+
+          {report === 'budget' && (
+            <div className="space-y-4">
+              <div className="card p-5 space-y-3">
+                <h2 className="font-black text-slate-900">New budget</h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <input className="input" placeholder="Budget name" value={budName} onChange={e => setBudName(e.target.value)} />
+                  <input className="input" placeholder="Period (e.g. 2027)" value={budPeriod} onChange={e => setBudPeriod(e.target.value)} />
+                </div>
+                {budLines.map((l, i) => (
+                  <div key={i} className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    {accountPicker(l.accountId, v => setBudLines(ls => ls.map((x, j) => j === i ? { ...x, accountId: v } : x)))}
+                    <input className="input" type="number" min={0} placeholder="Amount (₦)" value={l.amount} onChange={e => setBudLines(ls => ls.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))} />
+                    {budLines.length > 1 ? <button type="button" onClick={() => setBudLines(ls => ls.filter((_, j) => j !== i))} className="text-red-400 justify-self-start"><Trash2 size={14} /></button> : <span />}
+                  </div>
+                ))}
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setBudLines(ls => [...ls, { accountId: '', amount: '' }])} className="btn-secondary text-xs"><Plus size={12} />Add line</button>
+                  <button onClick={async () => {
+                    const ls = budLines.filter(l => l.accountId && Number(l.amount) > 0).map(l => ({ accountId: l.accountId, amount: Number(l.amount) }));
+                    if (!budName.trim() || !ls.length) return alert('Name the budget and add at least one account line.');
+                    try { await upsertFinBudget({ name: budName.trim(), period: budPeriod.trim(), lines: ls }); setBudName(''); setBudLines([{ accountId: '', amount: '' }]); } catch (e) { reportSaveError(e); }
+                  }} className="btn-primary text-xs">Save budget</button>
+                </div>
+              </div>
+
+              <div className="card p-5">
+                <div className="mb-3 flex items-center gap-3">
+                  <h2 className="font-black text-slate-900">Budget vs actual</h2>
+                  <select className="select max-w-xs" value={budId} onChange={e => setBudId(e.target.value)}><option value="">Pick a budget…</option>{finBudgets.map(b => <option key={b.id} value={b.id}>{b.name} ({b.period})</option>)}</select>
+                </div>
+                {budId && (() => {
+                  const b = finBudgets.find(x => x.id === budId)!;
+                  return (
+                    <table className="w-full text-sm">
+                      <thead><tr className="text-left text-[11px] uppercase text-slate-400 border-b border-slate-100"><th className="py-2">Account</th><th className="text-right">Budget</th><th className="text-right">Actual</th><th className="text-right">Variance</th></tr></thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {b.lines.map(l => {
+                          const a = finAccounts.find(x => x.id === l.accountId);
+                          const actual = a ? natural(a) : 0;
+                          const variance = actual - l.amount;
+                          return <tr key={l.accountId}><td className="py-1.5 font-semibold">{a?.name ?? l.accountId}</td><td className="text-right tabular-nums">{fmt(l.amount)}</td><td className="text-right tabular-nums">{fmt(actual)}</td><td className={`text-right tabular-nums font-bold ${variance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{variance >= 0 ? '+' : ''}{fmt(variance)}</td></tr>;
+                        })}
+                      </tbody>
+                    </table>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
 
       {/* ---------- ACTIVITY ---------- */}
       {tab === 'activity' && (
