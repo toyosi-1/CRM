@@ -22,7 +22,7 @@ import {
   upsertVendor, createFacilityVendorSLA, updateFacilityVendorSLA, deleteFacilityVendorSLA,
   assignTechnician as assignTechnicianDb, acknowledgeHandover, markWorkCompleted,
   subscribeFinAccounts, subscribeFinJournal, subscribeFinContacts, subscribeFinItems,
-  subscribeFinDocuments, subscribeFinBudgets, subscribeFinActivity,
+  subscribeFinDocuments, subscribeFinBudgets, subscribeFinActivity, postJournal, logFinActivity,
 } from '../lib/db';
 import { supabase } from '../lib/supabase';
 import { isChecklistMissed } from '../lib/checklists';
@@ -524,6 +524,20 @@ export const useStore = create<AppState>((set, get) => ({
       sites: updatedSites,
     });
     updateSiteInDB(req.siteId, { currentMonthSpend: updatedSites.find(s => s.id === req.siteId)?.currentMonthSpend }).catch(reportSaveError);
+
+    // Auto-post to the ledger: DR expense (request category) / CR operating bank.
+    const amount = req.netPayment ?? req.invoiceAmount ?? 0;
+    if (amount > 0) {
+      const cat = (req.category ?? '').toLowerCase();
+      const expenseAcct = cat.includes('diesel') || cat.includes('generator') || cat.includes('power') ? 'acc_6020'
+        : cat.includes('office') || cat.includes('supplies') ? 'acc_6040'
+        : cat.includes('travel') || cat.includes('transport') ? 'acc_6050'
+        : 'acc_6030';
+      void postJournal(
+        { no: req.requestNumber, source: 'payment', date: now.slice(0, 10), ref: `Request ${req.requestNumber}`, notes: req.description?.slice(0, 200), createdBy: actor.name },
+        [{ accountId: expenseAcct, dr: amount, memo: req.category || 'Maintenance' }, { accountId: 'acc_1100', cr: amount, memo: 'Payment disbursed' }],
+      ).then(() => logFinActivity(actor.name, `Auto-posted ${req.requestNumber} ${amount.toLocaleString('en-NG')}`, req.requestNumber)).catch(reportSaveError);
+    }
   },
 
   saveChecklist: (checklistId, items) => {
