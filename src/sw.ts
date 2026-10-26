@@ -1,4 +1,5 @@
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
+import { clientsClaim } from 'workbox-core';
 
 // Minimal service-worker scope types (project compiles with DOM lib only)
 interface SWScope {
@@ -11,6 +12,9 @@ interface SWScope {
   addEventListener(type: string, listener: (event: Event) => void): void;
   skipWaiting(): Promise<void>;
   location: { origin: string };
+}
+interface MessageEventLike extends Event {
+  data?: { type?: string };
 }
 declare const self: SWScope;
 interface PushEvent extends Event {
@@ -26,6 +30,15 @@ const sw = self;
 
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
+
+// Auto-update: activate new builds as soon as they arrive so users never
+// sit on a stale bundle (tabs reload on controller change via registerSW).
+void sw.skipWaiting();
+clientsClaim();
+sw.addEventListener('message', (event) => {
+  const e = event as MessageEventLike;
+  if (e.data?.type === 'SKIP_WAITING') void sw.skipWaiting();
+});
 
 sw.addEventListener('push', (event) => {
   const e = event as PushEvent;
