@@ -863,3 +863,7 @@ export async function voidFinDocument(id: string, no: string, by: string): Promi
 export async function upsertFinAccount(a: { code: string; name: string; type: string }): Promise<void> {
   const { error } = await supabase.from('fin_accounts').upsert({ code: a.code, name: a.name, type: a.type }, { onConflict: 'code' }); fail(error);
 }
+
+export async function reclassifyFinLines(fromAccountId: string, toAccountId: string): Promise<void> {
+  const { error } = await supabase.from('fin_journal_lines').update({ account_id: toAccountId }).eq('account_id', fromAccountId); fail(error);
+}

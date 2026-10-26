@@ -6,7 +6,7 @@ import FinConnect from './FinConnect';
 import { useStore } from '../../store/useStore';
 import {
   createFinContact, upsertFinItem, deleteFinItem, createFinDocument, updateFinDocument,
-  voidFinDocument, postJournal, logFinActivity, upsertFinBudget, upsertFinAccount, uploadFile, type PostLine,
+  voidFinDocument, postJournal, logFinActivity, upsertFinBudget, upsertFinAccount, reclassifyFinLines, uploadFile, type PostLine,
 } from '../../lib/db';
 import { reportSaveError } from '../../store/useStore';
 import type { FinAccount, FinDocument, FinDocKind } from '../../types';
@@ -15,7 +15,7 @@ const fmt = (v: number) => `₦${v.toLocaleString('en-NG', { minimumFractionDigi
 const today = () => new Date().toISOString().slice(0, 10);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
-type Tab = 'home' | 'connect' | 'contacts' | 'items' | 'projects' | 'sales' | 'purchases' | 'banking' | 'journals' | 'reports' | 'activity' | 'import';
+type Tab = 'home' | 'connect' | 'contacts' | 'items' | 'projects' | 'sales' | 'purchases' | 'banking' | 'journals' | 'reports' | 'activity' | 'import' | 'lock';
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'home', label: 'Home', icon: <Landmark size={14} /> },
   { id: 'connect', label: 'How it connects', icon: <Landmark size={14} /> },
@@ -29,6 +29,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'reports', label: 'Reports', icon: <BarChart3 size={14} /> },
   { id: 'activity', label: 'Activity', icon: <Activity size={14} /> },
   { id: 'import', label: 'Import', icon: <Upload size={14} /> },
+  { id: 'lock', label: 'Locking', icon: <Landmark size={14} /> },
 ];
 
 const KIND_LABEL: Record<string, string> = { invoice: 'Invoice', receipt: 'Receipt', bill: 'Bill', payment: 'Payment', expense: 'Expense', bank: 'Bank txn', journal: 'Journal' };
@@ -43,16 +44,19 @@ export default function FinanceLedger() {
   const [pTab, pSub] = seg.split('/');
   const tab = (TABS.some(t => t.id === pTab) ? pTab : 'home') as Tab;
   const [busy, setBusy] = useState(false);
-  const [report, setReport] = useState<'tb' | 'pl' | 'bs' | 'acct' | 'budget'>('tb');
+  const [report, setReport] = useState<'tb' | 'pl' | 'bs' | 'acct' | 'ar' | 'ap' | 'cf' | 'ratios' | 'tax' | 'budget'>('tb');
   const [acctId, setAcctId] = useState('');
   const [budId, setBudId] = useState('');
   const [budName, setBudName] = useState('');
   const [budPeriod, setBudPeriod] = useState(String(new Date().getFullYear()));
   const [budLines, setBudLines] = useState<{ accountId: string; amount: string }[]>([{ accountId: '', amount: '' }]);
+  const [expandId, setExpandId] = useState<string | null>(null);
+  const [lockDate, setLockDate] = useState('');
+  const [bulk, setBulk] = useState({ from: '', to: '' });
   const me = currentUser?.name ?? 'Finance';
 
   useEffect(() => {
-    if (tab === 'reports' && pSub && ['tb', 'pl', 'bs', 'acct', 'budget'].includes(pSub)) setReport(pSub as typeof report);
+    if (tab === 'reports' && pSub && ['tb', 'pl', 'bs', 'acct', 'ar', 'ap', 'cf', 'ratios', 'tax', 'budget'].includes(pSub)) setReport(pSub as typeof report);
   }, [tab, pSub]);
 
   const byCode = useMemo(() => Object.fromEntries(finAccounts.map(a => [a.code, a])), [finAccounts]);
@@ -80,7 +84,10 @@ export default function FinanceLedger() {
     return { inc, exp, net: inc - exp };
   }, [finAccounts, balances]);
 
+  const lockUntil = finDocuments.filter(d => d.kind === 'lock' && d.status !== 'void').map(d => d.payload.date as string).sort().pop() ?? null;
+
   const post = async (doc: Omit<FinDocument, 'id' | 'createdAt'>, lines: PostLine[]) => {
+    if (lockUntil && doc.date <= lockUntil) return alert(`Transactions on or before ${lockUntil} are locked. Unlock from the Transaction locking page first.`);
     setBusy(true);
     try {
       await createFinDocument(doc, lines);
@@ -172,6 +179,9 @@ export default function FinanceLedger() {
       {['issued', 'part_paid'].includes(d.status) && ['invoice', 'bill'].includes(d.kind) && (
         <button onClick={() => { const k = d.kind === 'invoice' ? 'receipt' : 'payment'; openForm(k); setF(v => ({ ...v, linkedDocId: d.id, contactId: d.contactId ?? '' })); setLines([{ accountId: acct(d.kind === 'invoice' ? '1200' : '2000')!, amount: String(r2(d.total - d.paid)), memo: `${KIND_LABEL[d.kind]} ${d.no}` }]); }} className="text-[11px] font-bold text-brand-600 whitespace-nowrap">{d.kind === 'invoice' ? 'Record receipt' : 'Record payment'}</button>
       )}
+      {finJournalEntries.some(e => e.sourceId === d.id) && (
+        <button onClick={() => setExpandId(exp => exp === d.id ? null : d.id)} className="text-[11px] font-semibold text-brand-600 whitespace-nowrap">Ledger impact</button>
+      )}
       {d.status !== 'void' && (
         <label className="text-slate-400 hover:text-brand-600 cursor-pointer" title="Attach a file">
           <Paperclip size={13} />
@@ -180,6 +190,18 @@ export default function FinanceLedger() {
       )}
       {d.status !== 'void' && <button onClick={() => void voidDoc(d)} className="text-[11px] text-red-500 font-semibold">Void</button>}
     </div>
+    {expandId === d.id && (() => {
+      const e = finJournalEntries.find(x => x.sourceId === d.id);
+      const ls = e ? finJournalLines.filter(l => l.entryId === e.id) : [];
+      return (
+        <div className="mt-2 ml-28 mr-2 rounded-lg bg-slate-50 border border-slate-200 p-3">
+          <p className="text-[10px] font-bold uppercase text-slate-400 mb-1.5">Ledger impact — {e?.no} ({e?.status})</p>
+          <table className="w-full text-xs"><tbody>
+            {ls.map(l => <tr key={l.id}><td className="py-1">{accName(l.accountId)}</td><td className="text-slate-400">{l.memo ?? ''}</td><td className="text-right tabular-nums">{l.debit ? `DR ${fmt(l.debit)}` : ''}</td><td className="text-right tabular-nums">{l.credit ? `CR ${fmt(l.credit)}` : ''}</td></tr>)}
+          </tbody></table>
+        </div>
+      );
+    })()}
     {((d.payload.attachments as { name: string; url: string }[] | undefined)?.length ?? 0) > 0 && (
       <div className="flex gap-1.5 flex-wrap mt-1.5 pl-28">
         {(d.payload.attachments as { name: string; url: string }[]).map((a, i) => (
@@ -446,7 +468,7 @@ export default function FinanceLedger() {
             <button className="btn-primary text-xs"><Plus size={12} />Add / update account</button>
           </form>
           <div className="flex gap-2 flex-wrap">
-            {([['tb', 'Trial balance'], ['pl', 'Profit & loss'], ['bs', 'Balance sheet'], ['acct', 'Account transactions'], ['budget', 'Budget vs actual']] as const).map(([id, label]) => (
+            {([['tb', 'Trial balance'], ['pl', 'Profit & loss'], ['bs', 'Balance sheet'], ['acct', 'Account transactions'], ['ar', 'Receivables aging'], ['ap', 'Payables aging'], ['cf', 'Cash flow'], ['ratios', 'Ratios & equity'], ['tax', 'VAT & WHT summary'], ['budget', 'Budget vs actual']] as const).map(([id, label]) => (
               <button key={id} onClick={() => setReport(id)} className={`px-3.5 py-2 text-xs font-bold rounded-lg ${report === id ? 'bg-brand-600 text-white' : 'bg-white border border-slate-200 text-slate-500'}`}>{label}</button>
             ))}
           </div>
@@ -516,6 +538,109 @@ export default function FinanceLedger() {
         </div>
       )}
 
+          {/* ---- Receivables / Payables aging ---- */}
+          {(['ar', 'ap'] as const).includes(report as 'ar' | 'ap') && (() => {
+            const kind = report === 'ar' ? 'invoice' : 'bill';
+            const buckets = [0, 30, 60, 90];
+            const rows = finDocuments.filter(d => d.kind === kind && ['issued', 'part_paid'].includes(d.status)).map(d => {
+              const out = r2(d.total - d.paid);
+              const age = Math.max(0, Math.floor((Date.now() - new Date(d.dueDate ?? d.date).getTime()) / 86400000));
+              return { d, out, bucket: age <= 0 ? 0 : age <= 30 ? 30 : age <= 60 ? 60 : 90 };
+            }).filter(r => r.out > 0.005);
+            return (
+              <div className="card p-5">
+                <h2 className="font-black text-slate-900 mb-3">{report === 'ar' ? 'Receivables' : 'Payables'} aging</h2>
+                <table className="w-full text-sm">
+                  <thead><tr className="text-left text-[11px] uppercase text-slate-400 border-b border-slate-100"><th className="py-2">{report === 'ar' ? 'Customer' : 'Vendor'}</th><th>{report === 'ar' ? 'Invoice' : 'Bill'}</th><th>Due</th><th className="text-right">Current</th><th className="text-right">1–30d</th><th className="text-right">31–60d</th><th className="text-right">60d+</th></tr></thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {rows.map(({ d, out, bucket }) => (
+                      <tr key={d.id}><td className="py-1.5 font-semibold">{contactName(d.contactId)}</td><td className="font-mono text-xs">{d.no}</td><td className="text-xs text-slate-400">{d.dueDate ?? d.date}</td>
+                        {buckets.map(b => <td key={b} className="text-right tabular-nums">{bucket === b ? fmt(out) : ''}</td>)}
+                      </tr>
+                    ))}
+                    <tr className="font-black border-t-2 border-slate-200"><td colSpan={3} className="py-2">Total outstanding</td><td colSpan={4} className="text-right tabular-nums">{fmt(rows.reduce((s, r) => s + r.out, 0))}</td></tr>
+                  </tbody>
+                </table>
+                {rows.length === 0 && <p className="text-sm text-slate-400 py-4">No open {report === 'ar' ? 'invoices' : 'bills'}.</p>}
+              </div>
+            );
+          })()}
+
+          {/* ---- Cash flow ---- */}
+          {report === 'cf' && (() => {
+            const cashIds = new Set(finAccounts.filter(a => ['Cash', 'Bank'].includes(a.type)).map(a => a.id));
+            let inflow = 0, outflow = 0;
+            const bySource: Record<string, { in: number; out: number }> = {};
+            finJournalEntries.filter(e => e.status === 'published').forEach(e => {
+              finJournalLines.filter(l => l.entryId === e.id && cashIds.has(l.accountId)).forEach(l => {
+                const s = bySource[e.source] ?? (bySource[e.source] = { in: 0, out: 0 });
+                s.in += l.debit; s.out += l.credit; inflow += l.debit; outflow += l.credit;
+              });
+            });
+            const label: Record<string, string> = { receipt: 'Receipts', invoice: 'Invoices', payment: 'Payments made', expense: 'Expenses', bank: 'Bank transactions', bill: 'Bills', journal: 'Journals', fx: 'FX adjustments' };
+            return (
+              <div className="card p-5">
+                <h2 className="font-black text-slate-900 mb-3">Cash flow</h2>
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div className="p-3 rounded-xl bg-emerald-50"><p className="text-[11px] font-bold uppercase text-emerald-700">Money in</p><p className="text-lg font-black text-emerald-700">{fmt(inflow)}</p></div>
+                  <div className="p-3 rounded-xl bg-red-50"><p className="text-[11px] font-bold uppercase text-red-600">Money out</p><p className="text-lg font-black text-red-600">{fmt(outflow)}</p></div>
+                  <div className="p-3 rounded-xl bg-slate-50"><p className="text-[11px] font-bold uppercase text-slate-500">Net movement</p><p className={`text-lg font-black ${inflow - outflow >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{fmt(inflow - outflow)}</p></div>
+                </div>
+                <table className="w-full text-sm"><tbody className="divide-y divide-slate-50">
+                  {Object.entries(bySource).map(([src, v]) => (
+                    <tr key={src}><td className="py-1.5 font-semibold">{label[src] ?? src}</td><td className="text-right tabular-nums text-emerald-700">{v.in ? `+${fmt(v.in)}` : ''}</td><td className="text-right tabular-nums text-red-600">{v.out ? `−${fmt(v.out)}` : ''}</td></tr>
+                  ))}
+                </tbody></table>
+              </div>
+            );
+          })()}
+
+          {/* ---- Ratios & equity ---- */}
+          {report === 'ratios' && (() => {
+            const ca = finAccounts.filter(a => ['Cash', 'Bank', 'Accounts Receivable', 'Other Current Asset'].includes(a.type)).reduce((s, a) => s + natural(a), 0);
+            const cl = finAccounts.filter(a => ['Accounts Payable', 'Other Current Liability'].includes(a.type)).reduce((s, a) => s + natural(a), 0);
+            const eq = finAccounts.filter(a => a.type === 'Equity').reduce((s, a) => s + natural(a), 0) + pl.net;
+            const debt = finAccounts.filter(a => ['Accounts Payable', 'Other Current Liability', 'Long Term Liability'].includes(a.type)).reduce((s, a) => s + natural(a), 0);
+            const rows: [string, string, string][] = [
+              ['Current ratio', 'Current assets / current liabilities', cl ? (ca / cl).toFixed(2) : '—'],
+              ['Working capital', 'Current assets − current liabilities', fmt(ca - cl)],
+              ['Net margin', 'Net result / total income', pl.inc ? `${((pl.net / pl.inc) * 100).toFixed(1)}%` : '—'],
+              ['Debt to equity', 'Liabilities / equity', eq ? (debt / eq).toFixed(2) : '—'],
+              ['Equity position', 'Equity accounts + retained result', fmt(eq)],
+              ['Receivable days', 'AR / income × 365', pl.inc ? `${Math.round((bal(acct('1200')!) / pl.inc) * 365)} days` : '—'],
+            ];
+            return (
+              <div className="card p-5">
+                <h2 className="font-black text-slate-900 mb-3">Ratios &amp; equity</h2>
+                <div className="divide-y divide-slate-100">{rows.map(([name, desc, v]) => (
+                  <div key={name} className="py-2.5 flex items-center gap-4"><div className="flex-1"><p className="font-bold text-sm text-slate-800">{name}</p><p className="text-xs text-slate-400">{desc}</p></div><p className="font-black tabular-nums">{v}</p></div>
+                ))}</div>
+              </div>
+            );
+          })()}
+
+          {/* ---- VAT & WHT summary ---- */}
+          {report === 'tax' && (() => {
+            const taxIds = new Set(['acc_2100', 'acc_2110', 'acc_2120']);
+            const rows = finAccounts.filter(a => taxIds.has(a.id) || /vat|wht|tax/i.test(a.name));
+            const moved = new Set(finJournalLines.filter(l => rows.some(a => a.id === l.accountId)).map(l => l.accountId));
+            return (
+              <div className="card p-5">
+                <h2 className="font-black text-slate-900 mb-3">VAT &amp; WHT summary</h2>
+                <table className="w-full text-sm">
+                  <thead><tr className="text-left text-[11px] uppercase text-slate-400 border-b border-slate-100"><th className="py-2">Tax account</th><th className="text-right">Balance (owed)</th></tr></thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {rows.filter(a => moved.has(a.id) || bal(a.id) !== 0).map(a => (
+                      <tr key={a.id}><td className="py-1.5 font-semibold">{a.code} · {a.name}</td><td className="text-right tabular-nums">{fmt(-bal(a.id))}</td></tr>
+                    ))}
+                    <tr className="font-black border-t-2 border-slate-200"><td className="py-2">Total tax position</td><td className="text-right tabular-nums">{fmt(-rows.reduce((s, a) => s + bal(a.id), 0))}</td></tr>
+                  </tbody>
+                </table>
+                {rows.length === 0 && <p className="text-sm text-slate-400 py-4">No tax accounts posted to yet — VAT on invoices lands in 2100, WHT withholding in 2110.</p>}
+              </div>
+            );
+          })()}
+
           {tab === 'reports' && report === 'budget' && (
             <div className="space-y-4">
               <div className="card p-5 space-y-3">
@@ -568,6 +693,48 @@ export default function FinanceLedger() {
 
       {tab === 'connect' && <FinConnect />}
       {tab === 'import' && <FinImport />}
+
+      {/* ---------- TRANSACTION LOCKING + BULK UPDATE ---------- */}
+      {tab === 'lock' && (() => {
+        const lock = finDocuments.filter(d => d.kind === 'lock').sort((a, b) => b.date.localeCompare(a.date))[0];
+        const lockUntil = (lock?.payload.date as string | undefined) ?? null;
+        return (
+          <div className="space-y-4">
+            <div className="card p-5 space-y-3">
+              <h2 className="font-black text-slate-900">Transaction locking</h2>
+              <p className="text-xs text-slate-500">Blocks creating, editing or voiding entries dated on or before the lock date — use after closing a period.</p>
+              {lockUntil ? (
+                <div className="flex items-center gap-3">
+                  <span className="badge bg-amber-100 text-amber-800">Locked through {lockUntil}</span>
+                  <button onClick={async () => { if (confirm('Remove the lock? Entries in the closed period become editable again.')) { try { await updateFinDocument(lock.id, { status: 'void' }); } catch (e) { reportSaveError(e); } } }} className="btn-secondary text-xs">Unlock</button>
+                </div>
+              ) : <p className="text-sm text-slate-400">No active lock.</p>}
+              <div className="flex gap-2 items-end">
+                <div><label className="label">Lock entries on or before</label><input className="input w-40" type="date" value={lockDate} onChange={e => setLockDate(e.target.value)} /></div>
+                <button onClick={async () => {
+                  if (!lockDate) return;
+                  try { await createFinDocument({ kind: 'lock', no: `LOCK-${lockDate}`, date: lockDate, status: 'issued', total: 0, paid: 0, createdBy: me, payload: { date: lockDate } }); setLockDate(''); } catch (e) { reportSaveError(e); }
+                }} className="btn-primary text-xs">Set lock</button>
+              </div>
+            </div>
+
+            <div className="card p-5 space-y-3">
+              <h2 className="font-black text-slate-900">Bulk update — reclassify postings</h2>
+              <p className="text-xs text-slate-500">Moves every published posting from one account to another. Changes what every report shows for those transactions.</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-end">
+                <div><label className="label">From account</label>{accountPicker(bulk.from, v => setBulk(b => ({ ...b, from: v })))}</div>
+                <div><label className="label">To account</label>{accountPicker(bulk.to, v => setBulk(b => ({ ...b, to: v })))}</div>
+                <button onClick={async () => {
+                  if (!bulk.from || !bulk.to || bulk.from === bulk.to) return alert('Pick two different accounts.');
+                  const n = finJournalLines.filter(l => l.accountId === bulk.from).length;
+                  if (!confirm(`Move ${n} posting(s) from "${accName(bulk.from)}" to "${accName(bulk.to)}"?`)) return;
+                  try { await reclassifyFinLines(bulk.from, bulk.to); await logFinActivity(me, `Bulk-moved ${n} postings: ${accName(bulk.from)} → ${accName(bulk.to)}`); setBulk({ from: '', to: '' }); } catch (e) { reportSaveError(e); }
+                }} className="btn-primary text-xs">Move postings</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ---------- ACTIVITY ---------- */}
       {tab === 'activity' && (

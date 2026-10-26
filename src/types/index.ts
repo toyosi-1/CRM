@@ -473,7 +473,7 @@ export interface FinItem {
   accountId?: string;
 }
 
-export type FinDocKind = 'invoice' | 'receipt' | 'bill' | 'payment' | 'expense' | 'bank' | 'project' | 'timesheet' | 'journal' | 'fx';
+export type FinDocKind = 'invoice' | 'receipt' | 'bill' | 'payment' | 'expense' | 'bank' | 'project' | 'timesheet' | 'journal' | 'fx' | 'lock';
 export type FinDocStatus = 'draft' | 'issued' | 'part_paid' | 'paid' | 'void' | 'published' | 'reconciled';
 
 export interface FinDocument {

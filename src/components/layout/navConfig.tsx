@@ -79,12 +79,18 @@ const FINANCE_NAV: NavSection[] = [
     { label: 'Accountant', path: '/finance/ledger/journals', icon: <BookMarked size={15} />, children: [
       { label: 'Manual journals', path: '/finance/ledger/journals', icon: <></> },
       { label: 'Chart of accounts', path: '/finance/ledger/reports', icon: <></> },
+      { label: 'Transaction locking', path: '/finance/ledger/lock', icon: <></> },
     ]},
     { label: 'Reports', path: '/finance/ledger/reports', icon: <BarChart3 size={15} />, children: [
       { label: 'Trial balance', path: '/finance/ledger/reports/tb', icon: <></> },
       { label: 'Profit & loss', path: '/finance/ledger/reports/pl', icon: <></> },
       { label: 'Balance sheet', path: '/finance/ledger/reports/bs', icon: <></> },
       { label: 'Account transactions', path: '/finance/ledger/reports/acct', icon: <></> },
+      { label: 'Receivables aging', path: '/finance/ledger/reports/ar', icon: <></> },
+      { label: 'Payables aging', path: '/finance/ledger/reports/ap', icon: <></> },
+      { label: 'Cash flow', path: '/finance/ledger/reports/cf', icon: <></> },
+      { label: 'Ratios & equity', path: '/finance/ledger/reports/ratios', icon: <></> },
+      { label: 'VAT & WHT summary', path: '/finance/ledger/reports/tax', icon: <></> },
       { label: 'Budget vs actual', path: '/finance/ledger/reports/budget', icon: <></> },
     ]},
     { label: 'Activity log', path: '/finance/ledger/activity', icon: <Activity size={15} /> },
