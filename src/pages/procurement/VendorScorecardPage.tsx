@@ -5,15 +5,19 @@ import { formatCurrency, formatDate } from '../../utils/helpers';
 import type { FacilityVendorSLA } from '../../types';
 
 // Spec §5.11 — vendor SLA response clocks, scoped per facility SLA.
-// The scored clock is payment-model aware so vendors aren't punished for
-// time that belongs to our internal queue:
-//   - prepaid (annual contract): vendor is already engaged — clock runs
-//     from request creation to first on-site attendance.
-//   - per_service: clock runs from PO issue (formal engagement) to
-//     attendance; pre-PO time is internal TAT, not vendor latency.
-function clockStart(sla: FacilityVendorSLA, job: { createdAt: string; purchaseOrder?: { generatedAt: string } }): number | null {
-  if (sla.paymentModel === 'prepaid') return new Date(job.createdAt).getTime();
-  return job.purchaseOrder?.generatedAt ? new Date(job.purchaseOrder.generatedAt).getTime() : null;
+// Scored window: engagement → FM-confirmed work completion.
+//   - prepaid (annual contract): engaged at PO issue (or request creation) —
+//     they're already paid, so the window runs to first attendance/completion.
+//   - per_service: clock starts when accounts pays (paidAt) and stops when the
+//     FM confirms work complete. Pre-payment queue time is internal, not vendor.
+type ClockJob = { createdAt: string; purchaseOrder?: { generatedAt: string }; paidAt?: string; vendorAttendedAt?: string; workCompletedAt?: string };
+function clockStart(sla: FacilityVendorSLA, job: ClockJob): number | null {
+  if (sla.paymentModel === 'prepaid') return new Date(job.purchaseOrder?.generatedAt ?? job.createdAt).getTime();
+  return job.paidAt ? new Date(job.paidAt).getTime() : null;
+}
+function clockEnd(job: ClockJob): number | null {
+  const end = job.workCompletedAt ?? job.vendorAttendedAt;
+  return end ? new Date(end).getTime() : null;
 }
 
 export default function VendorScorecardPage() {
@@ -32,15 +36,15 @@ export default function VendorScorecardPage() {
       const vendor = vendors.find(v => v.id === sla.vendorId);
       const site = sites.find(s => s.id === sla.siteId);
       const jobs = requests.filter(r => r.vendorId === sla.vendorId && r.siteId === sla.siteId && (!sla.category || !r.category || r.category.toLowerCase() === sla.category.toLowerCase()));
-      const attended = jobs.filter(j => j.vendorAttendedAt);
-      const live = jobs.filter(j => !j.vendorAttendedAt && !['PAID', 'CLOSED', 'REJECTED'].includes(j.status));
+      const done = jobs.filter(j => clockEnd(j) !== null);
+      const live = jobs.filter(j => clockEnd(j) === null && !['REJECTED'].includes(j.status));
       // Only jobs where the vendor clock actually started count toward the score
-      const scored = attended.filter(j => clockStart(sla, j) !== null);
+      const scored = done.filter(j => clockStart(sla, j) !== null);
       const within = scored.filter(j =>
-        (new Date(j.vendorAttendedAt!).getTime() - clockStart(sla, j)!) / 3600000 <= sla.responseSlaHours
+        (clockEnd(j)! - clockStart(sla, j)!) / 3600000 <= sla.responseSlaHours
       );
       const breaches = scored.filter(j =>
-        (new Date(j.vendorAttendedAt!).getTime() - clockStart(sla, j)!) / 3600000 > sla.responseSlaHours
+        (clockEnd(j)! - clockStart(sla, j)!) / 3600000 > sla.responseSlaHours
       );
       return {
         vendor, site, sla,
@@ -73,7 +77,7 @@ export default function VendorScorecardPage() {
         <div>
           <p className="text-white/50 text-xs font-bold uppercase tracking-widest mb-1">Procurement</p>
           <h1 className="text-2xl font-black text-white tracking-tight">Vendor SLA scorecard</h1>
-          <p className="text-white/60 text-sm mt-1">Response-clock compliance per vendor and facility. Prepaid vendors are timed from request creation; pay-per-service vendors are timed from PO issue, so payment-queue delays don't count against them.</p>
+          <p className="text-white/60 text-sm mt-1">Vendor delivery compliance per SLA. Pay-per-service jobs are scored payment → FM-confirmed completion; prepaid vendors from engagement → completion.</p>
         </div>
       </div>
 
@@ -108,7 +112,7 @@ export default function VendorScorecardPage() {
                     return (
                       <div key={j.id} className="flex items-center justify-between text-xs">
                         <span className="font-mono text-slate-500">{j.requestNumber}</span>
-                        <span className="text-slate-400 font-medium">awaiting PO — internal queue</span>
+                        <span className="text-slate-400 font-medium">{sla.paymentModel === 'prepaid' ? 'awaiting engagement' : 'awaiting payment — internal queue'}</span>
                       </div>
                     );
                   }

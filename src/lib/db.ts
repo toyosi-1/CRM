@@ -132,6 +132,7 @@ function requestFromRow(row: Record<string, unknown>): MaintenanceRequest {
     linkedIncidentId: row.linked_incident_id ? String(row.linked_incident_id) : undefined,
     jobCompletionUrl: row.job_completion_url ? String(row.job_completion_url) : undefined,
     assignedTo: row.assigned_to ? String(row.assigned_to) : undefined,
+    workCompletedAt: row.work_completed_at ? String(row.work_completed_at) : undefined,
     reconStatus: row.recon_status ? (row.recon_status as MaintenanceRequest['reconStatus']) : undefined,
     reconNote: row.recon_note ? String(row.recon_note) : undefined, reconBy: row.recon_by ? String(row.recon_by) : undefined,
     slaDeadline: String(row.sla_deadline), slaBreached: Boolean(row.sla_breached),
@@ -167,6 +168,7 @@ function requestToRow(request: Partial<MaintenanceRequest>) {
     ...(request.linkedIncidentId !== undefined && { linked_incident_id: request.linkedIncidentId || null }),
     ...(request.jobCompletionUrl !== undefined && { job_completion_url: request.jobCompletionUrl || null }),
     ...(request.assignedTo !== undefined && { assigned_to: request.assignedTo || null }),
+    ...(request.workCompletedAt !== undefined && { work_completed_at: request.workCompletedAt || null }),
     ...(request.reconStatus !== undefined && { recon_status: request.reconStatus }), ...(request.reconNote !== undefined && { recon_note: request.reconNote }),
     ...(request.reconBy !== undefined && { recon_by: request.reconBy }),
     ...(request.slaDeadline !== undefined && { sla_deadline: request.slaDeadline }), ...(request.slaBreached !== undefined && { sla_breached: request.slaBreached }),
@@ -234,6 +236,11 @@ export async function assignTechnician(requestId: string, technicianId: string |
 }
 
 // Stops the vendor SLA response clock (spec §5.11)
+// FM confirms the paid job is physically complete — end of the vendor SLA clock.
+export async function markWorkCompleted(requestId: string): Promise<void> {
+  const { error } = await supabase.rpc('mark_work_completed', { p_request_id: requestId }); fail(error);
+}
+
 export async function markVendorAttended(requestId: string): Promise<void> {
   const { error } = await supabase.rpc('mark_vendor_attended', { p_request_id: requestId }); fail(error);
 }

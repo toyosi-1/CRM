@@ -20,7 +20,7 @@ import {
   createPettyCashEntry, updatePettyCashEntry, createSupportTicket, updateSupportTicket,
   createTenant, updateTenant, createJobCompletion, createChecklistTemplate, updateChecklistTemplate,
   upsertVendor, createFacilityVendorSLA, updateFacilityVendorSLA, deleteFacilityVendorSLA,
-  assignTechnician as assignTechnicianDb, acknowledgeHandover,
+  assignTechnician as assignTechnicianDb, acknowledgeHandover, markWorkCompleted,
 } from '../lib/db';
 import { supabase } from '../lib/supabase';
 import { isChecklistMissed } from '../lib/checklists';
@@ -83,6 +83,7 @@ interface AppState {
   submitChecklist: (checklistId: string, userId: string) => void;
   assignTechnician: (requestId: string, technicianId: string | null) => Promise<void>;
   acknowledgeActingHandover: () => Promise<void>;
+  markWorkComplete: (requestId: string) => Promise<void>;
 
   updateSite: (siteId: string, data: Partial<Site>) => void;
   saveSite: (site: Site) => Promise<void>;
@@ -552,6 +553,13 @@ export const useStore = create<AppState>((set, get) => ({
     await assignTechnicianDb(requestId, technicianId);
     set(state => ({
       requests: state.requests.map(r => r.id === requestId ? { ...r, assignedTo: technicianId ?? undefined, updatedAt: new Date().toISOString() } : r),
+    }));
+  },
+
+  markWorkComplete: async (requestId) => {
+    await markWorkCompleted(requestId);
+    set(state => ({
+      requests: state.requests.map(r => r.id === requestId ? { ...r, workCompletedAt: r.workCompletedAt ?? new Date().toISOString() } : r),
     }));
   },
 

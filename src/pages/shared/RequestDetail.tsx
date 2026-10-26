@@ -16,7 +16,7 @@ import {
 export default function RequestDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { requests, sites, vendors, users, currentUser, updateRequestStatus, updateRequest, generatePO, processPayment, markPaid, deleteRequest, facilityVendorSLAs, incidents, getSiteMonthSpend, assignTechnician } = useStore();
+  const { requests, sites, vendors, users, currentUser, updateRequestStatus, updateRequest, generatePO, processPayment, markPaid, deleteRequest, facilityVendorSLAs, incidents, getSiteMonthSpend, assignTechnician, markWorkComplete } = useStore();
   const [now, setNow] = useState(0);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [completionFile, setCompletionFile] = useState<File | null>(null);
@@ -144,6 +144,7 @@ export default function RequestDetail() {
     try {
       const url = await uploadFile(`job-completions/${req.id}/${crypto.randomUUID()}-${completionFile.name}`, completionFile);
       await updateRequest(req.id, { jobCompletionUrl: url });
+      if (!req.workCompletedAt) await markWorkComplete(req.id).catch(reportSaveError);
       setCompletionFile(null);
     } finally {
       setUploadingCompletion(false);
@@ -494,6 +495,22 @@ export default function RequestDetail() {
             </div>
           )}
 
+          {/* Work completion — FM confirms the paid job is done; this is the vendor SLA clock end */}
+          {(req.status === 'PAID' || req.status === 'CLOSED') && (role === 'facility_manager' || role === 'admin') && (
+            <div className="card p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="section-title">Work completion</h2>
+                {req.workCompletedAt && <span className="badge bg-emerald-100 text-emerald-700">Completed {formatDateTime(req.workCompletedAt)}</span>}
+              </div>
+              {!req.workCompletedAt && (
+                <button onClick={() => void markWorkComplete(req.id).catch(reportSaveError)} className="btn-success text-xs">
+                  <CheckCircle size={13} /> Confirm work complete
+                </button>
+              )}
+              {req.workCompletedAt && <p className="text-xs text-slate-500">Confirmed by FM — vendor SLA clock stops here.</p>}
+            </div>
+          )}
+
           {/* Job completion form */}
           {(req.jobCompletionUrl || ((req.status === 'PAID' || req.status === 'CLOSED') && (role === 'facility_manager' || role === 'admin'))) && (
             <div className="card p-5">
@@ -660,26 +677,30 @@ export default function RequestDetail() {
               <div className="mt-4 pt-3 border-t border-slate-100 text-xs">
                 {(() => {
                   const prepaid = vendorSLA.paymentModel === 'prepaid';
-                  const start = prepaid || req.purchaseOrder?.generatedAt ? new Date(prepaid ? req.createdAt : req.purchaseOrder!.generatedAt).getTime() : null;
-                  const anchorNote = prepaid ? 'clock from request' : 'clock from PO';
-                  if (req.vendorAttendedAt) {
+                  // Prepaid: clock from engagement (PO or request). Per-service: clock from payment.
+                  const start = prepaid
+                    ? new Date(req.purchaseOrder?.generatedAt ?? req.createdAt).getTime()
+                    : req.paidAt ? new Date(req.paidAt).getTime() : null;
+                  const anchorNote = prepaid ? 'clock from engagement' : 'clock from payment';
+                  const end = req.workCompletedAt ?? req.vendorAttendedAt;
+                  if (end) {
                     if (start === null) return null;
-                    const hrs = (new Date(req.vendorAttendedAt).getTime() - start) / 3600000;
+                    const hrs = (new Date(end).getTime() - start) / 3600000;
                     const ok = hrs <= vendorSLA.responseSlaHours;
                     return (
                       <span className={`badge ${ok ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                        Vendor responded in {hrs.toFixed(1)}h — SLA {vendorSLA.responseSlaHours}h · {ok ? 'Within SLA' : 'SLA breached'} ({anchorNote})
+                        Vendor delivered in {hrs.toFixed(1)}h — SLA {vendorSLA.responseSlaHours}h · {ok ? 'Within SLA' : 'SLA breached'} ({anchorNote})
                       </span>
                     );
                   }
                   if (start === null) {
-                    return <span className="badge bg-slate-100 text-slate-600">Vendor clock not started — PO not issued yet</span>;
+                    return <span className="badge bg-slate-100 text-slate-600">{prepaid ? 'Vendor clock not started' : 'Vendor clock not started — awaiting payment'}</span>;
                   }
                   const hrs = (now - start) / 3600000;
                   const remaining = vendorSLA.responseSlaHours - hrs;
                   return (
                     <span className={`badge ${remaining >= 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
-                      Response clock running — {remaining >= 0 ? `${remaining.toFixed(1)}h of ${vendorSLA.responseSlaHours}h SLA remaining` : `${Math.abs(remaining).toFixed(1)}h over SLA`} ({anchorNote})
+                      Delivery clock running — {remaining >= 0 ? `${remaining.toFixed(1)}h of ${vendorSLA.responseSlaHours}h SLA remaining` : `${Math.abs(remaining).toFixed(1)}h over SLA`} ({anchorNote})
                     </span>
                   );
                 })()}
