@@ -96,23 +96,49 @@ const CERT_NAMES = [
   'Certificate of Installation - Power Distribution', 'Certificate of Installation - Plumbing and Fire System',
 ];
 
+/* ---------- per-facility seeds extracted from the client templates ---------- */
+import SITE_SEEDS_JSON from './siteSeeds.json';
+
+type SeedItem = { section: string; name: string; status?: string; action?: string; ref?: string };
+type SeedCert = { name: string; no?: string; issue?: string; exp?: string; note?: string; freq?: string };
+const SITE_SEEDS = SITE_SEEDS_JSON as unknown as Record<string, { items?: SeedItem[] } | SeedItem[]>;
+
+function siteSeed(building: string): { items?: SeedItem[]; certs?: SeedCert[] } | null {
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const b = norm(building);
+  for (const key of Object.keys(SITE_SEEDS)) {
+    if (b.includes(norm(key)) || norm(key).includes(b)) {
+      const raw = SITE_SEEDS[key];
+      return Array.isArray(raw) ? { items: raw } : raw as { items?: SeedItem[]; certs?: SeedCert[] };
+    }
+  }
+  return null;
+}
+
 export function seed(building: string, fmName: string, period = currentPeriod()): ReportState {
   const dd = daysIn(period);
   const [y, m] = period.split('-').map(Number);
+  const tpl = siteSeed(building);
+  const items = tpl?.items?.length
+    ? tpl.items.map(i => ({ id: uid(), section: i.section, name: i.name, status: (i.status as ReportState['items'][number]['status']) ?? 'good', notes: '', action: i.action ?? '', ref: i.ref ?? '', photos: [] }))
+    : SECTION_ITEMS.map(([section, name]) => ({ id: uid(), section, name, status: 'good' as const, notes: '', action: '', ref: '', photos: [] }));
+  const certs = tpl?.certs?.length
+    ? tpl.certs.map(c => ({ id: uid(), name: c.name, no: c.no ?? 'N/A', issue: c.issue ?? '', exp: c.exp ?? '', note: c.note ?? '', freq: c.freq ?? 'Annually' }))
+    : CERT_NAMES.map(name => ({ id: uid(), name, no: 'N/A', issue: '', exp: '', note: '', freq: 'Annually' }));
   return {
     v: 1, period,
     meta: {
       building: building.toUpperCase(), area: '', type: '', sqm: '', fm: fmName,
       signer: '', issue: `${MONTHS[m % 12].toUpperCase()} ${m === 12 ? y + 1 : y}`, cover: '',
     },
-    items: SECTION_ITEMS.map(([section, name]) => ({ id: uid(), section, name, status: 'good', notes: '', action: '', ref: '', photos: [] })),
+    items,
     recurring: [],
     diesel: { open: '', budLtr: '', budRate: '', costRate: '', days: Array.from({ length: dd }, (_, i) => ({ d: i + 1, level: '', qty: '', rate: '' })) },
     grid: { open: '', budKwh: '', rate: '', budRate: '', budAmt: '', vat: 0.075, days: Array.from({ length: dd }, (_, i) => ({ d: i + 1, read: '', bought: '' })) },
     prev: { diesel: '', grid: '', total: '', perM2: '', day: '', hour: '' },
     invoices: [],
     outstanding: [],
-    certs: CERT_NAMES.map(name => ({ id: uid(), name, no: 'N/A', issue: '', exp: '', note: '', freq: 'Annually' })),
+    certs,
     money: { openCo: '', openPc: '', pcReq: '', coLines: [], pcLines: [] },
   };
 }
