@@ -111,22 +111,24 @@ export default function Login() {
       <div className="flex-1 flex items-center justify-center p-8 min-h-full">
         <div className="w-full max-w-lg">
 
-          {/* Brand logo — full wordmark on the sign-in card */}
+          {/* Brand logo — full wordmark, white bg blended into the page via multiply */}
           <div className="mb-8">
-            <img src="/propel-logo.png" alt="Propel Properties & Facilities Services Ltd." className="h-14 w-auto" />
+            <img src="/propel-logo.png" alt="Propel Properties & Facilities Services Ltd." className="h-14 w-auto mix-blend-multiply" />
           </div>
 
-          {/* Mode toggle */}
-          <div className="flex gap-1 p-1 bg-slate-100 rounded-lg mb-8 w-fit">
-            <button onClick={() => setMode('email')}
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${mode === 'email' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`} style={mode === 'email' ? {} : {}}>
-              Sign In
-            </button>
-            {demoEnabled && <button onClick={() => setMode('demo')}
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${mode === 'demo' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-              Demo Access
-            </button>}
-          </div>
+          {/* Mode toggle — only shown when demo access is enabled */}
+          {demoEnabled && (
+            <div className="flex gap-1 p-1 bg-slate-100 rounded-lg mb-8 w-fit">
+              <button onClick={() => setMode('email')}
+                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${mode === 'email' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                Sign In
+              </button>
+              <button onClick={() => setMode('demo')}
+                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${mode === 'demo' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                Demo Access
+              </button>
+            </div>
+          )}
 
           {mode === 'email' ? (
             <>
