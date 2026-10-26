@@ -655,30 +655,34 @@ export default function RequestDetail() {
                 </button>
               )}
 
-            {/* Vendor response clock status */}
+            {/* Vendor response clock status — per-service vendors are timed from PO issue, not request creation */}
             {vendorSLA?.responseSlaHours && req.vendorId && (
               <div className="mt-4 pt-3 border-t border-slate-100 text-xs">
-                {req.vendorAttendedAt ? (
-                  (() => {
-                    const hrs = (new Date(req.vendorAttendedAt).getTime() - new Date(req.createdAt).getTime()) / 3600000;
+                {(() => {
+                  const prepaid = vendorSLA.paymentModel === 'prepaid';
+                  const start = prepaid || req.purchaseOrder?.generatedAt ? new Date(prepaid ? req.createdAt : req.purchaseOrder!.generatedAt).getTime() : null;
+                  const anchorNote = prepaid ? 'clock from request' : 'clock from PO';
+                  if (req.vendorAttendedAt) {
+                    if (start === null) return null;
+                    const hrs = (new Date(req.vendorAttendedAt).getTime() - start) / 3600000;
                     const ok = hrs <= vendorSLA.responseSlaHours;
                     return (
                       <span className={`badge ${ok ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                        Vendor responded in {hrs.toFixed(1)}h — SLA {vendorSLA.responseSlaHours}h · {ok ? 'Within SLA' : 'SLA breached'}
+                        Vendor responded in {hrs.toFixed(1)}h — SLA {vendorSLA.responseSlaHours}h · {ok ? 'Within SLA' : 'SLA breached'} ({anchorNote})
                       </span>
                     );
-                  })()
-                ) : (
-                  (() => {
-                    const hrs = (now - new Date(req.createdAt).getTime()) / 3600000;
-                    const remaining = vendorSLA.responseSlaHours - hrs;
-                    return (
-                      <span className={`badge ${remaining >= 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
-                        Response clock running — {remaining >= 0 ? `${remaining.toFixed(1)}h of ${vendorSLA.responseSlaHours}h SLA remaining` : `${Math.abs(remaining).toFixed(1)}h over SLA`}
-                      </span>
-                    );
-                  })()
-                )}
+                  }
+                  if (start === null) {
+                    return <span className="badge bg-slate-100 text-slate-600">Vendor clock not started — PO not issued yet</span>;
+                  }
+                  const hrs = (now - start) / 3600000;
+                  const remaining = vendorSLA.responseSlaHours - hrs;
+                  return (
+                    <span className={`badge ${remaining >= 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                      Response clock running — {remaining >= 0 ? `${remaining.toFixed(1)}h of ${vendorSLA.responseSlaHours}h SLA remaining` : `${Math.abs(remaining).toFixed(1)}h over SLA`} ({anchorNote})
+                    </span>
+                  );
+                })()}
               </div>
             )}
           </div>

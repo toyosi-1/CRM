@@ -4,9 +4,18 @@ import { useStore } from '../../store/useStore';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 import type { FacilityVendorSLA } from '../../types';
 
-// Spec §5.11 — vendor SLA response clocks, now scoped per facility SLA.
-// Clock starts when the request is logged with a vendor and stops at first
-// on-site attendance (vendor_attended_at, logged by the FM).
+// Spec §5.11 — vendor SLA response clocks, scoped per facility SLA.
+// The scored clock is payment-model aware so vendors aren't punished for
+// time that belongs to our internal queue:
+//   - prepaid (annual contract): vendor is already engaged — clock runs
+//     from request creation to first on-site attendance.
+//   - per_service: clock runs from PO issue (formal engagement) to
+//     attendance; pre-PO time is internal TAT, not vendor latency.
+function clockStart(sla: FacilityVendorSLA, job: { createdAt: string; purchaseOrder?: { generatedAt: string } }): number | null {
+  if (sla.paymentModel === 'prepaid') return new Date(job.createdAt).getTime();
+  return job.purchaseOrder?.generatedAt ? new Date(job.purchaseOrder.generatedAt).getTime() : null;
+}
+
 export default function VendorScorecardPage() {
   const { vendors, requests, sites, facilityVendorSLAs, updateFacilityVendorSLA, currentUser } = useStore();
   const [now, setNow] = useState(0);
@@ -25,16 +34,18 @@ export default function VendorScorecardPage() {
       const jobs = requests.filter(r => r.vendorId === sla.vendorId && r.siteId === sla.siteId && (!sla.category || !r.category || r.category.toLowerCase() === sla.category.toLowerCase()));
       const attended = jobs.filter(j => j.vendorAttendedAt);
       const live = jobs.filter(j => !j.vendorAttendedAt && !['PAID', 'CLOSED', 'REJECTED'].includes(j.status));
-      const within = attended.filter(j =>
-        (new Date(j.vendorAttendedAt!).getTime() - new Date(j.createdAt).getTime()) / 3600000 <= sla.responseSlaHours
+      // Only jobs where the vendor clock actually started count toward the score
+      const scored = attended.filter(j => clockStart(sla, j) !== null);
+      const within = scored.filter(j =>
+        (new Date(j.vendorAttendedAt!).getTime() - clockStart(sla, j)!) / 3600000 <= sla.responseSlaHours
       );
-      const breaches = attended.filter(j =>
-        (new Date(j.vendorAttendedAt!).getTime() - new Date(j.createdAt).getTime()) / 3600000 > sla.responseSlaHours
+      const breaches = scored.filter(j =>
+        (new Date(j.vendorAttendedAt!).getTime() - clockStart(sla, j)!) / 3600000 > sla.responseSlaHours
       );
       return {
         vendor, site, sla,
         jobs: jobs.length,
-        compliance: attended.length ? Math.round((within.length / attended.length) * 100) : null,
+        compliance: scored.length ? Math.round((within.length / scored.length) * 100) : null,
         breaches: breaches.length, live,
       };
     }).filter(s => s.jobs > 0 || s.sla);
@@ -62,7 +73,7 @@ export default function VendorScorecardPage() {
         <div>
           <p className="text-white/50 text-xs font-bold uppercase tracking-widest mb-1">Procurement</p>
           <h1 className="text-2xl font-black text-white tracking-tight">Vendor SLA scorecard</h1>
-          <p className="text-white/60 text-sm mt-1">Response-clock compliance per vendor and facility. The clock runs from request creation to first on-site attendance.</p>
+          <p className="text-white/60 text-sm mt-1">Response-clock compliance per vendor and facility. Prepaid vendors are timed from request creation; pay-per-service vendors are timed from PO issue, so payment-queue delays don't count against them.</p>
         </div>
       </div>
 
@@ -76,6 +87,7 @@ export default function VendorScorecardPage() {
               </div>
               <div className="flex flex-col items-end gap-1">
                 <span className="badge bg-blue-100 text-blue-700">{sla.responseSlaHours}h response SLA</span>
+                <span className={`badge ${sla.paymentModel === 'prepaid' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{sla.paymentModel === 'prepaid' ? 'Prepaid' : 'Pay per service'}</span>
                 {sla.suspended && <span className="badge bg-red-100 text-red-700">Suspended from new jobs</span>}
                 {sla.renewalReview && <span className="badge bg-amber-100 text-amber-700">Flagged for renewal review</span>}
               </div>
@@ -91,7 +103,16 @@ export default function VendorScorecardPage() {
               <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1"><Activity size={10} />Live clocks</p>
                 {live.map(j => {
-                  const elapsed = (now - new Date(j.createdAt).getTime()) / 3600000;
+                  const start = clockStart(sla, j);
+                  if (start === null) {
+                    return (
+                      <div key={j.id} className="flex items-center justify-between text-xs">
+                        <span className="font-mono text-slate-500">{j.requestNumber}</span>
+                        <span className="text-slate-400 font-medium">awaiting PO — internal queue</span>
+                      </div>
+                    );
+                  }
+                  const elapsed = (now - start) / 3600000;
                   const remaining = sla.responseSlaHours - elapsed;
                   return (
                     <div key={j.id} className="flex items-center justify-between text-xs">
