@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
-import { BookOpen, Users, Package, TrendingUp, TrendingDown, Landmark, BookMarked, BarChart3, Activity, Plus, Loader2, Trash2, Upload } from 'lucide-react';
+import { BookOpen, Users, Package, TrendingUp, TrendingDown, Landmark, BookMarked, BarChart3, Activity, Plus, Loader2, Trash2, Upload, Paperclip } from 'lucide-react';
 import FinImport from './FinImport';
 import { useStore } from '../../store/useStore';
 import {
   createFinContact, upsertFinItem, deleteFinItem, createFinDocument, updateFinDocument,
-  voidFinDocument, postJournal, logFinActivity, upsertFinBudget, type PostLine,
+  voidFinDocument, postJournal, logFinActivity, upsertFinBudget, uploadFile, type PostLine,
 } from '../../lib/db';
 import { reportSaveError } from '../../store/useStore';
 import type { FinAccount, FinDocument, FinDocKind } from '../../types';
@@ -141,8 +141,19 @@ export default function FinanceLedger() {
 
   const openDocs = (kinds: FinDocKind[]) => finDocuments.filter(d => kinds.includes(d.kind));
 
+  const attach = async (d: FinDocument, file: File) => {
+    setBusy(true);
+    try {
+      const url = await uploadFile(`fin-docs/${d.id}/${crypto.randomUUID()}-${file.name}`, file);
+      const atts = [...((d.payload.attachments as { name: string; url: string }[] | undefined) ?? []), { name: file.name, url }];
+      await updateFinDocument(d.id, { payload: { ...d.payload, attachments: atts } });
+      await logFinActivity(me, `Attached ${file.name} to ${d.no}`, d.no).catch(() => undefined);
+    } catch (e) { reportSaveError(e); } finally { setBusy(false); }
+  };
+
   const docRow = (d: FinDocument) => (
-    <div key={d.id} className="px-4 py-3 flex items-center gap-3 text-sm">
+    <div key={d.id} className="px-4 py-3">
+    <div className="flex items-center gap-3 text-sm">
       <span className="font-mono text-xs font-bold text-slate-500 w-20 flex-shrink-0">{d.no}</span>
       <span className="text-xs text-slate-400 w-20 flex-shrink-0">{d.date}</span>
       <span className="flex-1 font-semibold text-slate-700 truncate">{d.contactId ? contactName(d.contactId) : String(d.payload.memo ?? KIND_LABEL[d.kind])}</span>
@@ -152,7 +163,21 @@ export default function FinanceLedger() {
       {['issued', 'part_paid'].includes(d.status) && ['invoice', 'bill'].includes(d.kind) && (
         <button onClick={() => { const k = d.kind === 'invoice' ? 'receipt' : 'payment'; openForm(k); setF(v => ({ ...v, linkedDocId: d.id, contactId: d.contactId ?? '' })); setLines([{ accountId: acct(d.kind === 'invoice' ? '1200' : '2000')!, amount: String(r2(d.total - d.paid)), memo: `${KIND_LABEL[d.kind]} ${d.no}` }]); }} className="text-[11px] font-bold text-brand-600 whitespace-nowrap">{d.kind === 'invoice' ? 'Record receipt' : 'Record payment'}</button>
       )}
+      {d.status !== 'void' && (
+        <label className="text-slate-400 hover:text-brand-600 cursor-pointer" title="Attach a file">
+          <Paperclip size={13} />
+          <input type="file" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (file) void attach(d, file); e.target.value = ''; }} />
+        </label>
+      )}
       {d.status !== 'void' && <button onClick={() => void voidDoc(d)} className="text-[11px] text-red-500 font-semibold">Void</button>}
+    </div>
+    {((d.payload.attachments as { name: string; url: string }[] | undefined)?.length ?? 0) > 0 && (
+      <div className="flex gap-1.5 flex-wrap mt-1.5 pl-28">
+        {(d.payload.attachments as { name: string; url: string }[]).map((a, i) => (
+          <a key={i} href={a.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11px] text-brand-700 bg-slate-100 rounded-full px-2 py-0.5 hover:bg-slate-200"><Paperclip size={9} />{a.name}</a>
+        ))}
+      </div>
+    )}
     </div>
   );
 

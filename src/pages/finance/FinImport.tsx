@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { Upload, Loader2, CheckCircle2, AlertCircle, FileUp } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { createFinContact, upsertFinItem, postJournal, upsertFinAccount, type PostLine } from '../../lib/db';
-import type { FinAccountType } from '../../types';
+import type { FinAccountType, FinDocument } from '../../types';
+import { Download } from 'lucide-react';
 
 /* ---------- CSV parser (handles quoted fields, embedded commas/newlines) ---------- */
 function parseCsv(text: string): { headers: string[]; rows: string[][] } {
@@ -51,8 +52,16 @@ const guessType = (t: string): ImportType => {
   return 'contacts';
 };
 
+function downloadCsv(name: string, headers: string[], rows: (string | number | undefined)[][]) {
+  const esc = (v: string | number | undefined) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const csv = [headers, ...rows].map(r => r.map(esc).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv' }));
+  a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+
 export default function FinImport() {
-  const { finAccounts, currentUser } = useStore();
+  const { finAccounts, finJournalEntries, finJournalLines, finDocuments, currentUser } = useStore();
   const me = currentUser?.name ?? 'Finance';
   const [type, setType] = useState<ImportType>('contacts');
   const [headers, setHeaders] = useState<string[]>([]);
@@ -139,6 +148,26 @@ export default function FinImport() {
 
   const requiredDone = TYPE_FIELDS[type].every(f => !f.required || fieldIdx(f.key) !== undefined);
 
+  const accLabel = (id: string) => { const a = finAccounts.find(x => x.id === id); return a ? `${a.code} ${a.name}` : id; };
+  const exportJournals = () => {
+    const pub = finJournalEntries.filter(e => e.status !== 'void');
+    const rows: (string | number | undefined)[][] = [];
+    pub.forEach(e => finJournalLines.filter(l => l.entryId === e.id).forEach(l =>
+      rows.push([e.date, e.no, accLabel(l.accountId), l.debit || '', l.credit || '', l.memo ?? e.notes ?? '', e.ref ?? '', e.source])));
+    downloadCsv(`journals-${new Date().toISOString().slice(0, 10)}.csv`, ['Journal Date', 'Journal Number', 'Account', 'Debit', 'Credit', 'Description', 'Reference Number', 'Source'], rows);
+  };
+  const exportDocs = () => {
+    downloadCsv(`documents-${new Date().toISOString().slice(0, 10)}.csv`, ['Date', 'Number', 'Type', 'Contact', 'Status', 'Total', 'Paid', 'Due Date'],
+      finDocuments.map((d: FinDocument) => [d.date, d.no, d.kind, d.contactId ?? '', d.status, d.total, d.paid, d.dueDate ?? '']));
+  };
+  const exportTrialBalance = () => {
+    const net = new Map<string, number>();
+    finJournalEntries.filter(e => e.status === 'published').forEach(e =>
+      finJournalLines.filter(l => l.entryId === e.id).forEach(l => net.set(l.accountId, (net.get(l.accountId) ?? 0) + l.debit - l.credit)));
+    downloadCsv(`trial-balance-${new Date().toISOString().slice(0, 10)}.csv`, ['Account Code', 'Account Name', 'Type', 'Debit', 'Credit'],
+      finAccounts.filter(a => net.get(a.id)).map(a => [a.code, a.name, a.type, net.get(a.id)! > 0 ? net.get(a.id) : '', net.get(a.id)! < 0 ? -net.get(a.id)! : '']));
+  };
+
   return (
     <div className="space-y-4">
       <div className="card p-5 space-y-4">
@@ -214,6 +243,17 @@ export default function FinImport() {
         <p>• Journal entries: <em>Reports → Journal Report → Export as CSV</em> — brings the complete historical ledger across in one import.</p>
         <p>• Chart of accounts: <em>Accountant → Chart of Accounts → ⋮ → Export</em> — run this <b>first</b> so journal accounts match.</p>
         <p>• Contacts/items: export from their module lists. Duplicates are skipped by name/code conflicts and reported.</p>
+      </div>
+
+      {/* ---------- EXPORT ---------- */}
+      <div className="card p-5 space-y-3">
+        <h2 className="font-black text-slate-900">Export CSV</h2>
+        <p className="text-xs text-slate-500">Download the ledger or documents as CSV — same shapes as the Zoho exports, so files round-trip cleanly.</p>
+        <div className="flex gap-2 flex-wrap">
+          <button className="btn-secondary text-xs" onClick={() => exportJournals()}><Download size={13} />Journal entries ({finJournalEntries.length})</button>
+          <button className="btn-secondary text-xs" onClick={() => exportDocs()}><Download size={13} />Documents ({finDocuments.length})</button>
+          <button className="btn-secondary text-xs" onClick={() => exportTrialBalance()}><Download size={13} />Trial balance</button>
+        </div>
       </div>
     </div>
   );
