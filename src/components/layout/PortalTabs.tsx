@@ -54,7 +54,7 @@ export default function PortalTabs() {
   if (!currentUser) return null;
   // Ledger pages navigate via the sidebar groups — a second tab strip is redundant there.
   if (location.pathname.startsWith('/finance/ledger')) return null;
-  const items = NAV_MAP[currentUser.role].flatMap(section => section.items).filter(i => !i.children || location.pathname === i.path);
+  const items = NAV_MAP[currentUser.role].flatMap(section => section.items).filter(i => !i.path.startsWith('/finance/ledger') && !i.children);
   return (
     <nav className="app-tabbar" aria-label="Portal sections">
       {items.map(item => (
