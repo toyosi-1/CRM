@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Home, Building2, ShoppingCart, CheckSquare, DollarSign, Shield, ArrowRight, Mail, Lock, Loader2, AlertCircle, Wrench } from 'lucide-react';
+import { Building2, ShoppingCart, CheckSquare, DollarSign, Shield, ArrowRight, Mail, Lock, Loader2, AlertCircle, Wrench } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { useAuth } from '../lib/AuthContext';
 import { MOCK_USERS } from '../data/mockData';
@@ -76,9 +76,9 @@ export default function Login() {
   const brandPanel = (
     <div className="hidden lg:flex w-80 flex-col justify-between p-10" style={{ background: '#1e2110' }}>
       <div>
-        <div className="flex items-center gap-2.5 mb-12">
-          <div className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0" style={{ background: '#7a8c3c' }}>
-            <Home size={15} className="text-white" />
+        <div className="flex items-center gap-3 mb-12">
+          <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center flex-shrink-0 p-1">
+            <img src="/favicon-64.png" alt="" className="w-full h-full object-contain" />
           </div>
           <div>
             <div className="text-white font-bold text-sm leading-tight">Propel Works Management Systems</div>
@@ -111,15 +111,9 @@ export default function Login() {
       <div className="flex-1 flex items-center justify-center p-8 min-h-full">
         <div className="w-full max-w-lg">
 
-          {/* Mobile logo */}
-          <div className="flex lg:hidden items-center gap-2 mb-8">
-            <div className="w-7 h-7 rounded flex items-center justify-center" style={{ background: '#7a8c3c' }}>
-              <Home size={14} className="text-white" />
-            </div>
-            <div>
-              <div className="text-slate-900 font-bold text-xs leading-tight">Propel Properties</div>
-              <div className="text-[10px]" style={{ color: '#7a8c3c' }}>& Facilities Services</div>
-            </div>
+          {/* Brand logo — full wordmark on the sign-in card */}
+          <div className="mb-8">
+            <img src="/propel-logo.png" alt="Propel Properties & Facilities Services Ltd." className="h-14 w-auto" />
           </div>
 
           {/* Mode toggle */}
