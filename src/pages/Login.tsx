@@ -1,37 +1,10 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Building2, ShoppingCart, CheckSquare, DollarSign, Shield, ArrowRight, Mail, Lock, Loader2, AlertCircle, Wrench } from 'lucide-react';
-import { useStore } from '../store/useStore';
+import { Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { MOCK_USERS } from '../data/mockData';
-import type { UserRole } from '../types';
-
-const ROLE_DEMOS = [
-  { userId: 'u1', role: 'facility_manager' as UserRole, label: 'Facility Manager', desc: 'Site operations & requests', icon: <Building2 size={16} />, color: '#7a8c3c' },
-  { userId: 'u3', role: 'procurement' as UserRole, label: 'Procurement', desc: 'Vendor & PO management', icon: <ShoppingCart size={16} />, color: '#5a7a3c' },
-  { userId: 'u4', role: 'supervisor' as UserRole, label: 'Supervisor', desc: 'Approvals & governance', icon: <CheckSquare size={16} />, color: '#4a6a2c' },
-  { userId: 'u5', role: 'finance' as UserRole, label: 'Finance', desc: 'Payments & treasury', icon: <DollarSign size={16} />, color: '#6b7c34' },
-  { userId: 'u6', role: 'admin' as UserRole, label: 'System Admin', desc: 'Full system access', icon: <Shield size={16} />, color: '#8a9c44' },
-  { userId: 'u7', role: 'technician' as UserRole, label: 'Technician', desc: 'Tasks & job completion', icon: <Wrench size={16} />, color: '#c17a2a' },
-];
-
-const ROLE_ROUTES: Record<UserRole, string> = {
-  facility_manager: '/fm',
-  procurement: '/procurement',
-  supervisor: '/supervisor',
-  finance: '/finance',
-  admin: '/admin',
-  ict_admin: '/ict',
-  technician: '/technician',
-};
 
 export default function Login() {
-  const { login: storeLogin } = useStore();
   const { login: supabaseLogin, resetPassword } = useAuth();
-  const navigate = useNavigate();
 
-  const demoEnabled = import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEMO_MODE === 'true';
-  const [mode, setMode] = useState<'demo' | 'email'>('email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -51,11 +24,6 @@ export default function Login() {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Unable to send reset email');
     }
-  };
-
-  const handleDemoLogin = (userId: string, role: UserRole) => {
-    storeLogin(userId);
-    navigate(ROLE_ROUTES[role]);
   };
 
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -116,22 +84,7 @@ export default function Login() {
             <img src="/propel-logo.png" alt="Propel Properties & Facilities Services Ltd." className="h-14 w-auto mix-blend-multiply" />
           </div>
 
-          {/* Mode toggle — only shown when demo access is enabled */}
-          {demoEnabled && (
-            <div className="flex gap-1 p-1 bg-slate-100 rounded-lg mb-8 w-fit">
-              <button onClick={() => setMode('email')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${mode === 'email' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                Sign In
-              </button>
-              <button onClick={() => setMode('demo')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${mode === 'demo' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                Demo Access
-              </button>
-            </div>
-          )}
-
-          {mode === 'email' ? (
-            <>
+          <>
               <h1 className="text-2xl font-semibold text-slate-900 mb-1">Welcome back</h1>
               <p className="text-slate-500 text-sm mb-8">Sign in with your FacilityOps account.</p>
 
@@ -176,37 +129,7 @@ export default function Login() {
                 </button>
               </form>
 
-              <p className="text-slate-400 text-xs mt-6 text-center">
-                No account? Switch to <button onClick={() => setMode('demo')} className="hover:underline" style={{ color: '#7a8c3c' }}>Demo Access</button> to explore.
-              </p>
-            </>
-          ) : (
-            <>
-              <h1 className="text-2xl font-semibold text-slate-900 mb-1">Select a role to continue</h1>
-              <p className="text-slate-500 text-sm mb-8">Demo environment — choose a role to explore the system.</p>
-
-              <div className="space-y-2">
-                {ROLE_DEMOS.map(role => {
-                  const user = MOCK_USERS.find(u => u.id === role.userId);
-                  return (
-                    <button key={role.userId} onClick={() => handleDemoLogin(role.userId, role.role)}
-                      className="w-full flex items-center gap-4 px-4 py-3.5 bg-white border border-slate-200 rounded-lg hover:shadow-sm transition-all duration-150 group text-left" style={{ borderColor: undefined }}>
-                      <div className="w-8 h-8 rounded-md flex items-center justify-center text-white flex-shrink-0" style={{ background: role.color }}>
-                        {role.icon}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold text-slate-800">{role.label}</div>
-                        <div className="text-xs text-slate-400">{role.desc}{user ? ` · ${user.name}` : ''}</div>
-                      </div>
-                      <ArrowRight size={14} className="text-slate-300 group-hover:text-slate-500 transition-colors flex-shrink-0" />
-                    </button>
-                  );
-                })}
-              </div>
-
-              <p className="text-slate-400 text-xs mt-6 text-center">All data shown is simulated for demonstration purposes.</p>
-            </>
-          )}
+          </>
         </div>
       </div>
     </div>
