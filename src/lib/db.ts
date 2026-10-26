@@ -859,3 +859,7 @@ export async function voidFinDocument(id: string, no: string, by: string): Promi
   const { error: e2 } = await supabase.from('fin_journal_entries').update({ status: 'void' }).eq('source_id', id); fail(e2);
   await logFinActivity(by, `Voided ${no}`, id).catch(() => undefined);
 }
+
+export async function upsertFinAccount(a: { code: string; name: string; type: string }): Promise<void> {
+  const { error } = await supabase.from('fin_accounts').upsert({ code: a.code, name: a.name, type: a.type }, { onConflict: 'code' }); fail(error);
+}

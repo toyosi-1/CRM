@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { BookOpen, Users, Package, TrendingUp, TrendingDown, Landmark, BookMarked, BarChart3, Activity, Plus, Loader2, Trash2 } from 'lucide-react';
+import { BookOpen, Users, Package, TrendingUp, TrendingDown, Landmark, BookMarked, BarChart3, Activity, Plus, Loader2, Trash2, Upload } from 'lucide-react';
+import FinImport from './FinImport';
 import { useStore } from '../../store/useStore';
 import {
   createFinContact, upsertFinItem, deleteFinItem, createFinDocument, updateFinDocument,
@@ -12,7 +13,7 @@ const fmt = (v: number) => `₦${v.toLocaleString('en-NG', { minimumFractionDigi
 const today = () => new Date().toISOString().slice(0, 10);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
-type Tab = 'home' | 'contacts' | 'items' | 'projects' | 'sales' | 'purchases' | 'banking' | 'journals' | 'reports' | 'activity';
+type Tab = 'home' | 'contacts' | 'items' | 'projects' | 'sales' | 'purchases' | 'banking' | 'journals' | 'reports' | 'activity' | 'import';
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'home', label: 'Home', icon: <Landmark size={14} /> },
   { id: 'contacts', label: 'Contacts', icon: <Users size={14} /> },
@@ -24,6 +25,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'journals', label: 'Journals', icon: <BookMarked size={14} /> },
   { id: 'reports', label: 'Reports', icon: <BarChart3 size={14} /> },
   { id: 'activity', label: 'Activity', icon: <Activity size={14} /> },
+  { id: 'import', label: 'Import', icon: <Upload size={14} /> },
 ];
 
 const KIND_LABEL: Record<string, string> = { invoice: 'Invoice', receipt: 'Receipt', bill: 'Bill', payment: 'Payment', expense: 'Expense', bank: 'Bank txn', journal: 'Journal' };
@@ -500,6 +502,8 @@ export default function FinanceLedger() {
               </div>
             </div>
           )}
+
+      {tab === 'import' && <FinImport />}
 
       {/* ---------- ACTIVITY ---------- */}
       {tab === 'activity' && (
