@@ -535,7 +535,7 @@ export const useStore = create<AppState>((set, get) => ({
         : 'acc_6030';
       const poNo = req.purchaseOrder?.poNumber;
       void postJournal(
-        { no: req.requestNumber, source: 'payment', date: now.slice(0, 10), ref: [req.requestNumber, poNo].filter(Boolean).join(' · '), notes: req.description?.slice(0, 200), createdBy: actor.name },
+        { no: poNo ?? req.requestNumber, source: 'payment', date: now.slice(0, 10), ref: `Request ${req.requestNumber}`, notes: req.description?.slice(0, 200), createdBy: actor.name },
         [{ accountId: expenseAcct, dr: amount, memo: req.category || 'Maintenance' }, { accountId: 'acc_1100', cr: amount, memo: `Payment disbursed${poNo ? ` (${poNo})` : ''}` }],
       ).then(() => logFinActivity(actor.name, `Auto-posted ${req.requestNumber}${poNo ? ` / ${poNo}` : ''} ${amount.toLocaleString('en-NG')}`, req.requestNumber)).catch(reportSaveError);
     }
