@@ -106,7 +106,7 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
                           <NavLink
                             key={child.path}
                             to={child.path}
-                            end={child.path.split('/').length <= 3}
+                            end
                             className={({ isActive }) => `sidebar-link text-[11px]${isActive ? ' active' : ''}`}
                             onClick={onClose}
                           >

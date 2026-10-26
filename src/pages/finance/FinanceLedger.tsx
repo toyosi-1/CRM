@@ -516,7 +516,7 @@ export default function FinanceLedger() {
         </div>
       )}
 
-          {report === 'budget' && (
+          {tab === 'reports' && report === 'budget' && (
             <div className="space-y-4">
               <div className="card p-5 space-y-3">
                 <h2 className="font-black text-slate-900">New budget</h2>

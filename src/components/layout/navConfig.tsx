@@ -79,7 +79,6 @@ const FINANCE_NAV: NavSection[] = [
     { label: 'Accountant', path: '/finance/ledger/journals', icon: <BookMarked size={15} />, children: [
       { label: 'Manual journals', path: '/finance/ledger/journals', icon: <></> },
       { label: 'Chart of accounts', path: '/finance/ledger/reports', icon: <></> },
-      { label: 'Budgets', path: '/finance/ledger/reports/budget', icon: <></> },
     ]},
     { label: 'Reports', path: '/finance/ledger/reports', icon: <BarChart3 size={15} />, children: [
       { label: 'Trial balance', path: '/finance/ledger/reports/tb', icon: <></> },
