@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { NAV_MAP } from './navConfig';
 
@@ -50,8 +50,11 @@ const TAB_LABELS: Record<string, string> = {
 
 export default function PortalTabs() {
   const { currentUser } = useStore();
+  const location = useLocation();
   if (!currentUser) return null;
-  const items = NAV_MAP[currentUser.role].flatMap(section => section.items);
+  // Ledger pages navigate via the sidebar groups — a second tab strip is redundant there.
+  if (location.pathname.startsWith('/finance/ledger')) return null;
+  const items = NAV_MAP[currentUser.role].flatMap(section => section.items).filter(i => !i.children || location.pathname === i.path);
   return (
     <nav className="app-tabbar" aria-label="Portal sections">
       {items.map(item => (

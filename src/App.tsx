@@ -69,7 +69,7 @@ const ROLE_ROUTES: Record<UserRole, string> = {
   facility_manager: '/fm',
   procurement: '/procurement',
   supervisor: '/supervisor',
-  finance: '/finance',
+  finance: '/finance/ledger',
   admin: '/admin',
   ict_admin: '/ict',
   technician: '/technician',

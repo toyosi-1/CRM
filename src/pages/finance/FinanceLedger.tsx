@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { BookOpen, Users, Package, TrendingUp, TrendingDown, Landmark, BookMarked, BarChart3, Activity, Plus, Loader2, Trash2, Upload, Paperclip } from 'lucide-react';
 import FinImport from './FinImport';
 import { useStore } from '../../store/useStore';
@@ -37,11 +37,9 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function FinanceLedger() {
   const { finAccounts, finJournalEntries, finJournalLines, finContacts, finItems, finDocuments, finBudgets, finActivity, currentUser, getBudgetSummaries } = useStore();
-  const nav = useNavigate();
   const seg = useParams()['*'] ?? '';
   const [pTab, pSub] = seg.split('/');
   const tab = (TABS.some(t => t.id === pTab) ? pTab : 'home') as Tab;
-  const setTab = (t: Tab) => void nav(`/finance/ledger${t === 'home' ? '' : '/' + t}`);
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState<'tb' | 'pl' | 'bs' | 'acct' | 'budget'>('tb');
   const [acctId, setAcctId] = useState('');
@@ -207,11 +205,7 @@ export default function FinanceLedger() {
         </div>
       </div>
 
-      <div className="flex gap-1 bg-white rounded-xl p-1 border border-slate-200 overflow-x-auto">
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg whitespace-nowrap transition-colors ${tab === t.id ? 'bg-brand-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>{t.icon}{t.label}</button>
-        ))}
-      </div>
+
 
       {/* ---------- HOME ---------- */}
       {tab === 'home' && (
