@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { useState } from 'react';
 import { LogOut, KeyRound, ChevronDown } from 'lucide-react';
 import type { UserRole } from '../../types';
@@ -21,7 +21,6 @@ const ROLE_COLOR: Record<UserRole, string> = {
 export default function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { currentUser, logout: clearSession, sites, requests, checklists, checklistTemplates, ppmSchedules, activeSiteId } = useStore();
   const { supabaseUser, logout } = useAuth();
-  const location = useLocation();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   if (!currentUser) return null;
 
@@ -88,12 +87,11 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
             )}
             <div className="space-y-0.5">
               {section.items.map(item => item.children ? (() => {
-                const childActive = item.children!.some(c => location.pathname.startsWith(c.path));
                 const isOpen = collapsed[item.path] === false ? false : true;
                 return (
                   <div key={item.path}>
                     <button
-                      className={`sidebar-link w-full text-left${childActive ? ' active' : ''}`}
+                      className="sidebar-link w-full text-left"
                       onClick={() => setCollapsed(c => ({ ...c, [item.path]: c[item.path] === false ? true : false }))}
                     >
                       <span className="flex-shrink-0">{item.icon}</span>
