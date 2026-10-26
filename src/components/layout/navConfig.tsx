@@ -62,6 +62,7 @@ const SUPERVISOR_NAV: NavSection[] = [
 const FINANCE_NAV: NavSection[] = [
   { section: 'Workspace', items: [
     { label: 'Home', path: '/finance/ledger', icon: <LayoutDashboard size={15} /> },
+    { label: 'How it connects', path: '/finance/ledger/connect', icon: <BookOpen size={15} /> },
     { label: 'Contacts', path: '/finance/ledger/contacts', icon: <Users size={15} /> },
     { label: 'Items', path: '/finance/ledger/items', icon: <Package size={15} /> },
     { label: 'Sales', path: '/finance/ledger/sales', icon: <TrendingUp size={15} />, children: [

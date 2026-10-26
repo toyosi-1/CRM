@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { BookOpen, Users, Package, TrendingUp, TrendingDown, Landmark, BookMarked, BarChart3, Activity, Plus, Loader2, Trash2, Upload, Paperclip } from 'lucide-react';
 import FinImport from './FinImport';
+import FinConnect from './FinConnect';
 import { useStore } from '../../store/useStore';
 import {
   createFinContact, upsertFinItem, deleteFinItem, createFinDocument, updateFinDocument,
@@ -14,9 +15,10 @@ const fmt = (v: number) => `₦${v.toLocaleString('en-NG', { minimumFractionDigi
 const today = () => new Date().toISOString().slice(0, 10);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
-type Tab = 'home' | 'contacts' | 'items' | 'projects' | 'sales' | 'purchases' | 'banking' | 'journals' | 'reports' | 'activity' | 'import';
+type Tab = 'home' | 'connect' | 'contacts' | 'items' | 'projects' | 'sales' | 'purchases' | 'banking' | 'journals' | 'reports' | 'activity' | 'import';
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'home', label: 'Home', icon: <Landmark size={14} /> },
+  { id: 'connect', label: 'How it connects', icon: <Landmark size={14} /> },
   { id: 'contacts', label: 'Contacts', icon: <Users size={14} /> },
   { id: 'items', label: 'Items', icon: <Package size={14} /> },
   { id: 'projects', label: 'Projects', icon: <BookOpen size={14} /> },
@@ -564,6 +566,7 @@ export default function FinanceLedger() {
             </div>
           )}
 
+      {tab === 'connect' && <FinConnect />}
       {tab === 'import' && <FinImport />}
 
       {/* ---------- ACTIVITY ---------- */}
