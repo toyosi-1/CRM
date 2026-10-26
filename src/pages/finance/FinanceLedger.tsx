@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { BookOpen, Users, Package, TrendingUp, TrendingDown, Landmark, BookMarked, BarChart3, Activity, Plus, Loader2, Trash2, Upload, Paperclip } from 'lucide-react';
 import FinImport from './FinImport';
 import { useStore } from '../../store/useStore';
@@ -36,7 +37,11 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function FinanceLedger() {
   const { finAccounts, finJournalEntries, finJournalLines, finContacts, finItems, finDocuments, finBudgets, finActivity, currentUser, getBudgetSummaries } = useStore();
-  const [tab, setTab] = useState<Tab>('home');
+  const nav = useNavigate();
+  const seg = useParams()['*'] ?? '';
+  const [pTab, pSub] = seg.split('/');
+  const tab = (TABS.some(t => t.id === pTab) ? pTab : 'home') as Tab;
+  const setTab = (t: Tab) => void nav(`/finance/ledger${t === 'home' ? '' : '/' + t}`);
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState<'tb' | 'pl' | 'bs' | 'acct' | 'budget'>('tb');
   const [acctId, setAcctId] = useState('');
@@ -45,6 +50,10 @@ export default function FinanceLedger() {
   const [budPeriod, setBudPeriod] = useState(String(new Date().getFullYear()));
   const [budLines, setBudLines] = useState<{ accountId: string; amount: string }[]>([{ accountId: '', amount: '' }]);
   const me = currentUser?.name ?? 'Finance';
+
+  useEffect(() => {
+    if (tab === 'reports' && pSub && ['tb', 'pl', 'bs', 'acct', 'budget'].includes(pSub)) setReport(pSub as typeof report);
+  }, [tab, pSub]);
 
   const byCode = useMemo(() => Object.fromEntries(finAccounts.map(a => [a.code, a])), [finAccounts]);
   const acct = (code: string) => byCode[code]?.id;
@@ -416,12 +425,17 @@ export default function FinanceLedger() {
             </div>
           )}
 
-          <div className="card divide-y divide-slate-100">
-            {openDocs(
-              tab === 'sales' ? ['invoice', 'receipt'] : tab === 'purchases' ? ['bill', 'payment', 'expense'] : tab === 'banking' ? ['bank'] : ['journal'],
-            ).map(docRow)}
-            {openDocs(tab === 'sales' ? ['invoice', 'receipt'] : tab === 'purchases' ? ['bill', 'payment', 'expense'] : tab === 'banking' ? ['bank'] : ['journal']).length === 0 && <p className="p-8 text-center text-sm text-slate-400">Nothing posted yet.</p>}
-          </div>
+          {(() => {
+            const SUB: Record<string, string[]> = { invoices: ['invoice'], receipts: ['receipt'], bills: ['bill'], payments: ['payment'], expenses: ['expense'] };
+            const kinds = SUB[pSub] ?? (tab === 'sales' ? ['invoice', 'receipt'] : tab === 'purchases' ? ['bill', 'payment', 'expense'] : tab === 'banking' ? ['bank'] : ['journal']);
+            const docs = openDocs(kinds as FinDocKind[]);
+            return (
+              <div className="card divide-y divide-slate-100">
+                {docs.map(docRow)}
+                {docs.length === 0 && <p className="p-8 text-center text-sm text-slate-400">Nothing posted yet.</p>}
+              </div>
+            );
+          })()}
         </div>
       )}
 

@@ -3,10 +3,11 @@ import {
   Package, DollarSign, Settings, BarChart3, Building2,
   BookOpen, ShieldCheck, FileText, Store, Users,
   AlertTriangle, Calendar, Wrench, UserPlus, ClipboardEdit, ClipboardCheck, Wallet,
+  TrendingUp, TrendingDown, Clock, Landmark, BookMarked, Activity, Upload,
 } from 'lucide-react';
 import type { UserRole } from '../../types';
 
-export interface NavItem { label: string; path: string; icon: React.ReactNode; }
+export interface NavItem { label: string; path: string; icon: React.ReactNode; children?: NavItem[]; }
 export interface NavSection { section?: string; items: NavItem[]; }
 
 const FM_NAV: NavSection[] = [
@@ -61,7 +62,36 @@ const SUPERVISOR_NAV: NavSection[] = [
 const FINANCE_NAV: NavSection[] = [
   { section: 'Workspace', items: [
     { label: 'Dashboard', path: '/finance', icon: <LayoutDashboard size={15} /> },
-    { label: 'Ledger', path: '/finance/ledger', icon: <BookOpen size={15} /> },
+    { label: 'Home', path: '/finance/ledger', icon: <BookOpen size={15} /> },
+    { label: 'Contacts', path: '/finance/ledger/contacts', icon: <Users size={15} /> },
+    { label: 'Items', path: '/finance/ledger/items', icon: <Package size={15} /> },
+    { label: 'Sales', path: '/finance/ledger/sales', icon: <TrendingUp size={15} />, children: [
+      { label: 'Invoices', path: '/finance/ledger/sales/invoices', icon: <></> },
+      { label: 'Receipts', path: '/finance/ledger/sales/receipts', icon: <></> },
+    ]},
+    { label: 'Purchases', path: '/finance/ledger/purchases', icon: <TrendingDown size={15} />, children: [
+      { label: 'Bills', path: '/finance/ledger/purchases/bills', icon: <></> },
+      { label: 'Payments', path: '/finance/ledger/purchases/payments', icon: <></> },
+      { label: 'Expenses', path: '/finance/ledger/purchases/expenses', icon: <></> },
+    ]},
+    { label: 'Projects & time', path: '/finance/ledger/projects', icon: <Clock size={15} /> },
+    { label: 'Banking', path: '/finance/ledger/banking', icon: <Landmark size={15} /> },
+    { label: 'Accountant', path: '/finance/ledger/journals', icon: <BookMarked size={15} />, children: [
+      { label: 'Manual journals', path: '/finance/ledger/journals', icon: <></> },
+      { label: 'Chart of accounts', path: '/finance/ledger/reports', icon: <></> },
+      { label: 'Budgets', path: '/finance/ledger/reports/budget', icon: <></> },
+    ]},
+    { label: 'Reports', path: '/finance/ledger/reports', icon: <BarChart3 size={15} />, children: [
+      { label: 'Trial balance', path: '/finance/ledger/reports/tb', icon: <></> },
+      { label: 'Profit & loss', path: '/finance/ledger/reports/pl', icon: <></> },
+      { label: 'Balance sheet', path: '/finance/ledger/reports/bs', icon: <></> },
+      { label: 'Account transactions', path: '/finance/ledger/reports/acct', icon: <></> },
+      { label: 'Budget vs actual', path: '/finance/ledger/reports/budget', icon: <></> },
+    ]},
+    { label: 'Activity log', path: '/finance/ledger/activity', icon: <Activity size={15} /> },
+    { label: 'Import / export', path: '/finance/ledger/import', icon: <Upload size={15} /> },
+  ]},
+  { section: 'Operations', items: [
     { label: 'Payment queue', path: '/finance/payments', icon: <DollarSign size={15} /> },
     { label: 'Petty cash', path: '/finance/petty-cash', icon: <Wallet size={15} /> },
     { label: 'Treasury ledger', path: '/finance/treasury', icon: <BookOpen size={15} /> },

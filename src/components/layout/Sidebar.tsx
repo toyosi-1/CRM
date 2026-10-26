@@ -1,5 +1,6 @@
-import { NavLink } from 'react-router-dom';
-import { LogOut, KeyRound } from 'lucide-react';
+import { NavLink, useLocation } from 'react-router-dom';
+import { useState } from 'react';
+import { LogOut, KeyRound, ChevronDown } from 'lucide-react';
 import type { UserRole } from '../../types';
 import { ROLE_LABELS } from '../../utils/helpers';
 import { useStore } from '../../store/useStore';
@@ -20,6 +21,8 @@ const ROLE_COLOR: Record<UserRole, string> = {
 export default function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { currentUser, logout: clearSession, sites, requests, checklists, checklistTemplates, ppmSchedules, activeSiteId } = useStore();
   const { supabaseUser, logout } = useAuth();
+  const location = useLocation();
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   if (!currentUser) return null;
 
   const sections = NAV_MAP[currentUser.role];
@@ -84,7 +87,37 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
               <p className="sidebar-section-label">{section.section}</p>
             )}
             <div className="space-y-0.5">
-              {section.items.map(item => (
+              {section.items.map(item => item.children ? (() => {
+                const childActive = item.children!.some(c => location.pathname.startsWith(c.path));
+                const isOpen = collapsed[item.path] === false ? false : true;
+                return (
+                  <div key={item.path}>
+                    <button
+                      className={`sidebar-link w-full text-left${childActive ? ' active' : ''}`}
+                      onClick={() => setCollapsed(c => ({ ...c, [item.path]: c[item.path] === false ? true : false }))}
+                    >
+                      <span className="flex-shrink-0">{item.icon}</span>
+                      <span className="flex-1">{item.label}</span>
+                      <ChevronDown size={13} className={`transition-transform ${isOpen ? '' : '-rotate-90'}`} />
+                    </button>
+                    {isOpen && (
+                      <div className="pl-7 space-y-0.5 mt-0.5">
+                        {item.children.map(child => (
+                          <NavLink
+                            key={child.path}
+                            to={child.path}
+                            end={child.path.split('/').length <= 3}
+                            className={({ isActive }) => `sidebar-link text-[11px]${isActive ? ' active' : ''}`}
+                            onClick={onClose}
+                          >
+                            <span>{child.label}</span>
+                          </NavLink>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })() : (
                 <NavLink
                   key={item.path}
                   to={item.path}

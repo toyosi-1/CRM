@@ -160,7 +160,7 @@ export default function App() {
           <ProtectedRoute role="finance"><Layout /></ProtectedRoute>
         }>
           <Route index element={<FinanceDashboard />} />
-          <Route path="ledger" element={<FinanceLedger />} />
+          <Route path="ledger/*" element={<FinanceLedger />} />
           <Route path="payments" element={<PaymentQueue />} />
           <Route path="petty-cash" element={<FinancePettyCash />} />
           <Route path="treasury" element={<TreasuryLedger />} />
