@@ -55,9 +55,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAppUser(profile);
         if (initializedForRef.current !== profile.id) {
           initializedForRef.current = profile.id;
-          await initSupabase();
+          // Fire-and-forget: the shell renders immediately; data streams in
+          // via realtime subscriptions. initSupabase logs the profile into
+          // the store once the users fetch resolves.
+          void initSupabase(profile.id);
+        } else {
+          storeLogin(profile.id);
         }
-        storeLogin(profile.id);
         if (window.location.pathname === '/login') {
           window.history.pushState({}, '', ROLE_ROUTES[profile.role] ?? '/login');
           window.dispatchEvent(new PopStateEvent('popstate'));

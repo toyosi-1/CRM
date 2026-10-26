@@ -53,7 +53,7 @@ interface AppState {
   supabaseReady: boolean;
   saveError: string | null;
 
-  initSupabase: () => Promise<void>;
+  initSupabase: (profileId?: string) => Promise<void>;
   login: (userId: string) => void;
   logout: () => void;
 
@@ -189,7 +189,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   clearSaveError: () => set({ saveError: null }),
 
-  initSupabase: async () => {
+  initSupabase: async (profileId?: string) => {
     try {
       const [users, sites, vendors, assets] = await Promise.all([
         fetchUsers(),
@@ -199,6 +199,7 @@ export const useStore = create<AppState>((set, get) => ({
       ]);
 
       set({ users, sites, vendors, assets });
+      if (profileId) get().login(profileId);
 
       if (_unsubRequests) _unsubRequests();
       _unsubRequests = subscribeRequests(requests => set({ requests }));
