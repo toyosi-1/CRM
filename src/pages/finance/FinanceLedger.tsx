@@ -4,7 +4,7 @@ import FinImport from './FinImport';
 import { useStore } from '../../store/useStore';
 import {
   createFinContact, upsertFinItem, deleteFinItem, createFinDocument, updateFinDocument,
-  voidFinDocument, postJournal, logFinActivity, upsertFinBudget, uploadFile, type PostLine,
+  voidFinDocument, postJournal, logFinActivity, upsertFinBudget, upsertFinAccount, uploadFile, type PostLine,
 } from '../../lib/db';
 import { reportSaveError } from '../../store/useStore';
 import type { FinAccount, FinDocument, FinDocKind } from '../../types';
@@ -35,7 +35,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function FinanceLedger() {
-  const { finAccounts, finJournalEntries, finJournalLines, finContacts, finItems, finDocuments, finBudgets, finActivity, currentUser } = useStore();
+  const { finAccounts, finJournalEntries, finJournalLines, finContacts, finItems, finDocuments, finBudgets, finActivity, currentUser, getBudgetSummaries } = useStore();
   const [tab, setTab] = useState<Tab>('home');
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState<'tb' | 'pl' | 'bs' | 'acct' | 'budget'>('tb');
@@ -207,6 +207,27 @@ export default function FinanceLedger() {
       {/* ---------- HOME ---------- */}
       {tab === 'home' && (
         <div className="space-y-5">
+          {/* Facility budget alerts — requests paid out of each site's monthly budget */}
+          {(() => {
+            const sums = getBudgetSummaries().filter(s => s.monthlyBudget > 0);
+            const warns = sums.filter(s => s.utilizationPct >= 80);
+            return (
+              <div className="card p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-black text-slate-900">Facility budgets — this month</h2>
+                  {warns.length > 0 && <span className="badge bg-red-100 text-red-700">{warns.length} at/near limit</span>}
+                </div>
+                {warns.length > 0 && <p className="text-xs text-amber-700 bg-amber-50 rounded-lg p-2">⚠ {warns.map(s => s.siteName).join(', ')} {warns.length === 1 ? 'has' : 'have'} used ≥80% of the monthly budget — review before approving further spend.</p>}
+                {sums.length === 0 && <p className="text-sm text-slate-400">No facility budgets set — configure in Site management.</p>}
+                {sums.map(s => (
+                  <div key={s.siteId} className="space-y-1">
+                    <div className="flex justify-between text-sm"><span className="font-bold text-slate-800">{s.siteName}</span><span className={`text-xs font-bold ${s.utilizationPct >= 100 ? 'text-red-600' : s.utilizationPct >= 80 ? 'text-amber-600' : 'text-slate-500'}`}>{fmt(s.spent)} / {fmt(s.monthlyBudget)} · {Math.round(s.utilizationPct)}%</span></div>
+                    <div className="h-2 rounded-full bg-slate-100 overflow-hidden"><div className={`h-full rounded-full ${s.utilizationPct >= 100 ? 'bg-red-500' : s.utilizationPct >= 80 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, s.utilizationPct)}%` }} /></div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="card p-4"><p className="text-[11px] font-bold uppercase text-slate-400">Cash & bank</p><p className="text-xl font-black text-slate-900 mt-1">{fmt(finAccounts.filter(a => ['Cash', 'Bank'].includes(a.type)).reduce((s, a) => s + bal(a.id), 0))}</p></div>
             <div className="card p-4"><p className="text-[11px] font-bold uppercase text-slate-400">Receivable</p><p className="text-xl font-black text-slate-900 mt-1">{fmt(bal(acct('1200')!))}</p></div>
@@ -407,7 +428,14 @@ export default function FinanceLedger() {
       {/* ---------- REPORTS ---------- */}
       {tab === 'reports' && (
         <div className="space-y-4">
-          <div className="flex gap-2">
+          {/* Chart of accounts — editable by the accountant */}
+          <form onSubmit={async e => { e.preventDefault(); const el = e.currentTarget.elements as unknown as Record<string, HTMLInputElement>; try { await upsertFinAccount({ code: el.aCode.value.trim(), name: el.aName.value.trim(), type: el.aType.value }); e.currentTarget.reset(); } catch (err) { reportSaveError(err); } }} className="card p-4 grid grid-cols-2 md:grid-cols-5 gap-2 items-end">
+            <div><label className="label">Account code</label><input name="aCode" className="input" placeholder="e.g. 6090" required /></div>
+            <div className="col-span-2"><label className="label">Account name</label><input name="aName" className="input" placeholder="e.g. HVAC maintenance" required /></div>
+            <div><label className="label">Type</label><select name="aType" className="select">{['Income','Other Income','Expense','Cost of Goods Sold','Other Expense','Cash','Bank','Accounts Receivable','Other Current Asset','Fixed Asset','Accounts Payable','Other Current Liability','Long Term Liability','Equity'].map(t => <option key={t}>{t}</option>)}</select></div>
+            <button className="btn-primary text-xs"><Plus size={12} />Add / update account</button>
+          </form>
+          <div className="flex gap-2 flex-wrap">
             {([['tb', 'Trial balance'], ['pl', 'Profit & loss'], ['bs', 'Balance sheet'], ['acct', 'Account transactions'], ['budget', 'Budget vs actual']] as const).map(([id, label]) => (
               <button key={id} onClick={() => setReport(id)} className={`px-3.5 py-2 text-xs font-bold rounded-lg ${report === id ? 'bg-brand-600 text-white' : 'bg-white border border-slate-200 text-slate-500'}`}>{label}</button>
             ))}
