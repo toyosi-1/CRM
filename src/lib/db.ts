@@ -1,7 +1,7 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { compressImage } from '../utils/imageCompression';
-import type { User, Site, Vendor, Asset, MaintenanceRequest, Checklist, TreasuryEntry, PPMSchedule, Incident, PettyCashEntry, SupportTicket, Tenant, JobCompletion, ChecklistTemplate, ReconciliationEntry, FacilityVendorSLA } from '../types';
+import type { User, Site, Vendor, Asset, MaintenanceRequest, Checklist, TreasuryEntry, PPMSchedule, Incident, PettyCashEntry, SupportTicket, Tenant, JobCompletion, ChecklistTemplate, ReconciliationEntry, FacilityVendorSLA, ServiceChargeInvoice } from '../types';
 
 export interface AppNotification {
   id: string;
@@ -528,7 +528,7 @@ export function subscribePPMSchedules(callback: (schedules: PPMSchedule[]) => vo
 
 export async function fetchTenants(): Promise<Tenant[]> {
   const { data, error } = await supabase.from('tenants').select('*').order('lease_expiry', { ascending: true, nullsFirst: false }); fail(error);
-  return (data ?? []).map(row => ({ id: row.id, siteId: row.site_id, name: row.name, unit: row.unit, email: row.email, phone: row.phone, monthlyRent: Number(row.monthly_rent), serviceCharge: Number(row.service_charge ?? 0), leaseExpiry: row.lease_expiry, lastPaymentDate: row.last_payment_date, status: row.status, createdAt: row.created_at, updatedAt: row.updated_at }));
+  return (data ?? []).map(row => ({ id: row.id, siteId: row.site_id, name: row.name, unit: row.unit, email: row.email, phone: row.phone, monthlyRent: Number(row.monthly_rent), serviceCharge: Number(row.service_charge ?? 0), serviceChargeBilling: row.service_charge_billing ?? 'separate', serviceChargeInvoiceDate: row.service_charge_invoice_date ?? undefined, leaseExpiry: row.lease_expiry, lastPaymentDate: row.last_payment_date, status: row.status, createdAt: row.created_at, updatedAt: row.updated_at }));
 }
 
 export function subscribeTenants(callback: (tenants: Tenant[]) => void): () => void {
@@ -538,7 +538,7 @@ export function subscribeTenants(callback: (tenants: Tenant[]) => void): () => v
 export async function createTenant(tenant: Partial<Tenant>): Promise<void> {
   const { error } = await supabase.from('tenants').insert({
     site_id: tenant.siteId, name: tenant.name, unit: tenant.unit, email: tenant.email, phone: tenant.phone,
-    monthly_rent: tenant.monthlyRent, service_charge: tenant.serviceCharge ?? 0, lease_expiry: tenant.leaseExpiry, last_payment_date: tenant.lastPaymentDate, status: tenant.status ?? 'paid',
+    monthly_rent: tenant.monthlyRent, service_charge: tenant.serviceCharge ?? 0, service_charge_billing: tenant.serviceChargeBilling ?? 'separate', service_charge_invoice_date: tenant.serviceChargeInvoiceDate || null, lease_expiry: tenant.leaseExpiry, last_payment_date: tenant.lastPaymentDate, status: tenant.status ?? 'paid',
   }); fail(error);
 }
 
@@ -547,7 +547,23 @@ export async function updateTenant(tenantId: string, data: Partial<Tenant>): Pro
     ...(data.siteId !== undefined && { site_id: data.siteId }), ...(data.name !== undefined && { name: data.name }), ...(data.unit !== undefined && { unit: data.unit }),
     ...(data.email !== undefined && { email: data.email }), ...(data.phone !== undefined && { phone: data.phone }), ...(data.monthlyRent !== undefined && { monthly_rent: data.monthlyRent }),
     ...(data.leaseExpiry !== undefined && { lease_expiry: data.leaseExpiry }), ...(data.lastPaymentDate !== undefined && { last_payment_date: data.lastPaymentDate }), ...(data.serviceCharge !== undefined && { service_charge: data.serviceCharge }), ...(data.status !== undefined && { status: data.status }),
+    ...(data.serviceChargeBilling !== undefined && { service_charge_billing: data.serviceChargeBilling }), ...(data.serviceChargeInvoiceDate !== undefined && { service_charge_invoice_date: data.serviceChargeInvoiceDate || null }),
   }).eq('id', tenantId); fail(error);
+}
+
+export async function fetchServiceChargeInvoices(): Promise<ServiceChargeInvoice[]> {
+  const { data, error } = await supabase.from('service_charge_invoices').select('*').order('issued_at', { ascending: false }); fail(error);
+  return (data ?? []).map(row => ({ id: row.id, tenantId: row.tenant_id, siteId: row.site_id, amount: Number(row.amount), periodLabel: row.period_label, dueDate: row.due_date ?? undefined, status: row.status, issuedBy: row.issued_by, issuedAt: row.issued_at, createdAt: row.created_at }));
+}
+
+export function subscribeServiceChargeInvoices(callback: (invoices: ServiceChargeInvoice[]) => void): () => void {
+  const refresh = async () => callback(await fetchServiceChargeInvoices()); void refresh(); return subscribe('service_charge_invoices', refresh);
+}
+
+export async function createServiceChargeInvoice(inv: Omit<ServiceChargeInvoice, 'id' | 'createdAt' | 'issuedAt'>): Promise<void> {
+  const { error } = await supabase.from('service_charge_invoices').insert({
+    tenant_id: inv.tenantId, site_id: inv.siteId, amount: inv.amount, period_label: inv.periodLabel, due_date: inv.dueDate || null, status: inv.status, issued_by: inv.issuedBy,
+  }); fail(error);
 }
 
 export async function fetchJobCompletions(): Promise<JobCompletion[]> {

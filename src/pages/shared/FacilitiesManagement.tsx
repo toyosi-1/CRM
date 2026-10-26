@@ -43,6 +43,8 @@ export default function FacilitiesManagement() {
     await createTenant({
       siteId: site.id, name: form.tenantName.value, unit: form.unit.value, email: form.email.value,
       phone: form.phone.value, monthlyRent: Number(form.monthlyRent.value), serviceCharge: Number(form.serviceCharge.value) || 0, leaseExpiry: form.leaseExpiry.value,
+      serviceChargeBilling: form.serviceChargeBilling.value as 'included' | 'separate',
+      serviceChargeInvoiceDate: form.serviceChargeInvoiceDate.value || undefined,
       lastPaymentDate: form.lastPaymentDate.value, status: 'paid',
     });
     setShowTenant(false);
@@ -102,6 +104,8 @@ export default function FacilitiesManagement() {
                     <input className="input" name="phone" placeholder="Phone" />
                     <input className="input" name="monthlyRent" type="number" min={0} placeholder="Monthly rent (₦)" required />
                     <input className="input" name="serviceCharge" type="number" min={0} placeholder="Service charge (₦, if applicable)" />
+                    <select className="select" name="serviceChargeBilling" defaultValue="separate" title="Service charge billing"><option value="separate">Service charge: billed separately</option><option value="included">Service charge: included in rent</option></select>
+                    <input className="input" name="serviceChargeInvoiceDate" type="date" title="Next service-charge invoice date" />
                     <input className="input" name="leaseExpiry" type="date" placeholder="Lease expiry" />
                     <input className="input" name="lastPaymentDate" type="date" placeholder="Last payment" />
                     <div className="md:col-span-2 flex gap-2"><button className="btn-primary">Save tenant</button><button type="button" onClick={() => setShowTenant(false)} className="btn-secondary">Cancel</button></div>
@@ -129,18 +133,62 @@ export default function FacilitiesManagement() {
 }
 
 function TenantRow({ tenant, canEdit, onUpdate }: { tenant: Tenant; canEdit: boolean; onUpdate: (id: string, data: Partial<Tenant>) => Promise<void> }) {
+  const { sites, issueServiceCharge, serviceChargeInvoices } = useStore();
   const [editing, setEditing] = useState(false);
   const [status, setStatus] = useState(tenant.status);
+  const [sending, setSending] = useState(false);
   const saveStatus = async () => { await onUpdate(tenant.id, { status }); setEditing(false); };
+  const separate = (tenant.serviceChargeBilling ?? 'separate') === 'separate' && (tenant.serviceCharge ?? 0) > 0;
+  const siteName = sites.find(s => s.id === tenant.siteId)?.name ?? 'your facility';
+  const lastIssued = serviceChargeInvoices.find(i => i.tenantId === tenant.id);
+
+  const requestCharge = async () => {
+    const period = window.prompt('Billing period for this invoice (e.g. "Q1 2027" or "January 2027"):', 'Annual 2027');
+    if (period === null) return;
+    const due = window.prompt('Payment due date (YYYY-MM-DD), or leave blank:', tenant.serviceChargeInvoiceDate ?? '');
+    if (due === null) return;
+    setSending(true);
+    try {
+      await issueServiceCharge({ tenantId: tenant.id, siteId: tenant.siteId, amount: tenant.serviceCharge!, periodLabel: period.trim() || 'Service charge', dueDate: due.trim() || undefined });
+      const subject = `Service Charge Invoice — ${siteName} — ${period.trim() || 'Service charge'}`;
+      const body = [
+        `Dear ${tenant.name},`,
+        '',
+        `This is your service charge invoice for ${period.trim() || 'the current period'} at ${siteName}, ${tenant.unit}.`,
+        '',
+        `Service charge: ₦${(tenant.serviceCharge ?? 0).toLocaleString('en-NG')}`,
+        due.trim() ? `Payment due: ${new Date(due.trim()).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}` : '',
+        '',
+        'Please remit payment to the facility account. Contact the facility manager with any questions.',
+        '',
+        'Propel Properties & Facilities Services Ltd.',
+      ].filter(Boolean).join('\n');
+      window.location.href = `mailto:${tenant.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <div className="p-3 flex items-center justify-between gap-3">
       <div>
         <p className="font-bold text-sm text-slate-800">{tenant.name}</p>
-        <p className="text-xs text-slate-500">{tenant.unit} · {tenant.phone} · {formatCurrency(tenant.monthlyRent)}/month{(tenant.serviceCharge ?? 0) > 0 && ` + ${formatCurrency(tenant.serviceCharge!)} service charge`}</p>
+        <p className="text-xs text-slate-500">{tenant.unit} · {tenant.phone} · {formatCurrency(tenant.monthlyRent)}/month{(tenant.serviceCharge ?? 0) > 0 && ` + ${formatCurrency(tenant.serviceCharge!)} service charge${tenant.serviceChargeBilling === 'included' ? ' (in rent)' : ''}`}</p>
+        {separate && (tenant.serviceChargeInvoiceDate || lastIssued) && (
+          <p className="text-[11px] text-slate-400 mt-0.5">
+            {tenant.serviceChargeInvoiceDate && `Next service-charge invoice: ${new Date(tenant.serviceChargeInvoiceDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`}
+            {lastIssued && ` · last issued ${new Date(lastIssued.issuedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`}
+          </p>
+        )}
       </div>
       <div className="text-right">
         {editing ? <div className="flex gap-2"><select className="select text-xs" value={status} onChange={e => setStatus(e.target.value as Tenant['status'])}><option value="paid">Paid</option><option value="expiring_soon">Expiring soon</option><option value="overdue">Overdue</option></select><button onClick={saveStatus} className="btn-success text-xs py-1">Save</button></div> : <span className={`badge ${tenant.status === 'overdue' ? 'bg-red-100 text-red-700' : tenant.status === 'expiring_soon' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>{tenant.status.replace('_', ' ')}</span>}
         {canEdit && !editing && <button onClick={() => setEditing(true)} className="block text-[11px] text-brand-600 mt-1">Change status</button>}
+        {canEdit && !editing && separate && (
+          <button onClick={() => void requestCharge()} disabled={sending} className="block text-[11px] text-brand-600 mt-1 font-semibold">
+            {sending ? 'Issuing…' : 'Request service charge →'}
+          </button>
+        )}
       </div>
     </div>
   );

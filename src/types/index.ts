@@ -398,11 +398,26 @@ export interface Tenant {
   phone: string;
   monthlyRent: number;
   serviceCharge?: number;
+  serviceChargeBilling?: 'included' | 'separate';
+  serviceChargeInvoiceDate?: string;
   leaseExpiry?: string;
   lastPaymentDate?: string;
   status: 'paid' | 'expiring_soon' | 'overdue';
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ServiceChargeInvoice {
+  id: string;
+  tenantId: string;
+  siteId: string;
+  amount: number;
+  periodLabel: string;
+  dueDate?: string;
+  status: 'issued' | 'sent' | 'paid' | 'cancelled';
+  issuedBy: string;
+  issuedAt: string;
+  createdAt: string;
 }
 
 export interface JobCompletion {

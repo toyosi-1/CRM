@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type {
   User, Site, Vendor, Asset, MaintenanceRequest,
   Checklist, TreasuryEntry, RequestStatus, TaxType, Priority,
-  PPMSchedule, Incident, PettyCashEntry, SupportTicket, Tenant, JobCompletion, ChecklistTemplate, ReconciliationEntry, FacilityVendorSLA
+  PPMSchedule, Incident, PettyCashEntry, SupportTicket, Tenant, JobCompletion, ChecklistTemplate, ReconciliationEntry, FacilityVendorSLA, ServiceChargeInvoice
 } from '../types';
 import {
   MOCK_USERS, MOCK_SITES, MOCK_VENDORS, MOCK_ASSETS,
@@ -18,7 +18,7 @@ import {
   updateChecklistInDB, addTreasuryEntryInDB, uploadFile,
   createPPMSchedule, updatePPMSchedule, createIncident, updateIncident,
   createPettyCashEntry, updatePettyCashEntry, createSupportTicket, updateSupportTicket,
-  createTenant, updateTenant, createJobCompletion, createChecklistTemplate, updateChecklistTemplate,
+  createTenant, updateTenant, createJobCompletion, createChecklistTemplate, updateChecklistTemplate, subscribeServiceChargeInvoices, createServiceChargeInvoice as createServiceChargeInvoiceDb,
   upsertVendor, createFacilityVendorSLA, updateFacilityVendorSLA, deleteFacilityVendorSLA,
   assignTechnician as assignTechnicianDb, acknowledgeHandover, markWorkCompleted,
 } from '../lib/db';
@@ -44,6 +44,7 @@ interface AppState {
   pettyCash: PettyCashEntry[];
   supportTickets: SupportTicket[];
   tenants: Tenant[];
+  serviceChargeInvoices: ServiceChargeInvoice[];
   jobCompletions: JobCompletion[];
   checklistTemplates: ChecklistTemplate[];
   reconciliationEntries: ReconciliationEntry[];
@@ -110,6 +111,7 @@ interface AppState {
   deleteFacilityVendorSLA: (id: string) => Promise<void>;
 
   createTenant: (data: Partial<Tenant>) => Promise<void>;
+  issueServiceCharge: (inv: { tenantId: string; siteId: string; amount: number; periodLabel: string; dueDate?: string }) => Promise<void>;
   updateTenant: (id: string, data: Partial<Tenant>) => Promise<void>;
 
   createJobCompletion: (data: Partial<JobCompletion>) => Promise<void>;
@@ -179,6 +181,7 @@ export const useStore = create<AppState>((set, get) => ({
   pettyCash: [],
   supportTickets: [],
   tenants: [],
+  serviceChargeInvoices: [],
   jobCompletions: [],
   checklistTemplates: [],
   reconciliationEntries: [],
@@ -224,6 +227,7 @@ export const useStore = create<AppState>((set, get) => ({
 
       if (_unsubTenants) _unsubTenants();
       _unsubTenants = subscribeTenants(tenants => set({ tenants }));
+      subscribeServiceChargeInvoices(serviceChargeInvoices => set({ serviceChargeInvoices }));
 
       if (_unsubJobCompletions) _unsubJobCompletions();
       _unsubJobCompletions = subscribeJobCompletions(jobCompletions => set({ jobCompletions }));
@@ -692,6 +696,11 @@ export const useStore = create<AppState>((set, get) => ({
   deleteFacilityVendorSLA: async (id) => {
     await deleteFacilityVendorSLA(id);
     set(state => ({ facilityVendorSLAs: state.facilityVendorSLAs.filter(s => s.id !== id) }));
+  },
+
+  issueServiceCharge: async (inv) => {
+    const me = get().currentUser?.name ?? 'Admin';
+    await createServiceChargeInvoiceDb({ ...inv, status: 'sent', issuedBy: me });
   },
 
   createTenant: async (data) => {
