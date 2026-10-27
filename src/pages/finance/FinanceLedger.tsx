@@ -127,13 +127,20 @@ export default function FinanceLedger() {
       if (vat > 0) jl.push({ accountId: acct('2100')!, cr: vat, memo: 'VAT output' });
       await post({ ...base, total: t, status }, jl);
     } else if (k === 'receipt') {
-      jl = [{ accountId: f.bankAccountId || acct('1100')!, dr: total }, ...lns.map(l => ({ accountId: l.accountId, cr: Number(l.amount), memo: l.memo }))];
-      await post({ ...base, status: 'paid' }, jl);
+      const wht = Number(f.wht || 0);
+      jl = [{ accountId: f.bankAccountId || acct('1100')!, dr: r2(total - wht), memo: 'Amount received' }, ...lns.map(l => ({ accountId: l.accountId, cr: Number(l.amount), memo: l.memo }))];
+      if (wht > 0) jl.splice(1, 0, { accountId: acct('1320')!, dr: wht, memo: 'WHT deducted by customer' });
+      await post({ ...base, status: 'paid', paid: total }, jl);
     } else if (k === 'bill') {
-      jl = [...lns.map(l => ({ accountId: l.accountId, dr: Number(l.amount), memo: l.memo })), { accountId: acct('2000')!, cr: total }];
-      await post({ ...base, status }, jl);
+      const vat = Number(f.vat || 0); const t = r2(total + vat);
+      jl = [...lns.map(l => ({ accountId: l.accountId, dr: Number(l.amount), memo: l.memo }))];
+      if (vat > 0) jl.push({ accountId: acct('1330')!, dr: vat, memo: 'VAT input' });
+      jl.push({ accountId: acct('2000')!, cr: t });
+      await post({ ...base, total: t, status }, jl);
     } else if (k === 'payment') {
-      jl = [{ accountId: acct('2000')!, dr: total }, { accountId: f.bankAccountId || acct('1100')!, cr: total }];
+      const wht = Number(f.wht || 0);
+      jl = [{ accountId: acct('2000')!, dr: total }, { accountId: f.bankAccountId || acct('1100')!, cr: r2(total - wht), memo: 'Amount paid' }];
+      if (wht > 0) jl.push({ accountId: acct('2110')!, cr: wht, memo: 'WHT withheld from vendor' });
       const linked = finDocuments.find(d => d.id === f.linkedDocId);
       if (linked) {
         const paid = r2(linked.paid + total);
@@ -141,8 +148,11 @@ export default function FinanceLedger() {
       }
       await post({ ...base, status: 'paid' }, jl);
     } else if (k === 'expense') {
-      jl = [...lns.map(l => ({ accountId: l.accountId, dr: Number(l.amount), memo: l.memo })), { accountId: f.cashAccountId || acct('1000')!, cr: total }];
-      await post({ ...base, status: 'paid' }, jl);
+      const vat = Number(f.vat || 0); const t = r2(total + vat);
+      jl = [...lns.map(l => ({ accountId: l.accountId, dr: Number(l.amount), memo: l.memo }))];
+      if (vat > 0) jl.push({ accountId: acct('1330')!, dr: vat, memo: 'VAT input' });
+      jl.push({ accountId: f.cashAccountId || acct('1000')!, cr: t });
+      await post({ ...base, total: t, status: 'paid' }, jl);
     } else if (k === 'bank') {
       const amt = Number(f.amount || 0);
       if (amt <= 0 || !lns[0]?.accountId) return alert('Enter an amount and pick the offsetting account.');
@@ -392,7 +402,9 @@ export default function FinanceLedger() {
                 {form.kind === 'expense' && (
                   <div><label className="label">Paid from</label><select className="select" value={f.cashAccountId ?? 'acc_1000'} onChange={e => setF(v => ({ ...v, cashAccountId: e.target.value }))}>{finAccounts.filter(a => ['Cash', 'Bank'].includes(a.type)).map(a => <option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}</select></div>
                 )}
-                {form.kind === 'invoice' && <div><label className="label">VAT (₦)</label><input className="input" type="number" min={0} value={f.vat ?? ''} onChange={e => setF(v => ({ ...v, vat: e.target.value }))} /></div>}
+                {['invoice', 'bill', 'expense'].includes(form.kind) && <div><label className="label">VAT (₦)</label><input className="input" type="number" min={0} value={f.vat ?? ''} onChange={e => setF(v => ({ ...v, vat: e.target.value }))} /></div>}
+                {form.kind === 'receipt' && <div><label className="label">WHT deducted by customer (₦)</label><input className="input" type="number" min={0} value={f.wht ?? ''} onChange={e => setF(v => ({ ...v, wht: e.target.value }))} /></div>}
+                {form.kind === 'payment' && <div><label className="label">WHT withheld from vendor (₦)</label><input className="input" type="number" min={0} value={f.wht ?? ''} onChange={e => setF(v => ({ ...v, wht: e.target.value }))} /></div>}
                 {form.kind === 'bank' && (
                   <>
                     <div><label className="label">Direction</label><select className="select" value={f.direction ?? 'in'} onChange={e => setF(v => ({ ...v, direction: e.target.value }))}><option value="in">Money in</option><option value="out">Money out</option></select></div>
