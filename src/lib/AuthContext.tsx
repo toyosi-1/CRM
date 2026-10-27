@@ -5,16 +5,6 @@ import { fetchUserByAuthId } from './db';
 import { useStore } from '../store/useStore';
 import type { User } from '../types';
 
-const ROLE_ROUTES: Record<string, string> = {
-  facility_manager: '/fm',
-  procurement: '/procurement',
-  supervisor: '/supervisor',
-  finance: '/finance',
-  admin: '/admin',
-  ict_admin: '/ict',
-  technician: '/technician',
-};
-
 interface AuthContextValue {
   supabaseUser: SupabaseUser | null;
   appUser: User | null;
