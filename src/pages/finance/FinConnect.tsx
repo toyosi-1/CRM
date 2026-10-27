@@ -13,16 +13,19 @@ function Card({ title, sub, to, highlight }: Box & { highlight?: boolean }) {
 }
 
 const RULES: [string, string, string, string][] = [
-  ['Invoice (sent)', 'Accounts receivable', 'Income account per line, VAT payable', 'P&L, balance sheet, AR aging'],
-  ['Payment received', 'Bank or cash', 'Accounts receivable', 'Cash flow, AR aging'],
-  ['Bill (open)', 'Expense or cost account per line', 'Accounts payable', 'P&L, AP aging, purchases by vendor'],
-  ['Payment made', 'Accounts payable', 'Bank or cash', 'Cash flow, AP aging'],
-  ['Expense', 'Expense account', 'Paid-from account (bank or cash)', 'P&L, expenses by category'],
-  ['Bank deposit', 'Bank or cash', 'Chosen offset account', 'Bank summary'],
-  ['Bank withdrawal / transfer', 'Offset or receiving account', 'Bank or cash', 'Bank summary'],
-  ['Manual journal', 'Lines you enter', 'Lines you enter', 'Every ledger report'],
-  ['Currency adjustment', 'Revalued account (asset gain)', 'Exchange gain or loss', 'P&L, balance sheet'],
-  ['Timesheet', 'Nothing until billed', 'Nothing until billed', 'Project time; billing creates an invoice'],
+  ['Invoice (sent)', 'Accounts receivable', 'Income account per line, VAT payable', 'P&L, balance sheet, AR aging, sales reports, VAT'],
+  ['Payment received', 'Bank or cash, WHT receivable if deducted', 'Accounts receivable', 'Cash flow, AR aging, tax summary'],
+  ['Bill (open)', 'Expense or cost account per line, VAT receivable', 'Accounts payable', 'P&L, AP aging, purchases by vendor, VAT'],
+  ['Payment made', 'Accounts payable', 'Bank or cash, WHT payable if withheld', 'Cash flow, AP aging, tax summary'],
+  ['Expense', 'Expense account, VAT receivable', 'Paid-from account (bank, cash or employee reimbursements)', 'P&L, expenses by category, cash flow'],
+  ['Bank deposit', 'Bank or cash', 'Chosen offset account', 'Cash flow, bank summary'],
+  ['Bank withdrawal / transfer', 'Offset account or receiving account', 'Bank or cash', 'Cash flow, bank summary'],
+  ['Manual journal (published)', 'Lines you enter', 'Lines you enter', 'Every ledger report'],
+  ['Currency adjustment', 'Revalued account if asset gain', 'Exchange gain or loss', 'P&L, balance sheet'],
+  ['Timesheet', 'Nothing until billed', 'Nothing until billed', 'Project time summary; billing creates an invoice'],
+  ['Budget', 'No posting', 'No posting', 'Budget vs actuals compares it with the ledger'],
+  ['Transaction locking', 'No posting', 'No posting', 'Blocks creating, editing or deleting entries on or before the lock date'],
+  ['Bulk update', 'Moves existing postings to another account', '', 'Changes what every report shows for those transactions'],
   ['Request payment (auto-post)', 'Expense account by request category', 'Operating bank', 'P&L, trial balance — posted when finance marks paid'],
 ];
 
@@ -42,7 +45,8 @@ export default function FinConnect() {
           <div className="space-y-3">
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Master data</p>
             <Card title="Items" sub={`${finItems.length} items`} to="/finance/ledger/items" />
-            <Card title="Contacts" sub={`${finContacts.length} customers & vendors`} to="/finance/ledger/contacts" />
+            <Card title="Customers" sub={`${finContacts.filter(c => c.type === 'customer' || c.type === 'both').length} customers`} to="/finance/ledger/contacts" />
+            <Card title="Vendors" sub={`${finContacts.filter(c => c.type === 'vendor' || c.type === 'both').length} vendors`} to="/finance/ledger/contacts" />
             <Card title="Projects" sub={`${count('project')} projects`} to="/finance/ledger/projects" />
             <Card title="Timesheets" sub={`${count('timesheet')} entries`} to="/finance/ledger/projects" />
           </div>
@@ -56,7 +60,8 @@ export default function FinConnect() {
             <Card title="Bills" sub={`${count('bill')} bills`} to="/finance/ledger/purchases/bills" />
             <Card title="Expenses" sub={`${count('expense')} expenses`} to="/finance/ledger/purchases/expenses" />
             <Card title="Payments made" sub={`${count('payment')} payments`} to="/finance/ledger/purchases/payments" />
-            <Card title="Manual journals" sub={`${finJournalEntries.filter(e => e.source === 'journal' || e.source === 'fx').length} journals`} to="/finance/ledger/journals" />
+            <Card title="Manual journals" sub={`${finJournalEntries.filter(e => e.source === 'journal').length} journals`} to="/finance/ledger/journals" />
+            <Card title="Currency adjustments" sub={`${finJournalEntries.filter(e => e.source === 'fx').length} revaluations`} to="/finance/ledger/journals" />
           </div>
 
           {/* Ledger + controls */}
@@ -64,6 +69,8 @@ export default function FinConnect() {
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Ledger &amp; controls</p>
             <Card title="General ledger" sub={`${posted} posted entries · ${finAccounts.length} accounts`} to="/finance/ledger/reports/acct" highlight />
             <Card title="Chart of accounts" sub="Add or update accounts" to="/finance/ledger/reports" />
+            <Card title="Transaction locking" sub={`${finDocuments.filter(d => d.kind === 'lock' && d.status !== 'void').length ? 'Lock active' : 'No active lock'}`} to="/finance/ledger/lock" />
+            <Card title="Bulk update" sub="Reclassify postings" to="/finance/ledger/lock" />
             <Card title="Budgets" sub={`${finBudgets.length} budgets`} to="/finance/ledger/reports/budget" />
             <Card title="Import / export" sub="Zoho CSV in & out" to="/finance/ledger/import" />
             <Card title="Activity log" sub="Who posted what" to="/finance/ledger/activity" />
@@ -74,9 +81,14 @@ export default function FinConnect() {
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Reports</p>
             <Card title="Profit & loss" sub="Income vs expenses" to="/finance/ledger/reports/pl" />
             <Card title="Balance sheet" sub="Assets, liabilities, equity" to="/finance/ledger/reports/bs" />
-            <Card title="Trial balance" sub="Every account's position" to="/finance/ledger/reports/tb" />
+            <Card title="Cash flow" sub="Money in vs out" to="/finance/ledger/reports/cf" />
+            <Card title="Trial balance & GL" sub="Every account's position" to="/finance/ledger/reports/tb" />
+            <Card title="Ratios & equity" sub="Current ratio, margins" to="/finance/ledger/reports/ratios" />
+            <Card title="VAT & WHT summary" sub="Tax position" to="/finance/ledger/reports/tax" />
+            <Card title="Receivables aging" sub="Open invoices by age" to="/finance/ledger/reports/ar" />
+            <Card title="Payables aging" sub="Open bills by age" to="/finance/ledger/reports/ap" />
             <Card title="Account transactions" sub="Drill into an account" to="/finance/ledger/reports/acct" />
-            <Card title="Budget vs actual" sub="Targets vs the ledger" to="/finance/ledger/reports/budget" />
+            <Card title="Budget vs actuals" sub="Targets vs the ledger" to="/finance/ledger/reports/budget" />
           </div>
         </div>
       </div>
