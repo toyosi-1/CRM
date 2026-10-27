@@ -53,6 +53,7 @@ export default function FinanceLedger() {
   const [expandId, setExpandId] = useState<string | null>(null);
   const [lockDate, setLockDate] = useState('');
   const [bulk, setBulk] = useState({ from: '', to: '' });
+  const [itemAcc, setItemAcc] = useState('');
   const me = currentUser?.name ?? 'Finance';
 
   useEffect(() => {
@@ -306,11 +307,11 @@ export default function FinanceLedger() {
       {tab === 'items' && (
         <div className="card p-5 space-y-4">
           <h2 className="font-black text-slate-900">Items & services</h2>
-          <form onSubmit={async e => { e.preventDefault(); const el = e.currentTarget.elements as unknown as Record<string, HTMLInputElement>; setBusy(true); try { await upsertFinItem({ name: el.iName.value, description: el.iDesc.value, price: Number(el.iPrice.value) || 0, accountId: el.iAcc.value || undefined }); e.currentTarget.reset(); } catch (err) { reportSaveError(err); } finally { setBusy(false); } }} className="grid grid-cols-2 md:grid-cols-5 gap-2 p-3 bg-slate-50 rounded-xl">
+          <form onSubmit={async e => { e.preventDefault(); const el = e.currentTarget.elements as unknown as Record<string, HTMLInputElement>; setBusy(true); try { await upsertFinItem({ name: el.iName.value, description: el.iDesc.value, price: Number(el.iPrice.value) || 0, accountId: itemAcc || undefined }); e.currentTarget.reset(); setItemAcc(''); } catch (err) { reportSaveError(err); } finally { setBusy(false); } }} className="grid grid-cols-2 md:grid-cols-5 gap-2 p-3 bg-slate-50 rounded-xl">
             <input name="iName" className="input" placeholder="Item / service" required />
             <input name="iDesc" className="input" placeholder="Description" />
             <input name="iPrice" className="input" type="number" min={0} step="0.01" placeholder="Default price (₦)" />
-            <div>{accountPicker('', v => { (document.querySelector('[name=iAcc]') as HTMLInputElement).value = v; })}<input type="hidden" name="iAcc" /></div>
+            <div>{accountPicker(itemAcc, setItemAcc, ['Income', 'Other Income'])}</div>
             <button className="btn-primary" disabled={busy}><Plus size={13} />Add</button>
           </form>
           <div className="divide-y divide-slate-100">
