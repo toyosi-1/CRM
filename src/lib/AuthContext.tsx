@@ -43,12 +43,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
         setAppUser(profile);
+        // Populate currentUser immediately — portal pages read it before the
+        // users fetch inside initSupabase resolves.
+        useStore.setState({ currentUser: profile, activeSiteId: profile.siteId ?? null });
         if (initializedForRef.current !== profile.id) {
           initializedForRef.current = profile.id;
           // Fire-and-forget: the shell renders immediately; data streams in
-          // via realtime subscriptions. initSupabase logs the profile into
-          // the store once the users fetch resolves. The /login route
-          // redirects itself once currentUser lands in the store.
+          // via realtime subscriptions. The /login route redirects itself.
           void initSupabase(profile.id);
         } else {
           storeLogin(profile.id);

@@ -1,6 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
-import { useStore } from './store/useStore';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
 import SetPassword from './pages/SetPassword';
@@ -76,11 +75,10 @@ const ROLE_ROUTES: Record<UserRole, string> = {
 };
 
 function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: UserRole }) {
-  const { currentUser } = useStore();
-  const { loading } = useAuth();
+  const { appUser, loading } = useAuth();
   if (loading) return <div className="min-h-screen grid place-items-center text-sm text-slate-500">Loading your workspace...</div>;
-  if (!currentUser) return <Navigate to="/login" replace />;
-  if (role && currentUser.role !== role) return <Navigate to={ROLE_ROUTES[currentUser.role]} replace />;
+  if (!appUser) return <Navigate to="/login" replace />;
+  if (role && appUser.role !== role) return <Navigate to={ROLE_ROUTES[appUser.role]} replace />;
   return <>{children}</>;
 }
 
@@ -92,10 +90,9 @@ function LoginOrRedirect() {
 }
 
 function HomeRoute() {
-  const { currentUser } = useStore();
-  const { loading } = useAuth();
+  const { appUser, loading } = useAuth();
   if (loading) return <div className="min-h-screen grid place-items-center text-sm text-slate-500">Loading your workspace...</div>;
-  return <Navigate to={currentUser ? ROLE_ROUTES[currentUser.role] : '/login'} replace />;
+  return <Navigate to={appUser ? ROLE_ROUTES[appUser.role] : '/login'} replace />;
 }
 
 export default function App() {
