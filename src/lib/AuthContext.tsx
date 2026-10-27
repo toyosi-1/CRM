@@ -57,14 +57,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           initializedForRef.current = profile.id;
           // Fire-and-forget: the shell renders immediately; data streams in
           // via realtime subscriptions. initSupabase logs the profile into
-          // the store once the users fetch resolves.
+          // the store once the users fetch resolves. The /login route
+          // redirects itself once currentUser lands in the store.
           void initSupabase(profile.id);
         } else {
           storeLogin(profile.id);
-        }
-        if (window.location.pathname === '/login') {
-          window.history.pushState({}, '', ROLE_ROUTES[profile.role] ?? '/login');
-          window.dispatchEvent(new PopStateEvent('popstate'));
         }
       } catch (error) {
         console.error('[auth] failed to load profile or data:', error);

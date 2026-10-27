@@ -84,6 +84,13 @@ function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: 
   return <>{children}</>;
 }
 
+function LoginOrRedirect() {
+  const { appUser, loading } = useAuth();
+  if (loading) return <div className="min-h-screen grid place-items-center text-sm text-slate-500">Loading your workspace...</div>;
+  if (appUser) return <Navigate to={ROLE_ROUTES[appUser.role]} replace />;
+  return <Login />;
+}
+
 function HomeRoute() {
   const { currentUser } = useStore();
   const { loading } = useAuth();
@@ -96,7 +103,7 @@ export default function App() {
     <BrowserRouter>
       <Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-slate-500">Loading…</div>}>
       <Routes>
-        <Route path="/login" element={<Login />} />
+        <Route path="/login" element={<LoginOrRedirect />} />
         <Route path="/set-password" element={<SetPassword />} />
         <Route path="/" element={<HomeRoute />} />
 
