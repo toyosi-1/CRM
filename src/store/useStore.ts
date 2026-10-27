@@ -534,10 +534,16 @@ export const useStore = create<AppState>((set, get) => ({
         : cat.includes('travel') || cat.includes('transport') ? 'acc_6050'
         : 'acc_6030';
       const poNo = req.purchaseOrder?.poNumber;
+      const gross = req.invoiceAmount ?? amount;
+      const wht = Math.round(Math.max(0, gross - amount) * 100) / 100;
       void postJournal(
-        { no: poNo ?? req.requestNumber, source: 'payment', date: now.slice(0, 10), ref: `Request ${req.requestNumber}`, notes: req.description?.slice(0, 200), createdBy: actor.name },
-        [{ accountId: expenseAcct, dr: amount, memo: req.category || 'Maintenance' }, { accountId: 'acc_1100', cr: amount, memo: `Payment disbursed${poNo ? ` (${poNo})` : ''}` }],
-      ).then(() => logFinActivity(actor.name, `Auto-posted ${req.requestNumber}${poNo ? ` / ${poNo}` : ''} ${amount.toLocaleString('en-NG')}`, req.requestNumber)).catch(reportSaveError);
+        { no: poNo ?? req.requestNumber, source: 'payment', sourceId: req.id, date: now.slice(0, 10), ref: `Request ${req.requestNumber}`, notes: req.description?.slice(0, 200), createdBy: actor.name },
+        [
+          { accountId: expenseAcct, dr: gross, memo: req.category || 'Maintenance' },
+          { accountId: 'acc_1100', cr: amount, memo: `Payment disbursed${poNo ? ` (${poNo})` : ''}` },
+          ...(wht > 0 ? [{ accountId: 'acc_2110', cr: wht, memo: 'WHT withheld at source' }] : []),
+        ],
+      ).then(() => logFinActivity(actor.name, `Auto-posted ${req.requestNumber}${poNo ? ` / ${poNo}` : ''} ${amount.toLocaleString('en-NG')}${wht > 0 ? ` + WHT ${wht.toLocaleString('en-NG')}` : ''}`, req.requestNumber)).catch(reportSaveError);
     }
   },
 
