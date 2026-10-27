@@ -381,8 +381,11 @@ export default function FinanceLedger() {
       {['sales', 'purchases', 'banking', 'journals'].includes(tab) && (
         <div className="space-y-4">
           <div className="flex gap-2 flex-wrap">
-            {tab === 'sales' && <><button onClick={() => openForm('invoice')} className="btn-primary"><Plus size={13} />New invoice</button><button onClick={() => openForm('receipt')} className="btn-secondary"><Plus size={13} />Record receipt</button></>}
-            {tab === 'purchases' && <><button onClick={() => openForm('bill')} className="btn-primary"><Plus size={13} />New bill</button><button onClick={() => openForm('payment')} className="btn-secondary"><Plus size={13} />Record payment</button><button onClick={() => openForm('expense')} className="btn-secondary"><Plus size={13} />New expense</button></>}
+            {tab === 'sales' && pSub !== 'receipts' && <button onClick={() => openForm('invoice')} className="btn-primary"><Plus size={13} />New invoice</button>}
+            {tab === 'sales' && pSub !== 'invoices' && <button onClick={() => openForm('receipt')} className="btn-secondary"><Plus size={13} />Record receipt</button>}
+            {tab === 'purchases' && pSub !== 'payments' && pSub !== 'expenses' && <button onClick={() => openForm('bill')} className="btn-primary"><Plus size={13} />New bill</button>}
+            {tab === 'purchases' && pSub !== 'bills' && pSub !== 'expenses' && <button onClick={() => openForm('payment')} className="btn-secondary"><Plus size={13} />Record payment</button>}
+            {tab === 'purchases' && pSub !== 'bills' && pSub !== 'payments' && <button onClick={() => openForm('expense')} className="btn-secondary"><Plus size={13} />New expense</button>}
             {tab === 'banking' && <button onClick={() => openForm('bank')} className="btn-primary"><Plus size={13} />New bank transaction</button>}
             {tab === 'journals' && <><button onClick={() => openForm('journal')} className="btn-primary"><Plus size={13} />New manual journal</button><button onClick={() => { openForm('journal'); setF(v => ({ ...v, fx: '1' })); }} className="btn-secondary"><Plus size={13} />New FX adjustment</button></>}
           </div>
@@ -457,12 +460,16 @@ export default function FinanceLedger() {
 
           {(() => {
             const SUB: Record<string, string[]> = { invoices: ['invoice'], receipts: ['receipt'], bills: ['bill'], payments: ['payment'], expenses: ['expense'] };
+            const TITLE: Record<string, string> = { invoices: 'Invoices', receipts: 'Receipts', bills: 'Bills', payments: 'Payments made', expenses: 'Expenses' };
             const kinds = SUB[pSub] ?? (tab === 'sales' ? ['invoice', 'receipt'] : tab === 'purchases' ? ['bill', 'payment', 'expense'] : tab === 'banking' ? ['bank'] : ['journal']);
             const docs = openDocs(kinds as FinDocKind[]);
             return (
-              <div className="card divide-y divide-slate-100">
-                {docs.map(docRow)}
-                {docs.length === 0 && <p className="p-8 text-center text-sm text-slate-400">Nothing posted yet.</p>}
+              <div>
+                {TITLE[pSub] && <h3 className="font-black text-slate-900 mb-2">{TITLE[pSub]}</h3>}
+                <div className="card divide-y divide-slate-100">
+                  {docs.map(docRow)}
+                  {docs.length === 0 && <p className="p-8 text-center text-sm text-slate-400">Nothing posted yet.</p>}
+                </div>
               </div>
             );
           })()}
