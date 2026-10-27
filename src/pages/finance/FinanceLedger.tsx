@@ -559,7 +559,7 @@ export default function FinanceLedger() {
       )}
 
           {/* ---- Receivables / Payables aging ---- */}
-          {(['ar', 'ap'] as const).includes(report as 'ar' | 'ap') && (() => {
+          {tab === 'reports' && (['ar', 'ap'] as const).includes(report as 'ar' | 'ap') && (() => {
             const kind = report === 'ar' ? 'invoice' : 'bill';
             const buckets = [0, 30, 60, 90];
             const rows = finDocuments.filter(d => d.kind === kind && ['issued', 'part_paid'].includes(d.status)).map(d => {
@@ -587,7 +587,7 @@ export default function FinanceLedger() {
           })()}
 
           {/* ---- Cash flow ---- */}
-          {report === 'cf' && (() => {
+          {tab === 'reports' && report === 'cf' && (() => {
             const cashIds = new Set(finAccounts.filter(a => ['Cash', 'Bank'].includes(a.type)).map(a => a.id));
             let inflow = 0, outflow = 0;
             const bySource: Record<string, { in: number; out: number }> = {};
@@ -616,7 +616,7 @@ export default function FinanceLedger() {
           })()}
 
           {/* ---- Ratios & equity ---- */}
-          {report === 'ratios' && (() => {
+          {tab === 'reports' && report === 'ratios' && (() => {
             const ca = finAccounts.filter(a => ['Cash', 'Bank', 'Accounts Receivable', 'Other Current Asset'].includes(a.type)).reduce((s, a) => s + natural(a), 0);
             const cl = finAccounts.filter(a => ['Accounts Payable', 'Other Current Liability'].includes(a.type)).reduce((s, a) => s + natural(a), 0);
             const eq = finAccounts.filter(a => a.type === 'Equity').reduce((s, a) => s + natural(a), 0) + pl.net;
@@ -640,7 +640,7 @@ export default function FinanceLedger() {
           })()}
 
           {/* ---- VAT & WHT summary ---- */}
-          {report === 'tax' && (() => {
+          {tab === 'reports' && report === 'tax' && (() => {
             const taxIds = new Set(['acc_2100', 'acc_2110', 'acc_2120']);
             const rows = finAccounts.filter(a => taxIds.has(a.id) || /vat|wht|tax/i.test(a.name));
             const moved = new Set(finJournalLines.filter(l => rows.some(a => a.id === l.accountId)).map(l => l.accountId));

@@ -61,7 +61,7 @@ export default function PortalTabs() {
         <NavLink
           key={item.path}
           to={item.path}
-          end={item.path.split('/').length <= 2}
+          end
           className={({ isActive }) => `app-tab${isActive ? ' active' : ''}`}
         >
           {TAB_LABELS[item.path] ?? item.label}
