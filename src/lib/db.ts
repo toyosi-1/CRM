@@ -766,13 +766,13 @@ export async function updateFinContact(id: string, c: Partial<FinContact>): Prom
 
 export async function fetchFinItems(): Promise<FinItem[]> {
   const { data, error } = await supabase.from('fin_items').select('*').order('name'); fail(error);
-  return (data ?? []).map(r => ({ id: r.id, name: r.name, description: r.description ?? undefined, price: Number(r.price), accountId: r.account_id ?? undefined }));
+  return (data ?? []).map(r => ({ id: r.id, name: r.name, description: r.description ?? undefined, price: Number(r.price), accountId: r.account_id ?? undefined, stock: r.stock == null ? undefined : Number(r.stock) }));
 }
 export function subscribeFinItems(cb: (v: FinItem[]) => void): () => void {
   const refresh = async () => cb(await fetchFinItems()); void refresh(); return subscribe('fin_items', refresh);
 }
 export async function upsertFinItem(item: Partial<FinItem> & { name: string }): Promise<void> {
-  const { error } = await supabase.from('fin_items').upsert({ ...(item.id && { id: item.id }), name: item.name, description: item.description, price: item.price ?? 0, account_id: item.accountId || null }); fail(error);
+  const { error } = await supabase.from('fin_items').upsert({ ...(item.id && { id: item.id }), name: item.name, description: item.description, price: item.price ?? 0, account_id: item.accountId || null, stock: item.stock ?? null }); fail(error);
 }
 export async function deleteFinItem(id: string): Promise<void> {
   const { error } = await supabase.from('fin_items').delete().eq('id', id); fail(error);

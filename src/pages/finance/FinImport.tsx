@@ -62,6 +62,7 @@ function downloadCsv(name: string, headers: string[], rows: (string | number | u
 
 export default function FinImport() {
   const { finAccounts, finJournalEntries, finJournalLines, finDocuments, currentUser } = useStore();
+  const [bankMatch, setBankMatch] = useState<{ amt: number; date: string; ref: string; matched: boolean }[] | null>(null);
   const me = currentUser?.name ?? 'Finance';
   const [type, setType] = useState<ImportType>('contacts');
   const [headers, setHeaders] = useState<string[]>([]);
@@ -243,6 +244,48 @@ export default function FinImport() {
         <p>• Journal entries: <em>Reports → Journal Report → Export as CSV</em> — brings the complete historical ledger across in one import.</p>
         <p>• Chart of accounts: <em>Accountant → Chart of Accounts → ⋮ → Export</em> — run this <b>first</b> so journal accounts match.</p>
         <p>• Contacts/items: export from their module lists. Duplicates are skipped by name/code conflicts and reported.</p>
+      </div>
+
+      {/* ---------- BANK STATEMENT MATCHING ---------- */}
+      <div className="card p-5 space-y-3">
+        <h2 className="font-black text-slate-900">Match a bank statement</h2>
+        <p className="text-xs text-slate-500">Upload the bank's CSV export — each row is matched against entries posted to your bank/cash accounts by amount and date.</p>
+        <input type="file" accept=".csv,text/csv" className="input" onChange={async e => {
+          const file = e.target.files?.[0]; if (!file) return;
+          const { headers, rows } = parseCsv(await file.text());
+          const hLower = headers.map(h => h.toLowerCase());
+          const ai = hLower.findIndex(h => /amount|credit|debit|value/.test(h));
+          const di = hLower.findIndex(h => /date/.test(h));
+          const ni = hLower.findIndex(h => /descr|narrat|particular|ref/.test(h));
+          const bankIds = new Set(finAccounts.filter(a => ['Cash', 'Bank'].includes(a.type)).map(a => a.id));
+          const ledger = finJournalLines.filter(l => bankIds.has(l.accountId));
+          const res = rows.map(r => {
+            const amt = Number((r[ai] ?? '0').replace(/[^0-9.-]/g, ''));
+            const date = r[di] ?? '';
+            const ref = r[ni] ?? '';
+            const hit = ledger.find(l => {
+              const e = finJournalEntries.find(x => x.id === l.entryId);
+              return e && Math.abs((l.debit || l.credit) - Math.abs(amt)) < 0.01 && (!date || e.date === date);
+            });
+            return { amt, date, ref, matched: !!hit };
+          });
+          setBankMatch(res);
+        }} />
+        {bankMatch && (
+          <div>
+            <p className="text-xs font-bold text-slate-600 mb-1">{bankMatch.filter(r => r.matched).length} matched · {bankMatch.filter(r => !r.matched).length} unmatched</p>
+            <div className="max-h-64 overflow-y-auto divide-y divide-slate-50 border border-slate-100 rounded-lg">
+              {bankMatch.map((r, i) => (
+                <div key={i} className="px-3 py-1.5 flex items-center gap-3 text-xs">
+                  <span className={r.matched ? 'text-emerald-600 font-bold' : 'text-amber-600 font-bold'}>{r.matched ? '✓ matched' : '⚠ unmatched'}</span>
+                  <span className="text-slate-400">{r.date}</span>
+                  <span className="flex-1 text-slate-600 truncate">{r.ref}</span>
+                  <span className="font-bold tabular-nums">₦{r.amt.toLocaleString('en-NG')}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ---------- EXPORT ---------- */}

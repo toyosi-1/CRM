@@ -32,7 +32,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'lock', label: 'Locking', icon: <Landmark size={14} /> },
 ];
 
-const KIND_LABEL: Record<string, string> = { invoice: 'Invoice', receipt: 'Receipt', bill: 'Bill', payment: 'Payment', expense: 'Expense', bank: 'Bank txn', journal: 'Journal' };
+const KIND_LABEL: Record<string, string> = { invoice: 'Invoice', receipt: 'Receipt', bill: 'Bill', payment: 'Payment', expense: 'Expense', bank: 'Bank txn', journal: 'Journal', quote: 'Quote', sales_order: 'Sales order', depreciation: 'Depreciation' };
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-slate-100 text-slate-500', issued: 'bg-blue-100 text-blue-700', part_paid: 'bg-amber-100 text-amber-700',
   paid: 'bg-emerald-100 text-emerald-700', void: 'bg-red-100 text-red-600', published: 'bg-emerald-100 text-emerald-700',
@@ -127,6 +127,19 @@ export default function FinanceLedger() {
       jl = [{ accountId: acct('1200')!, dr: t, memo: 'AR' }, ...lns.map(l => ({ accountId: l.accountId, cr: Number(l.amount), memo: l.memo }))];
       if (vat > 0) jl.push({ accountId: acct('2100')!, cr: vat, memo: 'VAT output' });
       await post({ ...base, total: t, status }, jl);
+      // Decrement tracked stock for item lines
+      for (const l of lns) {
+        const item = finItems.find(i => i.id === (l as { itemId?: string }).itemId);
+        if (item?.stock != null) await upsertFinItem({ ...item, stock: Math.max(0, item.stock - 1) }).catch(reportSaveError);
+      }
+    } else if (k === 'quote' || k === 'sales_order') {
+      const vat = Number(f.vat || 0); const t = r2(total + vat);
+      await createFinDocument({ ...base, total: t, status: 'issued', payload: { ...base.payload, vat } }); // quotes/orders don't post to the ledger
+    } else if (k === 'depreciation') {
+      const amt = Number(f.amount || 0);
+      if (amt <= 0 || !lns[0]?.accountId) return alert('Pick a fixed-asset account and monthly amount.');
+      jl = [{ accountId: 'acc_6070', dr: amt, memo: `Depreciation — ${lns[0].memo ?? ''}` }, { accountId: 'acc_1510', cr: amt, memo: 'Accumulated depreciation' }];
+      await post({ ...base, total: amt, status: 'paid', payload: { ...base.payload, assetAccountId: lns[0].accountId } }, jl);
     } else if (k === 'receipt') {
       const wht = Number(f.wht || 0);
       jl = [{ accountId: f.bankAccountId || acct('1100')!, dr: r2(total - wht), memo: 'Amount received' }, ...lns.map(l => ({ accountId: l.accountId, cr: Number(l.amount), memo: l.memo }))];
@@ -189,6 +202,17 @@ export default function FinanceLedger() {
       <span className={`badge ${STATUS_COLORS[d.status] ?? 'bg-slate-100 text-slate-500'}`}>{d.status.replace('_', ' ')}</span>
       {['issued', 'part_paid'].includes(d.status) && ['invoice', 'bill'].includes(d.kind) && (
         <button onClick={() => { const k = d.kind === 'invoice' ? 'receipt' : 'payment'; openForm(k); setF(v => ({ ...v, linkedDocId: d.id, contactId: d.contactId ?? '' })); setLines([{ accountId: acct(d.kind === 'invoice' ? '1200' : '2000')!, amount: String(r2(d.total - d.paid)), memo: `${KIND_LABEL[d.kind]} ${d.no}` }]); }} className="text-[11px] font-bold text-brand-600 whitespace-nowrap">{d.kind === 'invoice' ? 'Record receipt' : 'Record payment'}</button>
+      )}
+      {['quote', 'sales_order'].includes(d.kind) && d.status === 'issued' && (
+        <button onClick={async () => {
+          const ls = (d.payload.lines as { accountId: string; amount: string; memo: string }[] | undefined) ?? [];
+          const vat = Number(d.payload.vat ?? 0); const t = r2(d.total);
+          await post(
+            { kind: 'invoice', no: nextNo('INV', 'invoice'), date: today(), status: 'issued', contactId: d.contactId, total: t, paid: 0, createdBy: me, payload: { lines: ls, convertedFrom: d.no } },
+            [{ accountId: acct('1200')!, dr: t, memo: `AR — from ${d.no}` }, ...ls.map(l => ({ accountId: l.accountId, cr: Number(l.amount), memo: l.memo })), ...(vat > 0 ? [{ accountId: acct('2100')!, cr: vat, memo: 'VAT output' }] : [])],
+          );
+          await updateFinDocument(d.id, { status: 'void' }).catch(reportSaveError);
+        }} className="text-[11px] font-bold text-brand-600 whitespace-nowrap">Convert to invoice</button>
       )}
       {finJournalEntries.some(e => e.sourceId === d.id) && (
         <button onClick={() => setExpandId(exp => exp === d.id ? null : d.id)} className="text-[11px] font-semibold text-brand-600 whitespace-nowrap">Ledger impact</button>
@@ -272,6 +296,25 @@ export default function FinanceLedger() {
             <div className="card p-4"><p className="text-[11px] font-bold uppercase text-slate-400">Payable</p><p className="text-xl font-black text-slate-900 mt-1">{fmt(-bal(acct('2000')!))}</p></div>
             <div className="card p-4"><p className="text-[11px] font-bold uppercase text-slate-400">Net result</p><p className={`text-xl font-black mt-1 ${pl.net >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{fmt(pl.net)}</p></div>
           </div>
+          {(() => {
+            const overdue = finDocuments.filter(d => d.kind === 'invoice' && ['issued', 'part_paid'].includes(d.status) && (d.dueDate ?? d.date) < today()).sort((a, b) => (a.dueDate ?? a.date).localeCompare(b.dueDate ?? b.date));
+            if (!overdue.length) return null;
+            return (
+              <div className="card p-5 border-l-4 border-red-400">
+                <h2 className="font-black text-slate-900 mb-2">Overdue receivables — send reminders</h2>
+                <div className="divide-y divide-slate-50">
+                  {overdue.map(d => (
+                    <div key={d.id} className="py-2 flex items-center gap-3 text-sm">
+                      <span className="font-mono text-xs">{d.no}</span>
+                      <span className="flex-1 font-semibold">{contactName(d.contactId)}</span>
+                      <span className="text-xs text-red-500">{Math.floor((Date.now() - new Date(d.dueDate ?? d.date).getTime()) / 86400000)}d overdue</span>
+                      <span className="font-black tabular-nums">{fmt(d.total - d.paid)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
           <div className="card p-5">
             <h2 className="font-black text-slate-900 mb-3">Recent documents</h2>
             <div className="divide-y divide-slate-100">{openDocs(['invoice', 'receipt', 'bill', 'payment', 'expense', 'bank', 'journal']).slice(0, 12).map(docRow)}</div>
@@ -307,10 +350,11 @@ export default function FinanceLedger() {
       {tab === 'items' && (
         <div className="card p-5 space-y-4">
           <h2 className="font-black text-slate-900">Items & services</h2>
-          <form onSubmit={async e => { e.preventDefault(); const el = e.currentTarget.elements as unknown as Record<string, HTMLInputElement>; setBusy(true); try { await upsertFinItem({ name: el.iName.value, description: el.iDesc.value, price: Number(el.iPrice.value) || 0, accountId: itemAcc || undefined }); e.currentTarget.reset(); setItemAcc(''); } catch (err) { reportSaveError(err); } finally { setBusy(false); } }} className="grid grid-cols-2 md:grid-cols-5 gap-2 p-3 bg-slate-50 rounded-xl">
+          <form onSubmit={async e => { e.preventDefault(); const el = e.currentTarget.elements as unknown as Record<string, HTMLInputElement>; setBusy(true); try { await upsertFinItem({ name: el.iName.value, description: el.iDesc.value, price: Number(el.iPrice.value) || 0, accountId: itemAcc || undefined, stock: el.iStock.value === '' ? undefined : Number(el.iStock.value) }); e.currentTarget.reset(); setItemAcc(''); } catch (err) { reportSaveError(err); } finally { setBusy(false); } }} className="grid grid-cols-2 md:grid-cols-5 gap-2 p-3 bg-slate-50 rounded-xl">
             <input name="iName" className="input" placeholder="Item / service" required />
             <input name="iDesc" className="input" placeholder="Description" />
             <input name="iPrice" className="input" type="number" min={0} step="0.01" placeholder="Default price (₦)" />
+            <input name="iStock" className="input" type="number" min={0} step="1" placeholder="Stock (opt.)" />
             <div>{accountPicker(itemAcc, setItemAcc, ['Income', 'Other Income'])}</div>
             <button className="btn-primary" disabled={busy}><Plus size={13} />Add</button>
           </form>
@@ -319,6 +363,7 @@ export default function FinanceLedger() {
               <div key={i.id} className="py-2.5 flex items-center gap-3 text-sm">
                 <div className="flex-1"><p className="font-bold text-slate-800">{i.name}</p>{i.description && <p className="text-xs text-slate-400">{i.description}</p>}</div>
                 <span className="text-xs text-slate-400">{accName(i.accountId)}</span>
+                {i.stock != null && <span className={`text-[11px] font-bold ${i.stock <= 5 ? 'text-red-600' : 'text-slate-500'}`}>{i.stock} in stock</span>}
                 <span className="font-bold tabular-nums">{fmt(i.price)}</span>
                 <button onClick={() => { if (confirm(`Delete ${i.name}?`)) void deleteFinItem(i.id).catch(reportSaveError); }} className="text-red-400"><Trash2 size={13} /></button>
               </div>
@@ -382,13 +427,15 @@ export default function FinanceLedger() {
       {['sales', 'purchases', 'banking', 'journals'].includes(tab) && (
         <div className="space-y-4">
           <div className="flex gap-2 flex-wrap">
-            {tab === 'sales' && pSub !== 'receipts' && <button onClick={() => openForm('invoice')} className="btn-primary"><Plus size={13} />New invoice</button>}
-            {tab === 'sales' && pSub !== 'invoices' && <button onClick={() => openForm('receipt')} className="btn-secondary"><Plus size={13} />Record receipt</button>}
+            {tab === 'sales' && (!pSub || pSub === 'quotes') && <button onClick={() => openForm('quote')} className="btn-secondary"><Plus size={13} />New quote</button>}
+            {tab === 'sales' && (!pSub || pSub === 'sorders') && <button onClick={() => openForm('sales_order')} className="btn-secondary"><Plus size={13} />New sales order</button>}
+            {tab === 'sales' && (!pSub || pSub === 'invoices') && <button onClick={() => openForm('invoice')} className="btn-primary"><Plus size={13} />New invoice</button>}
+            {tab === 'sales' && (!pSub || pSub === 'receipts') && <button onClick={() => openForm('receipt')} className="btn-secondary"><Plus size={13} />Record receipt</button>}
             {tab === 'purchases' && pSub !== 'payments' && pSub !== 'expenses' && <button onClick={() => openForm('bill')} className="btn-primary"><Plus size={13} />New bill</button>}
             {tab === 'purchases' && pSub !== 'bills' && pSub !== 'expenses' && <button onClick={() => openForm('payment')} className="btn-secondary"><Plus size={13} />Record payment</button>}
             {tab === 'purchases' && pSub !== 'bills' && pSub !== 'payments' && <button onClick={() => openForm('expense')} className="btn-secondary"><Plus size={13} />New expense</button>}
             {tab === 'banking' && <button onClick={() => openForm('bank')} className="btn-primary"><Plus size={13} />New bank transaction</button>}
-            {tab === 'journals' && <><button onClick={() => openForm('journal')} className="btn-primary"><Plus size={13} />New manual journal</button><button onClick={() => { openForm('journal'); setF(v => ({ ...v, fx: '1' })); }} className="btn-secondary"><Plus size={13} />New FX adjustment</button></>}
+            {tab === 'journals' && <><button onClick={() => openForm('journal')} className="btn-primary"><Plus size={13} />New manual journal</button><button onClick={() => { openForm('journal'); setF(v => ({ ...v, fx: '1' })); }} className="btn-secondary"><Plus size={13} />New FX adjustment</button><button onClick={() => { openForm('depreciation'); setLines([{ accountId: '', amount: '0', memo: '' }]); }} className="btn-secondary"><Plus size={13} />Post depreciation</button></>}
           </div>
 
           {form && (
@@ -397,7 +444,7 @@ export default function FinanceLedger() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 <div><label className="label">Number</label><input className="input" value={f.no ?? ''} placeholder={nextNo(form.kind.slice(0, 3).toUpperCase(), form.kind)} onChange={e => setF(v => ({ ...v, no: e.target.value }))} /></div>
                 <div><label className="label">Date</label><input className="input" type="date" value={f.date ?? today()} onChange={e => setF(v => ({ ...v, date: e.target.value }))} /></div>
-                {['invoice', 'receipt', 'bill', 'payment'].includes(form.kind) && (
+                {['invoice', 'receipt', 'bill', 'payment', 'quote', 'sales_order'].includes(form.kind) && (
                   <div><label className="label">Contact</label><select className="select" value={f.contactId ?? ''} onChange={e => setF(v => ({ ...v, contactId: e.target.value }))}><option value="">—</option>{finContacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
                 )}
                 {['receipt', 'payment', 'bank'].includes(form.kind) && (
@@ -406,7 +453,8 @@ export default function FinanceLedger() {
                 {form.kind === 'expense' && (
                   <div><label className="label">Paid from</label><select className="select" value={f.cashAccountId ?? 'acc_1000'} onChange={e => setF(v => ({ ...v, cashAccountId: e.target.value }))}>{finAccounts.filter(a => ['Cash', 'Bank'].includes(a.type)).map(a => <option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}</select></div>
                 )}
-                {['invoice', 'bill', 'expense'].includes(form.kind) && <div><label className="label">VAT (₦)</label><input className="input" type="number" min={0} value={f.vat ?? ''} onChange={e => setF(v => ({ ...v, vat: e.target.value }))} /></div>}
+                {['invoice', 'bill', 'expense', 'quote', 'sales_order'].includes(form.kind) && <div><label className="label">VAT (₦)</label><input className="input" type="number" min={0} value={f.vat ?? ''} onChange={e => setF(v => ({ ...v, vat: e.target.value }))} /></div>}
+                {form.kind === 'depreciation' && <div><label className="label">Monthly depreciation (₦)</label><input className="input" type="number" min={0} value={f.amount ?? ''} onChange={e => setF(v => ({ ...v, amount: e.target.value }))} /></div>}
                 {form.kind === 'receipt' && <div><label className="label">WHT deducted by customer (₦)</label><input className="input" type="number" min={0} value={f.wht ?? ''} onChange={e => setF(v => ({ ...v, wht: e.target.value }))} /></div>}
                 {form.kind === 'payment' && <div><label className="label">WHT withheld from vendor (₦)</label><input className="input" type="number" min={0} value={f.wht ?? ''} onChange={e => setF(v => ({ ...v, wht: e.target.value }))} /></div>}
                 {form.kind === 'bank' && (
@@ -436,7 +484,13 @@ export default function FinanceLedger() {
                   <>
                     {lines.map((l, i) => (
                       <div key={i} className="grid grid-cols-1 md:grid-cols-4 gap-2 items-center">
-                        {accountPicker(l.accountId, v => setLines(ls => ls.map((x, j) => j === i ? { ...x, accountId: v } : x)), form.kind === 'invoice' ? ['Income', 'Other Income'] : form.kind === 'receipt' ? ['Accounts Receivable', 'Income', 'Other Current Liability'] : ['Expense', 'Cost of Goods Sold', 'Fixed Asset', 'Other Current Asset', 'Accounts Payable', 'Other Current Liability'])}
+                        {['invoice', 'quote', 'sales_order'].includes(form.kind) && finItems.length > 0 && (
+                          <select className="select text-xs" value={(l as { itemId?: string }).itemId ?? ''} onChange={e => {
+                            const it = finItems.find(i => i.id === e.target.value);
+                            setLines(ls => ls.map((x, j) => j === i ? { ...x, itemId: e.target.value, accountId: it?.accountId ?? x.accountId, amount: it ? String(it.price) : x.amount, memo: it?.name ?? x.memo } : x));
+                          }}><option value="">From item…</option>{finItems.map(it => <option key={it.id} value={it.id}>{it.name}{it.stock != null ? ` (${it.stock})` : ''}</option>)}</select>
+                        )}
+                        {accountPicker(l.accountId, v => setLines(ls => ls.map((x, j) => j === i ? { ...x, accountId: v } : x)), form.kind === 'invoice' || form.kind === 'quote' || form.kind === 'sales_order' ? ['Income', 'Other Income'] : form.kind === 'depreciation' ? ['Fixed Asset'] : form.kind === 'receipt' ? ['Accounts Receivable', 'Income', 'Other Current Liability'] : ['Expense', 'Cost of Goods Sold', 'Fixed Asset', 'Other Current Asset', 'Accounts Payable', 'Other Current Liability'])}
                         <input className="input" type="number" min={0} placeholder="Amount (₦)" value={l.amount} onChange={e => setLines(ls => ls.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))} />
                         <input className="input" placeholder="Memo" value={l.memo} onChange={e => setLines(ls => ls.map((x, j) => j === i ? { ...x, memo: e.target.value } : x))} />
                         {lines.length > 1 ? <button type="button" onClick={() => setLines(ls => ls.filter((_, j) => j !== i))} className="text-red-400 justify-self-start"><Trash2 size={14} /></button> : <span />}
@@ -460,9 +514,9 @@ export default function FinanceLedger() {
           )}
 
           {(() => {
-            const SUB: Record<string, string[]> = { invoices: ['invoice'], receipts: ['receipt'], bills: ['bill'], payments: ['payment'], expenses: ['expense'] };
-            const TITLE: Record<string, string> = { invoices: 'Invoices', receipts: 'Receipts', bills: 'Bills', payments: 'Payments made', expenses: 'Expenses' };
-            const kinds = SUB[pSub] ?? (tab === 'sales' ? ['invoice', 'receipt'] : tab === 'purchases' ? ['bill', 'payment', 'expense'] : tab === 'banking' ? ['bank'] : ['journal']);
+            const SUB: Record<string, string[]> = { quotes: ['quote'], sorders: ['sales_order'], invoices: ['invoice'], receipts: ['receipt'], bills: ['bill'], payments: ['payment'], expenses: ['expense'] };
+            const TITLE: Record<string, string> = { quotes: 'Quotes', sorders: 'Sales orders', invoices: 'Invoices', receipts: 'Receipts', bills: 'Bills', payments: 'Payments made', expenses: 'Expenses' };
+            const kinds = SUB[pSub] ?? (tab === 'sales' ? ['quote', 'sales_order', 'invoice', 'receipt'] : tab === 'purchases' ? ['bill', 'payment', 'expense'] : tab === 'banking' ? ['bank'] : ['journal']);
             const docs = openDocs(kinds as FinDocKind[]);
             return (
               <div>

@@ -471,9 +471,10 @@ export interface FinItem {
   description?: string;
   price: number;
   accountId?: string;
+  stock?: number;
 }
 
-export type FinDocKind = 'invoice' | 'receipt' | 'bill' | 'payment' | 'expense' | 'bank' | 'project' | 'timesheet' | 'journal' | 'fx' | 'lock';
+export type FinDocKind = 'invoice' | 'receipt' | 'bill' | 'payment' | 'expense' | 'bank' | 'project' | 'timesheet' | 'journal' | 'fx' | 'lock' | 'quote' | 'sales_order' | 'depreciation';
 export type FinDocStatus = 'draft' | 'issued' | 'part_paid' | 'paid' | 'void' | 'published' | 'reconciled';
 
 export interface FinDocument {
