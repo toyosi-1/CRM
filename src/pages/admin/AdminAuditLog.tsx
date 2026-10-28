@@ -12,9 +12,13 @@ export default function AdminAuditLog() {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all');
 
+  const [siteFilter, setSiteFilter] = useState<string>('all');
+
   const allEntries = requests
     .flatMap(r => r.auditTrail.map(e => ({ ...e, requestNumber: r.requestNumber, siteName: r.siteName })))
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  const siteNames = [...new Set(allEntries.map(e => e.siteName).filter(Boolean))].sort();
 
   const filtered = allEntries.filter(e => {
     const matchSearch =
@@ -22,8 +26,17 @@ export default function AdminAuditLog() {
       e.action.toLowerCase().includes(search.toLowerCase()) ||
       e.requestNumber.toLowerCase().includes(search.toLowerCase());
     const matchRole = roleFilter === 'all' || e.userRole === roleFilter;
-    return matchSearch && matchRole;
+    const matchSite = siteFilter === 'all' || e.siteName === siteFilter;
+    return matchSearch && matchRole && matchSite;
   });
+
+  // Compartmentalized: group entries under their facility for accountability
+  const bySite = filtered.reduce<Record<string, typeof filtered>>((acc, e) => {
+    const key = e.siteName || 'General';
+    (acc[key] ??= []).push(e);
+    return acc;
+  }, {});
+  const siteGroups = Object.entries(bySite).sort(([a], [b]) => a.localeCompare(b));
 
   const ROLE_OPTS: { value: UserRole | 'all'; label: string }[] = [
     { value: 'all', label: 'All Roles' },
@@ -53,6 +66,10 @@ export default function AdminAuditLog() {
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by user, action, request..." className="input pl-9" />
         </div>
+        <select className="select w-44" value={siteFilter} onChange={e => setSiteFilter(e.target.value)}>
+          <option value="all">All facilities</option>
+          {siteNames.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
         <div className="flex gap-1.5">
           {ROLE_OPTS.map(opt => (
             <button
@@ -66,62 +83,70 @@ export default function AdminAuditLog() {
         </div>
       </div>
 
-      {/* Log Table */}
-      <div className="card overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-slate-100">
-              <th className="table-header">Timestamp</th>
-              <th className="table-header">User</th>
-              <th className="table-header">Role</th>
-              <th className="table-header">Request</th>
-              <th className="table-header">Action</th>
-              <th className="table-header">TAT</th>
-              <th className="table-header"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.slice(0, 100).map(entry => (
-              <tr key={entry.id} className="table-row">
-                <td className="table-cell text-xs text-slate-500 whitespace-nowrap">
-                  {formatDate(entry.timestamp)}
-                </td>
-                <td className="table-cell">
-                  <div className="text-sm font-semibold text-slate-800">{entry.userName}</div>
-                  <div className="text-xs text-slate-400">{entry.department}</div>
-                </td>
-                <td className="table-cell"><RoleBadge role={entry.userRole} /></td>
-                <td className="table-cell">
-                  <div className="text-xs font-semibold text-brand-600">{entry.requestNumber}</div>
-                  <div className="text-xs text-slate-400">{entry.siteName}</div>
-                </td>
-                <td className="table-cell max-w-xs">
-                  <p className="text-sm text-slate-700 truncate">{entry.action}</p>
-                  {entry.comment && (
-                    <p className="text-xs text-amber-600 truncate">{entry.comment}</p>
-                  )}
-                </td>
-                <td className="table-cell">
-                  {entry.tatHours && entry.tatHours > 0 ? (
-                    <span className={`badge ${entry.tatHours < 24 ? 'bg-emerald-100 text-emerald-700' : entry.tatHours < 72 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
-                      {entry.tatHours}h
-                    </span>
-                  ) : <span className="text-xs text-slate-300">—</span>}
-                </td>
-                <td className="table-cell">
-                  <button onClick={() => navigate(`/request/${entry.requestId}`)} className="btn-icon w-7 h-7">
-                    <ExternalLink size={13} />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {filtered.length > 100 && (
-          <div className="px-4 py-3 text-xs text-slate-400 border-t border-slate-100 text-center">
-            Showing 100 of {filtered.length} entries. Use filters to narrow results.
+      {/* Log — grouped by facility */}
+      <div className="space-y-4">
+        {siteGroups.length === 0 && <div className="card p-10 text-center text-sm text-slate-400">No audit entries match the current filters.</div>}
+        {siteGroups.map(([siteName, entries]) => (
+          <div key={siteName} className="card overflow-hidden">
+            <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="font-black text-slate-800 text-sm">{siteName}</h2>
+              <span className="text-[11px] font-bold text-slate-400">{entries.length} entr{entries.length === 1 ? 'y' : 'ies'}</span>
+            </div>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-100">
+                  <th className="table-header">Timestamp</th>
+                  <th className="table-header">User</th>
+                  <th className="table-header">Role</th>
+                  <th className="table-header">Request</th>
+                  <th className="table-header">Action</th>
+                  <th className="table-header">TAT</th>
+                  <th className="table-header"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {entries.slice(0, 100).map(entry => (
+                  <tr key={entry.id} className="table-row">
+                    <td className="table-cell text-xs text-slate-500 whitespace-nowrap">
+                      {formatDate(entry.timestamp)}
+                    </td>
+                    <td className="table-cell">
+                      <div className="text-sm font-semibold text-slate-800">{entry.userName}</div>
+                      <div className="text-xs text-slate-400">{entry.department}</div>
+                    </td>
+                    <td className="table-cell"><RoleBadge role={entry.userRole} /></td>
+                    <td className="table-cell">
+                      <div className="text-xs font-semibold text-brand-600">{entry.requestNumber}</div>
+                    </td>
+                    <td className="table-cell max-w-xs">
+                      <p className="text-sm text-slate-700 truncate">{entry.action}</p>
+                      {entry.comment && (
+                        <p className="text-xs text-amber-600 truncate">{entry.comment}</p>
+                      )}
+                    </td>
+                    <td className="table-cell">
+                      {entry.tatHours && entry.tatHours > 0 ? (
+                        <span className={`badge ${entry.tatHours < 24 ? 'bg-emerald-100 text-emerald-700' : entry.tatHours < 72 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                          {entry.tatHours}h
+                        </span>
+                      ) : <span className="text-xs text-slate-300">—</span>}
+                    </td>
+                    <td className="table-cell">
+                      <button onClick={() => navigate(`/request/${entry.requestId}`)} className="btn-icon w-7 h-7">
+                        <ExternalLink size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {entries.length > 100 && (
+              <div className="px-4 py-3 text-xs text-slate-400 border-t border-slate-100 text-center">
+                Showing 100 of {entries.length} entries for this facility. Use filters to narrow results.
+              </div>
+            )}
           </div>
-        )}
+        ))}
       </div>
     </div>
   );

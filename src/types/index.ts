@@ -389,11 +389,17 @@ export interface SupportTicket {
   updatedAt: string;
 }
 
+export interface TenantUnit {
+  label: string;
+  rent?: number;
+}
+
 export interface Tenant {
   id: string;
   siteId: string;
   name: string;
   unit: string;
+  units?: TenantUnit[];   // multi-unit tenancies — unit stays as the primary/legacy label
   email: string;
   phone: string;
   monthlyRent: number;
