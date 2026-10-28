@@ -25,7 +25,7 @@ function parseCsv(text: string): { headers: string[]; rows: string[][] } {
 
 type ImportType = 'accounts' | 'contacts' | 'items' | 'journals';
 
-// Auto-detect common Zoho Books header names → our canonical field
+// Auto-detect common CSV header names (from any export) → our canonical field
 const FIELD_ALIASES: Record<string, string[]> = {
   code: ['account code', 'code'], name: ['account name', 'contact name', 'customer name', 'vendor name', 'name', 'item name', 'display name'],
   type: ['account type', 'contact type', 'type'], email: ['email address', 'email', 'emailid'],
@@ -35,11 +35,13 @@ const FIELD_ALIASES: Record<string, string[]> = {
   account: ['account', 'account name and code', 'account code'], dr: ['debit', 'dr'], cr: ['credit', 'cr'],
   memo: ['memo', 'line description', 'description'],
   ref: ['reference number', 'reference'],
+  bankName: ['bank name', 'bank'], bankNo: ['account number', 'bank account', 'bank account number', 'acct no', 'account no'],
+  bankCode: ['sort code', 'bank code', 'routing number'],
 };
 
 const TYPE_FIELDS: Record<ImportType, { key: string; label: string; required?: boolean }[]> = {
   accounts: [{ key: 'code', label: 'Account code', required: true }, { key: 'name', label: 'Account name', required: true }, { key: 'type', label: 'Account type' }],
-  contacts: [{ key: 'name', label: 'Contact name', required: true }, { key: 'type', label: 'Type' }, { key: 'email', label: 'Email' }, { key: 'phone', label: 'Phone' }],
+  contacts: [{ key: 'name', label: 'Contact name', required: true }, { key: 'type', label: 'Type' }, { key: 'email', label: 'Email' }, { key: 'phone', label: 'Phone' }, { key: 'bankName', label: 'Bank name' }, { key: 'bankNo', label: 'Account number' }, { key: 'bankCode', label: 'Bank / sort code' }],
   items: [{ key: 'name', label: 'Item name', required: true }, { key: 'desc', label: 'Description' }, { key: 'price', label: 'Rate (₦)' }, { key: 'account', label: 'Income account' }],
   journals: [{ key: 'date', label: 'Journal date', required: true }, { key: 'no', label: 'Journal number', required: true }, { key: 'account', label: 'Account', required: true }, { key: 'dr', label: 'Debit' }, { key: 'cr', label: 'Credit' }, { key: 'memo', label: 'Description' }, { key: 'ref', label: 'Reference' }],
 };
@@ -115,7 +117,7 @@ export default function FinImport() {
         }
       } else if (type === 'contacts') {
         for (const r of rows) {
-          try { await createFinContact({ name: val(r, 'name'), type: (['vendor', 'both'].includes(val(r, 'type').toLowerCase()) ? val(r, 'type').toLowerCase() : 'customer') as 'customer' | 'vendor' | 'both', email: val(r, 'email') || undefined, phone: val(r, 'phone') || undefined }); ok++; }
+          try { await createFinContact({ name: val(r, 'name'), type: (['vendor', 'both'].includes(val(r, 'type').toLowerCase()) ? val(r, 'type').toLowerCase() : 'customer') as 'customer' | 'vendor' | 'both', email: val(r, 'email') || undefined, phone: val(r, 'phone') || undefined, bankName: val(r, 'bankName') || undefined, bankAccountNo: val(r, 'bankNo') || undefined, bankCode: val(r, 'bankCode') || undefined }); ok++; }
           catch (e) { skipped++; errors.push(`${val(r, 'name')}: ${(e as Error).message}`); }
         }
       } else if (type === 'items') {
@@ -173,8 +175,8 @@ export default function FinImport() {
     <div className="space-y-4">
       <div className="card p-5 space-y-4">
         <div>
-          <h2 className="font-black text-slate-900">Import from Zoho Books (CSV)</h2>
-          <p className="text-xs text-slate-500 mt-1">Export from Zoho Books → Settings → Import/Export (or module → ⋮ → Export as CSV). Upload the CSV here — data writes straight into the ledger, no manual re-entry.</p>
+          <h2 className="font-black text-slate-900">Import data (CSV)</h2>
+          <p className="text-xs text-slate-500 mt-1">Upload any CSV export — spreadsheet, previous system, accountant's file. Columns are auto-matched to our fields; you can re-map before running. Data writes straight into the ledger — no manual re-entry.</p>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 items-end">
           <div><label className="label">Import type</label>
@@ -240,10 +242,10 @@ export default function FinImport() {
       </div>
 
       <div className="card p-4 text-xs text-slate-500 space-y-1">
-        <p className="font-bold text-slate-700">Zoho export tips</p>
-        <p>• Journal entries: <em>Reports → Journal Report → Export as CSV</em> — brings the complete historical ledger across in one import.</p>
-        <p>• Chart of accounts: <em>Accountant → Chart of Accounts → ⋮ → Export</em> — run this <b>first</b> so journal accounts match.</p>
-        <p>• Contacts/items: export from their module lists. Duplicates are skipped by name/code conflicts and reported.</p>
+        <p className="font-bold text-slate-700">Import tips</p>
+        <p>• <b>Journal entries</b> bring the full historical ledger in one file — columns needed: date, journal number, account, debit/credit. Rows sharing a journal number post as one balanced entry; Post is blocked if it doesn't balance.</p>
+        <p>• Import the <b>chart of accounts first</b> so journal rows match accounts by name or code.</p>
+        <p>• <b>Contacts and items</b> import from their module lists. Header names are auto-detected (e.g. "Customer name", "Rate", "Debit"); anything unusual can be mapped by hand above. Duplicates are skipped and reported.</p>
       </div>
 
       {/* ---------- BANK STATEMENT MATCHING ---------- */}
@@ -291,7 +293,7 @@ export default function FinImport() {
       {/* ---------- EXPORT ---------- */}
       <div className="card p-5 space-y-3">
         <h2 className="font-black text-slate-900">Export CSV</h2>
-        <p className="text-xs text-slate-500">Download the ledger or documents as CSV — same shapes as the Zoho exports, so files round-trip cleanly.</p>
+        <p className="text-xs text-slate-500">Download the ledger or documents as CSV — standard column shapes, so files round-trip cleanly between systems.</p>
         <div className="flex gap-2 flex-wrap">
           <button className="btn-secondary text-xs" onClick={() => exportJournals()}><Download size={13} />Journal entries ({finJournalEntries.length})</button>
           <button className="btn-secondary text-xs" onClick={() => exportDocs()}><Download size={13} />Documents ({finDocuments.length})</button>
