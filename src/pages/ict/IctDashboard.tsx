@@ -8,7 +8,7 @@ const STAFF_ROLES: UserRole[] = ['facility_manager', 'procurement', 'supervisor'
 
 export default function IctDashboard() {
   const navigate = useNavigate();
-  const { users, sites, supportTickets } = useStore();
+  const { currentUser, users, sites, supportTickets } = useStore();
 
   const activeStaff = users.filter(u => u.active !== false);
   const openTickets = supportTickets.filter(t => t.status !== 'closed');
@@ -28,7 +28,7 @@ export default function IctDashboard() {
           <div>
             <p className="text-white/50 text-xs font-bold uppercase tracking-widest mb-1">ICT Administration</p>
             <h1 className="text-2xl font-black text-white tracking-tight">System overview</h1>
-            <p className="text-white/60 text-sm mt-1">Staff accounts, facilities, and technical queue.</p>
+            <p className="text-white/60 text-sm mt-1">{currentUser?.name} · ICT Administrator — staff accounts, facilities, and technical queue.</p>
           </div>
           <button onClick={() => navigate('/ict/users')} className="btn-white-glass"><UserPlus size={14} />Onboard staff</button>
         </div>

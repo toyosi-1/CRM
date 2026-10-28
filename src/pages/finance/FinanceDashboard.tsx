@@ -6,7 +6,7 @@ import { formatCurrency, TAX_LABELS, getSlaStatus } from '../../utils/helpers';
 
 export default function FinanceDashboard() {
   const navigate = useNavigate();
-  const { requests, treasury } = useStore();
+  const { currentUser, requests, treasury } = useStore();
 
   const paymentQueue = requests.filter(r => r.status === 'PAYMENT_PENDING' || r.status === 'ADMIN_APPROVED');
   const paid = requests.filter(r => r.status === 'PAID');
@@ -21,7 +21,7 @@ export default function FinanceDashboard() {
           <div>
             <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">Finance</p>
             <h1 className="text-xl font-semibold text-white">Finance dashboard</h1>
-            <p className="text-slate-400 text-sm mt-0.5">Vendor payments · WHT management · treasury</p>
+            <p className="text-slate-400 text-sm mt-0.5">{currentUser?.name} · Finance — vendor payments · WHT management · treasury</p>
           </div>
           <div className="flex gap-6">
             <div className="text-right">

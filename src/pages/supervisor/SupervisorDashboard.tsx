@@ -7,7 +7,7 @@ import { formatCurrency, getSlaStatus } from '../../utils/helpers';
 
 export default function SupervisorDashboard() {
   const navigate = useNavigate();
-  const { requests, sites, getBudgetSummaries } = useStore();
+  const { currentUser, requests, sites, getBudgetSummaries } = useStore();
 
   const pendingAction = requests.filter(r => r.status === 'PO_GENERATED' || r.status === 'SUPERVISOR_APPROVAL');
   const approved = requests.filter(r => ['PAYMENT_PENDING', 'PAID', 'CLOSED'].includes(r.status));
@@ -22,7 +22,7 @@ export default function SupervisorDashboard() {
       <div className="dash-header">
         <div className="relative z-10">
           <h1 className="text-2xl font-bold tracking-tight">Supervisor dashboard</h1>
-          <p className="text-sm mt-1">Review approvals · manage site rules · monitor budgets</p>
+          <p className="text-sm mt-1">{currentUser?.name} · Supervisor — review approvals · manage site rules · monitor budgets</p>
         </div>
       </div>
 

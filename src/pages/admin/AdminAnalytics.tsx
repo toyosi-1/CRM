@@ -15,7 +15,7 @@ function hoursBetween(a: string, b: string) {
 
 export default function AdminAnalytics() {
   const navigate = useNavigate();
-  const { requests, checklists, sites, users, facilityVendorSLAs, pettyCash, getSiteMonthSpend } = useStore();
+  const { currentUser, requests, checklists, sites, users, facilityVendorSLAs, pettyCash, getSiteMonthSpend } = useStore();
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -92,7 +92,7 @@ export default function AdminAnalytics() {
           <div>
             <p className="text-white/50 text-xs font-bold uppercase tracking-widest mb-1">Administration</p>
             <h1 className="text-2xl font-black text-white tracking-tight">Executive dashboard</h1>
-            <p className="text-white/60 text-sm mt-1">Operational intelligence across all sites</p>
+            <p className="text-white/60 text-sm mt-1">{currentUser?.name} · Managing Director — operational intelligence across all sites</p>
           </div>
           <div className="text-right">
             <p className="text-xl font-bold text-white tabular-nums">{requests.length}</p>

@@ -10,7 +10,7 @@ function poTatHours(r: { createdAt: string; purchaseOrder?: { generatedAt: strin
 
 export default function ProcurementDashboard() {
   const navigate = useNavigate();
-  const { requests, vendors } = useStore();
+  const { currentUser, requests, vendors } = useStore();
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -74,7 +74,7 @@ export default function ProcurementDashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="page-title">Procurement dashboard</h1>
-          <p className="page-subtitle">Review invoices · validate vendors · generate POs</p>
+          <p className="page-subtitle">{currentUser?.name} · Procurement — review invoices · validate vendors · generate POs</p>
         </div>
       </div>
 

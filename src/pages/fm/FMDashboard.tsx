@@ -69,6 +69,11 @@ export default function FMDashboard() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 1400 }}>
 
+      <div>
+        <h1 className="text-xl font-black text-slate-900">Facility manager dashboard</h1>
+        <p className="text-sm text-slate-500">{currentUser?.name} · Facility Manager{siteId ? ` — ${sites.find(s => s.id === siteId)?.name ?? ''}` : ''}</p>
+      </div>
+
       {/* ── Acting FM handover (spec §5.8) ── */}
       {actingActive && !currentUser?.actingAcknowledgedAt && coveringFm && (
         <div className="card" style={{ padding: '14px 15px', borderColor: '#C8C8E8' }}>
