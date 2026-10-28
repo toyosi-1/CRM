@@ -7,7 +7,7 @@ import { useStore } from '../../store/useStore';
 import {
   createFinContact, upsertFinItem, deleteFinItem, createFinDocument, updateFinDocument,
   voidFinDocument, postJournal, logFinActivity, upsertFinBudget, upsertFinAccount, reclassifyFinLines, uploadFile,
-  upsertFinRecurring, deleteFinRecurring, type PostLine,
+  upsertFinRecurring, deleteFinRecurring, voidFinJournalEntry, type PostLine,
 } from '../../lib/db';
 import { reportSaveError } from '../../store/useStore';
 import type { FinAccount, FinDocument, FinDocKind } from '../../types';
@@ -121,7 +121,7 @@ export default function FinanceLedger() {
     const lns = lines.filter(l => l.accountId && Number(l.amount) > 0);
     const total = r2(lns.reduce((s, l) => s + Number(l.amount), 0));
     if (k !== 'bank' && lns.length === 0) return alert('Add at least one line with an account and amount.');
-    const base: Omit<FinDocument, 'id' | 'createdAt'> = { kind: k, no: f.no || nextNo(k.slice(0, 3).toUpperCase(), k), date: f.date || today(), status: 'issued', contactId: f.contactId || undefined, total, paid: 0, createdBy: me, payload: { lines: lns, memo: f.memo, bankAccountId: f.bankAccountId, linkedDocId: f.linkedDocId } };
+    const base: Omit<FinDocument, 'id' | 'createdAt'> = { kind: k, no: f.no || nextNo(k.slice(0, 3).toUpperCase(), k), date: f.date || today(), status: 'issued', contactId: f.contactId || undefined, total, paid: 0, dueDate: f.dueDate || undefined, createdBy: me, payload: { lines: lns, memo: f.memo, bankAccountId: f.bankAccountId, linkedDocId: f.linkedDocId } };
 
     let jl: PostLine[] = [];
     const status: FinDocument['status'] = 'issued';
@@ -147,6 +147,11 @@ export default function FinanceLedger() {
       const wht = Number(f.wht || 0);
       jl = [{ accountId: f.bankAccountId || acct('1100')!, dr: r2(total - wht), memo: 'Amount received' }, ...lns.map(l => ({ accountId: l.accountId, cr: Number(l.amount), memo: l.memo }))];
       if (wht > 0) jl.splice(1, 0, { accountId: acct('1320')!, dr: wht, memo: 'WHT deducted by customer' });
+      const linked = finDocuments.find(d => d.id === f.linkedDocId);
+      if (linked) {
+        const paid = r2(linked.paid + total);
+        await updateFinDocument(linked.id, { paid, status: paid >= linked.total - 0.005 ? 'paid' : 'part_paid' }).catch(reportSaveError);
+      }
       await post({ ...base, status: 'paid', paid: total }, jl);
     } else if (k === 'bill') {
       const vat = Number(f.vat || 0); const t = r2(total + vat);
@@ -448,6 +453,9 @@ export default function FinanceLedger() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 <div><label className="label">Number</label><input className="input" value={f.no ?? ''} placeholder={nextNo(form.kind.slice(0, 3).toUpperCase(), form.kind)} onChange={e => setF(v => ({ ...v, no: e.target.value }))} /></div>
                 <div><label className="label">Date</label><input className="input" type="date" value={f.date ?? today()} onChange={e => setF(v => ({ ...v, date: e.target.value }))} /></div>
+                {['invoice', 'quote', 'sales_order', 'bill'].includes(form.kind) && (
+                  <div><label className="label">Due date</label><input className="input" type="date" value={f.dueDate ?? ''} onChange={e => setF(v => ({ ...v, dueDate: e.target.value }))} /></div>
+                )}
                 {['invoice', 'receipt', 'bill', 'payment', 'quote', 'sales_order'].includes(form.kind) && (
                   <div><label className="label">Contact</label><select className="select" value={f.contactId ?? ''} onChange={e => setF(v => ({ ...v, contactId: e.target.value }))}><option value="">—</option>{finContacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
                 )}
@@ -483,6 +491,17 @@ export default function FinanceLedger() {
                       </div>
                     ))}
                     <button type="button" onClick={() => setLines(ls => [...ls, { accountId: '', amount: '', memo: '' }])} className="btn-secondary text-xs"><Plus size={12} />Add line</button>
+                    {(() => {
+                      const dr = r2(lines.reduce((s, l) => s + (Number(l.dr) || 0), 0));
+                      const cr = r2(lines.reduce((s, l) => s + (Number(l.cr) || 0), 0));
+                      const diff = r2(dr - cr);
+                      return (
+                        <div className={`flex items-center gap-4 rounded-lg px-3 py-2 text-xs font-bold ${Math.abs(diff) < 0.005 && dr > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                          <span>Debits {fmt(dr)}</span><span>Credits {fmt(cr)}</span>
+                          <span>{Math.abs(diff) < 0.005 ? (dr > 0 ? '✓ Balanced' : 'No amounts yet') : `Out of balance by ${fmt(Math.abs(diff))}`}</span>
+                        </div>
+                      );
+                    })()}
                   </>
                 ) : (
                   <>
@@ -512,7 +531,7 @@ export default function FinanceLedger() {
                       lines.map(l => ({ accountId: l.accountId, dr: Number(l.dr) || 0, cr: Number(l.cr) || 0, memo: l.memo })))
                       .then(() => setForm(null)).catch(reportSaveError).finally(() => setBusy(false));
                   } else void submitDoc();
-                }} disabled={busy} className="btn-primary">{busy ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}Post {KIND_LABEL[form.kind]?.toLowerCase()}</button>
+                }} disabled={busy || (form.kind === 'journal' && Math.abs(r2(lines.reduce((s, l) => s + (Number(l.dr) || 0), 0)) - r2(lines.reduce((s, l) => s + (Number(l.cr) || 0), 0))) > 0.005)} className="btn-primary">{busy ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}Post {KIND_LABEL[form.kind]?.toLowerCase()}</button>
               </div>
             </div>
           )}
@@ -576,8 +595,48 @@ export default function FinanceLedger() {
             </div>
           )}
 
+          {tab === 'journals' && (
+            <div>
+              <h3 className="font-black text-slate-900 mb-2">Journal entries</h3>
+              <p className="text-xs text-slate-500 mb-3">Every balanced double-entry in the books — manual journals, FX adjustments, and the auto-posted entries behind each document.</p>
+              <div className="card divide-y divide-slate-100">
+                {finJournalEntries.map(e => {
+                  const ls = finJournalLines.filter(l => l.entryId === e.id);
+                  const tot = r2(ls.reduce((s, l) => s + l.debit, 0));
+                  const srcDoc = finDocuments.find(d => d.id === e.sourceId);
+                  const standalone = !e.sourceId || !srcDoc;
+                  return (
+                    <div key={e.id} className="px-4 py-3">
+                      <div className="flex items-center gap-3 text-sm">
+                        <span className="font-mono text-xs font-bold text-slate-500 w-24 flex-shrink-0">{e.no}</span>
+                        <span className="text-xs text-slate-400 w-20 flex-shrink-0">{e.date}</span>
+                        <span className={`badge ${e.source === 'journal' ? 'bg-violet-100 text-violet-700' : e.source === 'fx' ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-600'}`}>{e.source}</span>
+                        <span className="flex-1 font-semibold text-slate-700 truncate">{e.ref ?? e.notes ?? (srcDoc ? `${KIND_LABEL[srcDoc.kind]} ${srcDoc.no}` : '—')}</span>
+                        <span className="font-bold text-slate-900 tabular-nums">{fmt(tot)}</span>
+                        <span className={`badge ${STATUS_COLORS[e.status] ?? 'bg-slate-100 text-slate-500'}`}>{e.status}</span>
+                        <button onClick={() => setExpandId(exp => exp === e.id ? null : e.id)} className="text-[11px] font-semibold text-brand-600 whitespace-nowrap">Lines</button>
+                        {standalone && e.status !== 'void' && (
+                          <button onClick={async () => { if (confirm(`Void journal ${e.no}?`)) { try { await voidFinJournalEntry(e.id, e.no, me); } catch (err) { reportSaveError(err); } } }} className="text-[11px] text-red-500 font-semibold">Void</button>
+                        )}
+                      </div>
+                      {expandId === e.id && (
+                        <div className="mt-2 ml-28 mr-2 rounded-lg bg-slate-50 border border-slate-200 p-3">
+                          <table className="w-full text-xs"><tbody>
+                            {ls.map(l => <tr key={l.id}><td className="py-1">{accName(l.accountId)}</td><td className="text-slate-400">{l.memo ?? ''}</td><td className="text-right tabular-nums">{l.debit ? `DR ${fmt(l.debit)}` : ''}</td><td className="text-right tabular-nums">{l.credit ? `CR ${fmt(l.credit)}` : ''}</td></tr>)}
+                          </tbody></table>
+                          {srcDoc && <p className="text-[10px] text-slate-400 mt-2">Source document: {KIND_LABEL[srcDoc.kind]} {srcDoc.no}</p>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {finJournalEntries.length === 0 && <p className="p-8 text-center text-sm text-slate-400">No journal entries yet.</p>}
+              </div>
+            </div>
+          )}
+
           {(() => {
-            if (tab === 'sales' && pSub === 'recurring') return null;
+            if ((tab === 'sales' && pSub === 'recurring') || tab === 'journals') return null;
             const SUB: Record<string, string[]> = { quotes: ['quote'], sorders: ['sales_order'], invoices: ['invoice'], receipts: ['receipt'], bills: ['bill'], payments: ['payment'], expenses: ['expense'] };
             const TITLE: Record<string, string> = { quotes: 'Quotes', sorders: 'Sales orders', invoices: 'Invoices', receipts: 'Receipts', bills: 'Bills', payments: 'Payments made', expenses: 'Expenses' };
             const kinds = SUB[pSub] ?? (tab === 'sales' ? ['quote', 'sales_order', 'invoice', 'receipt'] : tab === 'purchases' ? ['bill', 'payment', 'expense'] : tab === 'banking' ? ['bank'] : ['journal']);

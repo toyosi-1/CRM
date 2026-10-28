@@ -884,6 +884,12 @@ export async function updateFinDocument(id: string, data: Partial<FinDocument>):
   }).eq('id', id); fail(error);
 }
 
+// Void a standalone journal entry (manual journal / FX) that isn't tied to a document.
+export async function voidFinJournalEntry(id: string, no: string, by: string): Promise<void> {
+  const { error } = await supabase.from('fin_journal_entries').update({ status: 'void' }).eq('id', id); fail(error);
+  await logFinActivity(by, `Voided journal ${no}`, id).catch(() => undefined);
+}
+
 // Void a document: mark it void and void its journal entry (balances unwind).
 export async function voidFinDocument(id: string, no: string, by: string): Promise<void> {
   const { error } = await supabase.from('fin_documents').update({ status: 'void' }).eq('id', id); fail(error);
