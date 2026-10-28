@@ -445,3 +445,10 @@ button:disabled, [aria-disabled="true"] { cursor: not-allowed; opacity: .55; }
   .page-title, .dash-header h1 { font-size: 18px !important; }
   .notification-panel { position: fixed; top: 58px; left: 10px; right: 10px; width: auto; }
 }
+
+@media print {
+  body * { visibility: hidden; }
+  .print-doc, .print-doc * { visibility: visible; }
+  .print-doc { position: absolute; inset: 0; margin: 0; border: none; box-shadow: none; }
+  .print-doc .btn-secondary, .print-doc button { display: none; }
+}

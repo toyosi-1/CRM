@@ -54,6 +54,7 @@ export default function FinanceLedger() {
   const [budPeriod, setBudPeriod] = useState(String(new Date().getFullYear()));
   const [budLines, setBudLines] = useState<{ accountId: string; amount: string }[]>([{ accountId: '', amount: '' }]);
   const [expandId, setExpandId] = useState<string | null>(null);
+  const [viewId, setViewId] = useState<string | null>(null);
   const [lockDate, setLockDate] = useState('');
   const [bulk, setBulk] = useState({ from: '', to: '' });
   const [itemAcc, setItemAcc] = useState('');
@@ -112,7 +113,7 @@ export default function FinanceLedger() {
   /* ---------- document form (modal-ish inline panel) ---------- */
   const [form, setForm] = useState<null | { kind: FinDocKind }>(null);
   const [f, setF] = useState<Record<string, string>>({});
-  const [lines, setLines] = useState<{ accountId: string; amount: string; memo: string; dr?: string; cr?: string }[]>([{ accountId: '', amount: '', memo: '' }]);
+  const [lines, setLines] = useState<{ accountId: string; amount: string; memo: string; dr?: string; cr?: string; qty?: string; rate?: string; itemId?: string }[]>([{ accountId: '', amount: '', memo: '' }]);
   const openForm = (kind: FinDocKind) => { setForm({ kind }); setF({ date: today(), bankAccountId: 'acc_1100', cashAccountId: 'acc_1000' }); setLines([{ accountId: '', amount: '', memo: '' }]); };
 
   const submitDoc = async () => {
@@ -121,7 +122,7 @@ export default function FinanceLedger() {
     const lns = lines.filter(l => l.accountId && Number(l.amount) > 0);
     const total = r2(lns.reduce((s, l) => s + Number(l.amount), 0));
     if (k !== 'bank' && lns.length === 0) return alert('Add at least one line with an account and amount.');
-    const base: Omit<FinDocument, 'id' | 'createdAt'> = { kind: k, no: f.no || nextNo(k.slice(0, 3).toUpperCase(), k), date: f.date || today(), status: 'issued', contactId: f.contactId || undefined, total, paid: 0, dueDate: f.dueDate || undefined, createdBy: me, payload: { lines: lns, memo: f.memo, bankAccountId: f.bankAccountId, linkedDocId: f.linkedDocId } };
+    const base: Omit<FinDocument, 'id' | 'createdAt'> = { kind: k, no: f.no || nextNo(k.slice(0, 3).toUpperCase(), k), date: f.date || today(), status: 'issued', contactId: f.contactId || undefined, total, paid: 0, dueDate: f.dueDate || undefined, createdBy: me, payload: { lines: lns, memo: f.memo, method: f.method, bankAccountId: f.bankAccountId, linkedDocId: f.linkedDocId } };
 
     let jl: PostLine[] = [];
     const status: FinDocument['status'] = 'issued';
@@ -222,6 +223,7 @@ export default function FinanceLedger() {
           await updateFinDocument(d.id, { status: 'void' }).catch(reportSaveError);
         }} className="text-[11px] font-bold text-brand-600 whitespace-nowrap">Convert to invoice</button>
       )}
+      <button onClick={() => setViewId(v => v === d.id ? null : d.id)} className="text-[11px] font-semibold text-brand-600 whitespace-nowrap">View</button>
       {finJournalEntries.some(e => e.sourceId === d.id) && (
         <button onClick={() => setExpandId(exp => exp === d.id ? null : d.id)} className="text-[11px] font-semibold text-brand-600 whitespace-nowrap">Ledger impact</button>
       )}
@@ -233,6 +235,64 @@ export default function FinanceLedger() {
       )}
       {d.status !== 'void' && <button onClick={() => void voidDoc(d)} className="text-[11px] text-red-500 font-semibold">Void</button>}
     </div>
+    {viewId === d.id && (() => {
+      const ls = (d.payload.lines as { accountId: string; amount: string; memo?: string; qty?: string; rate?: string }[] | undefined) ?? [];
+      const contact = finContacts.find(c => c.id === d.contactId);
+      const vat = Number(d.payload.vat ?? (d.kind === 'invoice' || d.kind === 'bill' ? r2(d.total - ls.reduce((s, l) => s + Number(l.amount || 0), 0)) : 0));
+      const subtotal = r2(d.total - vat);
+      const title = KIND_LABEL[d.kind] ?? d.kind;
+      return (
+        <div className="mt-2 mx-2 rounded-xl border border-slate-200 bg-white p-5 print-doc">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-brand-600">Propel Works Management Systems</p>
+              <h3 className="text-lg font-black text-slate-900">{title} {d.no}</h3>
+            </div>
+            <div className="text-right text-xs text-slate-500">
+              <p>Date: <strong>{d.date}</strong></p>
+              {d.dueDate && <p>Due: <strong>{d.dueDate}</strong></p>}
+              {d.payload.method ? <p>Method: <strong>{String(d.payload.method as string).replace('_', ' ')}</strong></p> : null}
+            </div>
+          </div>
+          {contact && (
+            <div className="mb-4 text-xs">
+              <p className="font-bold uppercase text-slate-400 text-[10px]">{['bill', 'payment', 'expense'].includes(d.kind) ? 'Vendor' : 'Bill to'}</p>
+              <p className="font-bold text-slate-800">{contact.name}</p>
+              {contact.address && <p className="text-slate-500">{contact.address}</p>}
+              {contact.email && <p className="text-slate-500">{contact.email}</p>}
+            </div>
+          )}
+          <table className="w-full text-xs mb-4">
+            <thead><tr className="border-b border-slate-200 text-left text-[10px] uppercase text-slate-400 font-bold">
+              <th className="py-1.5">Description</th><th className="py-1.5">Account</th><th className="py-1.5 text-right">Qty</th><th className="py-1.5 text-right">Rate</th><th className="py-1.5 text-right">Amount</th>
+            </tr></thead>
+            <tbody>
+              {ls.map((l, i) => (
+                <tr key={i} className="border-b border-slate-50">
+                  <td className="py-1.5 text-slate-700">{l.memo || '—'}</td>
+                  <td className="py-1.5 text-slate-500">{accName(l.accountId)}</td>
+                  <td className="py-1.5 text-right tabular-nums">{l.qty ?? '—'}</td>
+                  <td className="py-1.5 text-right tabular-nums">{l.rate ? fmt(Number(l.rate)) : '—'}</td>
+                  <td className="py-1.5 text-right tabular-nums font-semibold">{fmt(Number(l.amount || 0))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="flex justify-end">
+            <div className="w-64 space-y-1 text-xs">
+              <div className="flex justify-between text-slate-600"><span>Subtotal</span><span className="tabular-nums">{fmt(subtotal)}</span></div>
+              {vat > 0 && <div className="flex justify-between text-slate-600"><span>VAT</span><span className="tabular-nums">{fmt(vat)}</span></div>}
+              <div className="flex justify-between font-black text-slate-900 border-t border-slate-200 pt-1"><span>Total</span><span className="tabular-nums">{fmt(d.total)}</span></div>
+              {d.paid > 0 && <div className="flex justify-between text-emerald-600"><span>Paid</span><span className="tabular-nums">{fmt(d.paid)}</span></div>}
+            </div>
+          </div>
+          {d.payload.memo ? <p className="text-[11px] text-slate-500 mt-3 border-t border-slate-100 pt-2">{String(d.payload.memo as string)}</p> : null}
+          <div className="flex justify-end mt-3">
+            <button onClick={() => window.print()} className="btn-secondary text-xs">Print</button>
+          </div>
+        </div>
+      );
+    })()}
     {expandId === d.id && (() => {
       const e = finJournalEntries.find(x => x.sourceId === d.id);
       const ls = e ? finJournalLines.filter(l => l.entryId === e.id) : [];
@@ -334,11 +394,12 @@ export default function FinanceLedger() {
       {tab === 'contacts' && (
         <div className="card p-5 space-y-4">
           <div className="flex items-center justify-between"><h2 className="font-black text-slate-900">Contacts</h2></div>
-          <form onSubmit={async e => { e.preventDefault(); const el = e.currentTarget.elements as unknown as Record<string, HTMLInputElement>; setBusy(true); try { await createFinContact({ name: el.cName.value, type: el.cType.value as 'customer' | 'vendor' | 'both', email: el.cEmail.value, phone: el.cPhone.value }); e.currentTarget.reset(); } catch (err) { reportSaveError(err); } finally { setBusy(false); } }} className="grid grid-cols-2 md:grid-cols-5 gap-2 p-3 bg-slate-50 rounded-xl">
+          <form onSubmit={async e => { e.preventDefault(); const el = e.currentTarget.elements as unknown as Record<string, HTMLInputElement>; setBusy(true); try { await createFinContact({ name: el.cName.value, type: el.cType.value as 'customer' | 'vendor' | 'both', email: el.cEmail.value, phone: el.cPhone.value, address: el.cAddr.value }); e.currentTarget.reset(); } catch (err) { reportSaveError(err); } finally { setBusy(false); } }} className="grid grid-cols-2 md:grid-cols-6 gap-2 p-3 bg-slate-50 rounded-xl">
             <input name="cName" className="input" placeholder="Name" required />
             <select name="cType" className="select"><option value="customer">Customer</option><option value="vendor">Vendor</option><option value="both">Both</option></select>
             <input name="cEmail" className="input" type="email" placeholder="Email" />
             <input name="cPhone" className="input" placeholder="Phone" />
+            <input name="cAddr" className="input" placeholder="Billing address" />
             <button className="btn-primary" disabled={busy}><Plus size={13} />Add</button>
           </form>
           <div className="divide-y divide-slate-100">
@@ -460,7 +521,10 @@ export default function FinanceLedger() {
                   <div><label className="label">Contact</label><select className="select" value={f.contactId ?? ''} onChange={e => setF(v => ({ ...v, contactId: e.target.value }))}><option value="">—</option>{finContacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
                 )}
                 {['receipt', 'payment', 'bank'].includes(form.kind) && (
-                  <div><label className="label">Bank / cash account</label><select className="select" value={f.bankAccountId ?? ''} onChange={e => setF(v => ({ ...v, bankAccountId: e.target.value }))}>{finAccounts.filter(a => ['Cash', 'Bank'].includes(a.type)).map(a => <option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}</select></div>
+                  <>
+                    <div><label className="label">Bank / cash account</label><select className="select" value={f.bankAccountId ?? ''} onChange={e => setF(v => ({ ...v, bankAccountId: e.target.value }))}>{finAccounts.filter(a => ['Cash', 'Bank'].includes(a.type)).map(a => <option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}</select></div>
+                    <div><label className="label">Payment method</label><select className="select" value={f.method ?? 'bank_transfer'} onChange={e => setF(v => ({ ...v, method: e.target.value }))}><option value="bank_transfer">Bank transfer</option><option value="cash">Cash</option><option value="pos">POS</option><option value="cheque">Cheque</option><option value="online">Online payment</option></select></div>
+                  </>
                 )}
                 {form.kind === 'expense' && (
                   <div><label className="label">Paid from</label><select className="select" value={f.cashAccountId ?? 'acc_1000'} onChange={e => setF(v => ({ ...v, cashAccountId: e.target.value }))}>{finAccounts.filter(a => ['Cash', 'Bank'].includes(a.type)).map(a => <option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}</select></div>
@@ -505,20 +569,39 @@ export default function FinanceLedger() {
                   </>
                 ) : (
                   <>
-                    {lines.map((l, i) => (
-                      <div key={i} className="grid grid-cols-1 md:grid-cols-4 gap-2 items-center">
-                        {['invoice', 'quote', 'sales_order'].includes(form.kind) && finItems.length > 0 && (
-                          <select className="select text-xs" value={(l as { itemId?: string }).itemId ?? ''} onChange={e => {
-                            const it = finItems.find(i => i.id === e.target.value);
-                            setLines(ls => ls.map((x, j) => j === i ? { ...x, itemId: e.target.value, accountId: it?.accountId ?? x.accountId, amount: it ? String(it.price) : x.amount, memo: it?.name ?? x.memo } : x));
-                          }}><option value="">From item…</option>{finItems.map(it => <option key={it.id} value={it.id}>{it.name}{it.stock != null ? ` (${it.stock})` : ''}</option>)}</select>
+                    {['invoice', 'quote', 'sales_order', 'bill', 'expense'].includes(form.kind) && (
+                      <div className="grid grid-cols-12 gap-2 text-[10px] font-bold uppercase text-slate-400 px-1"><span className="col-span-5">Item / account</span><span className="col-span-2">Qty</span><span className="col-span-2">Rate (₦)</span><span className="col-span-2">Amount (₦)</span></div>
+                    )}
+                    {lines.map((l, i) => {
+                      const q = Number(l.qty) || 0, r = Number(l.rate) || 0;
+                      const computed = q > 0 && r > 0 ? String(r2(q * r)) : undefined;
+                      return (
+                      <div key={i} className="grid grid-cols-12 gap-2 items-center">
+                        <div className="col-span-12 md:col-span-4 space-y-1">
+                          {['invoice', 'quote', 'sales_order'].includes(form.kind) && finItems.length > 0 && (
+                            <select className="select text-xs" value={(l as { itemId?: string }).itemId ?? ''} onChange={e => {
+                              const it = finItems.find(i => i.id === e.target.value);
+                              setLines(ls => ls.map((x, j) => j === i ? { ...x, itemId: e.target.value, accountId: it?.accountId ?? x.accountId, rate: it ? String(it.price) : x.rate, amount: it ? String(it.price) : x.amount, memo: it?.name ?? x.memo } : x));
+                            }}><option value="">From item…</option>{finItems.map(it => <option key={it.id} value={it.id}>{it.name}{it.stock != null ? ` (${it.stock})` : ''}</option>)}</select>
+                          )}
+                          {accountPicker(l.accountId, v => setLines(ls => ls.map((x, j) => j === i ? { ...x, accountId: v } : x)), form.kind === 'invoice' || form.kind === 'quote' || form.kind === 'sales_order' ? ['Income', 'Other Income'] : form.kind === 'depreciation' ? ['Fixed Asset'] : form.kind === 'receipt' ? ['Accounts Receivable', 'Income', 'Other Current Liability'] : ['Expense', 'Cost of Goods Sold', 'Fixed Asset', 'Other Current Asset', 'Accounts Payable', 'Other Current Liability'])}
+                        </div>
+                        {['invoice', 'quote', 'sales_order', 'bill', 'expense'].includes(form.kind) ? (
+                          <>
+                            <input className="input col-span-4 md:col-span-1" type="number" min={0} placeholder="Qty" value={l.qty ?? ''} onChange={e => { const nv = e.target.value; setLines(ls => ls.map((x, j) => { if (j !== i) return x; const qq = Number(nv) || 0, rr = Number(x.rate) || 0; return { ...x, qty: nv, amount: qq > 0 && rr > 0 ? String(r2(qq * rr)) : x.amount }; })) }} />
+                            <input className="input col-span-4 md:col-span-2" type="number" min={0} placeholder="Rate" value={l.rate ?? ''} onChange={e => { const nv = e.target.value; setLines(ls => ls.map((x, j) => { if (j !== i) return x; const qq = Number(x.qty) || 0, rr = Number(nv) || 0; return { ...x, rate: nv, amount: qq > 0 && rr > 0 ? String(r2(qq * rr)) : x.amount }; })) }} />
+                            <input className="input col-span-4 md:col-span-2" type="number" min={0} placeholder="Amount" value={computed ?? l.amount} onChange={e => setLines(ls => ls.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))} />
+                          </>
+                        ) : (
+                          <input className="input col-span-12 md:col-span-5" type="number" min={0} placeholder="Amount (₦)" value={l.amount} onChange={e => setLines(ls => ls.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))} />
                         )}
-                        {accountPicker(l.accountId, v => setLines(ls => ls.map((x, j) => j === i ? { ...x, accountId: v } : x)), form.kind === 'invoice' || form.kind === 'quote' || form.kind === 'sales_order' ? ['Income', 'Other Income'] : form.kind === 'depreciation' ? ['Fixed Asset'] : form.kind === 'receipt' ? ['Accounts Receivable', 'Income', 'Other Current Liability'] : ['Expense', 'Cost of Goods Sold', 'Fixed Asset', 'Other Current Asset', 'Accounts Payable', 'Other Current Liability'])}
-                        <input className="input" type="number" min={0} placeholder="Amount (₦)" value={l.amount} onChange={e => setLines(ls => ls.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))} />
-                        <input className="input" placeholder="Memo" value={l.memo} onChange={e => setLines(ls => ls.map((x, j) => j === i ? { ...x, memo: e.target.value } : x))} />
-                        {lines.length > 1 ? <button type="button" onClick={() => setLines(ls => ls.filter((_, j) => j !== i))} className="text-red-400 justify-self-start"><Trash2 size={14} /></button> : <span />}
+                        <div className="col-span-12 md:col-span-3 flex items-center gap-2">
+                          <input className="input flex-1" placeholder="Description" value={l.memo} onChange={e => setLines(ls => ls.map((x, j) => j === i ? { ...x, memo: e.target.value } : x))} />
+                          {lines.length > 1 && <button type="button" onClick={() => setLines(ls => ls.filter((_, j) => j !== i))} className="text-red-400"><Trash2 size={14} /></button>}
+                        </div>
                       </div>
-                    ))}
+                      );
+                    })}
                     <button type="button" onClick={() => setLines(ls => [...ls, { accountId: '', amount: '', memo: '' }])} className="btn-secondary text-xs"><Plus size={12} />Add line</button>
                   </>
                 )}
