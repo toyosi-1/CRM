@@ -791,7 +791,11 @@ export function subscribeFinDocuments(cb: (v: FinDocument[]) => void): () => voi
 }
 
 const rowToRecurring = (r: Record<string, unknown>): FinRecurring => ({
-  id: r.id as string, contactId: r.contact_id as string,
+  id: r.id as string, contactId: (r.contact_id as string) ?? undefined,
+  kind: (r.kind as FinRecurring['kind']) ?? 'invoice',
+  name: (r.name as string) ?? undefined,
+  frequency: (r.frequency as FinRecurring['frequency']) ?? 'monthly',
+  paidThroughId: (r.paid_through_id as string) ?? undefined,
   lines: (r.lines as FinRecurring['lines']) ?? [], vat: Number(r.vat ?? 0),
   dayOfMonth: Number(r.day_of_month ?? 1), nextRun: r.next_run as string,
   endDate: (r.end_date as string) ?? undefined, memo: (r.memo as string) ?? undefined,
@@ -804,9 +808,11 @@ export async function fetchFinRecurring(): Promise<FinRecurring[]> {
 export function subscribeFinRecurring(cb: (v: FinRecurring[]) => void): () => void {
   const refresh = async () => cb(await fetchFinRecurring()); void refresh(); return subscribe('fin_recurring', refresh);
 }
-export async function upsertFinRecurring(r: Partial<FinRecurring> & { contactId: string; createdBy: string }): Promise<void> {
+export async function upsertFinRecurring(r: Partial<FinRecurring> & { createdBy: string }): Promise<void> {
   const { error } = await supabase.from('fin_recurring').upsert({
-    ...(r.id && { id: r.id }), contact_id: r.contactId, lines: r.lines ?? [], vat: r.vat ?? 0,
+    ...(r.id && { id: r.id }), contact_id: r.contactId ?? null, kind: r.kind ?? 'invoice',
+    name: r.name ?? null, frequency: r.frequency ?? 'monthly', paid_through_id: r.paidThroughId ?? null,
+    lines: r.lines ?? [], vat: r.vat ?? 0,
     day_of_month: r.dayOfMonth ?? 1, next_run: r.nextRun, end_date: r.endDate ?? null,
     memo: r.memo ?? null, active: r.active ?? true, created_by: r.createdBy,
   }); fail(error);

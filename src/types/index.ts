@@ -504,12 +504,16 @@ export interface FinDocument {
 
 export interface FinRecurring {
   id: string;
-  contactId: string;
+  kind: 'invoice' | 'expense';
+  name?: string;
+  contactId?: string;
   lines: { accountId: string; amount: number; memo?: string }[];
   vat: number;
+  frequency: 'weekly' | 'monthly' | 'yearly';
   dayOfMonth: number;
   nextRun: string;
   endDate?: string;
+  paidThroughId?: string;
   memo?: string;
   active: boolean;
   createdBy: string;
