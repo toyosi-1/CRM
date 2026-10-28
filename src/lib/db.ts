@@ -754,13 +754,13 @@ export function subscribeFinJournal(cb: (v: { entries: FinJournalEntry[]; lines:
 
 export async function fetchFinContacts(): Promise<FinContact[]> {
   const { data, error } = await supabase.from('fin_contacts').select('*').order('name'); fail(error);
-  return (data ?? []).map(r => ({ id: r.id, name: r.name, type: r.type, email: r.email ?? undefined, phone: r.phone ?? undefined, address: r.address ?? undefined }));
+  return (data ?? []).map(r => ({ id: r.id, name: r.name, type: r.type, email: r.email ?? undefined, phone: r.phone ?? undefined, address: r.address ?? undefined, bankName: r.bank_name ?? undefined, bankAccountNo: r.bank_account_no ?? undefined, bankCode: r.bank_code ?? undefined }));
 }
 export function subscribeFinContacts(cb: (v: FinContact[]) => void): () => void {
   const refresh = async () => cb(await fetchFinContacts()); void refresh(); return subscribe('fin_contacts', refresh);
 }
 export async function createFinContact(c: Omit<FinContact, 'id'>): Promise<void> {
-  const { error } = await supabase.from('fin_contacts').insert({ name: c.name, type: c.type, email: c.email, phone: c.phone, address: c.address }); fail(error);
+  const { error } = await supabase.from('fin_contacts').insert({ name: c.name, type: c.type, email: c.email, phone: c.phone, address: c.address, bank_name: c.bankName ?? null, bank_account_no: c.bankAccountNo ?? null, bank_code: c.bankCode ?? null }); fail(error);
 }
 export async function updateFinContact(id: string, c: Partial<FinContact>): Promise<void> {
   const { error } = await supabase.from('fin_contacts').update({ ...(c.name !== undefined && { name: c.name }), ...(c.type !== undefined && { type: c.type }), ...(c.email !== undefined && { email: c.email }), ...(c.phone !== undefined && { phone: c.phone }), ...(c.address !== undefined && { address: c.address }) }).eq('id', id); fail(error);
@@ -827,13 +827,13 @@ export async function runRecurringNow(): Promise<number> {
 
 export async function fetchFinBudgets(): Promise<FinBudget[]> {
   const { data, error } = await supabase.from('fin_budgets').select('*').order('name'); fail(error);
-  return (data ?? []).map(r => ({ id: r.id, name: r.name, period: r.period, lines: (r.lines as FinBudget['lines']) ?? [] }));
+  return (data ?? []).map(r => ({ id: r.id, name: r.name, period: r.period, budgetPeriod: (r.budget_period as FinBudget['budgetPeriod']) ?? 'monthly', lines: (r.lines as FinBudget['lines']) ?? [] }));
 }
 export function subscribeFinBudgets(cb: (v: FinBudget[]) => void): () => void {
   const refresh = async () => cb(await fetchFinBudgets()); void refresh(); return subscribe('fin_budgets', refresh);
 }
 export async function upsertFinBudget(b: Partial<FinBudget> & { name: string; period: string }): Promise<void> {
-  const { error } = await supabase.from('fin_budgets').upsert({ ...(b.id && { id: b.id }), name: b.name, period: b.period, lines: b.lines ?? [] }); fail(error);
+  const { error } = await supabase.from('fin_budgets').upsert({ ...(b.id && { id: b.id }), name: b.name, period: b.period, budget_period: b.budgetPeriod ?? 'monthly', lines: b.lines ?? [] }); fail(error);
 }
 
 export async function fetchFinActivity(): Promise<FinActivity[]> {

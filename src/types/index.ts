@@ -472,6 +472,9 @@ export interface FinContact {
   email?: string;
   phone?: string;
   address?: string;
+  bankName?: string;
+  bankAccountNo?: string;
+  bankCode?: string;
 }
 
 export interface FinItem {
@@ -524,6 +527,7 @@ export interface FinBudget {
   id: string;
   name: string;
   period: string;
+  budgetPeriod?: 'monthly' | 'quarterly' | 'yearly';
   lines: { accountId: string; amount: number }[];
 }
 

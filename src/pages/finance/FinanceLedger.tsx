@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { BookOpen, Users, Package, TrendingUp, TrendingDown, Landmark, BookMarked, BarChart3, Activity, Plus, Loader2, Trash2, Upload, Paperclip } from 'lucide-react';
 import FinImport from './FinImport';
 import FinConnect from './FinConnect';
@@ -54,6 +54,7 @@ export default function FinanceLedger() {
   const [budId, setBudId] = useState('');
   const [budName, setBudName] = useState('');
   const [budPeriod, setBudPeriod] = useState(String(new Date().getFullYear()));
+  const [budFreq, setBudFreq] = useState<'monthly' | 'quarterly' | 'yearly'>('monthly');
   const [budLines, setBudLines] = useState<{ accountId: string; amount: string }[]>([{ accountId: '', amount: '' }]);
   const [expandId, setExpandId] = useState<string | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);
@@ -315,6 +316,7 @@ export default function FinanceLedger() {
               <p className="font-bold text-slate-800">{contact.name}</p>
               {contact.address && <p className="text-slate-500">{contact.address}</p>}
               {contact.email && <p className="text-slate-500">{contact.email}</p>}
+              {contact.bankAccountNo && <p className="text-slate-500">Bank: {contact.bankName ?? ''} · {contact.bankAccountNo}{contact.bankCode ? ` · ${contact.bankCode}` : ''}</p>}
             </div>
           )}
           <table className="w-full text-xs mb-4">
@@ -383,6 +385,32 @@ export default function FinanceLedger() {
       {finAccounts.filter(a => !types || types.includes(a.type)).map(a => <option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}
     </select>
   );
+
+  const navigate = useNavigate();
+  const Landing = ({ title, blurb, cta, onCta, steps }: { title: string; blurb: string; cta: string; onCta: () => void; steps: string[] }) => (
+    <div className="card p-10 text-center">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-brand-600 mb-2">Propel Finance</p>
+      <h3 className="text-xl font-black text-slate-900">{title}</h3>
+      <p className="text-sm text-slate-500 mt-2 max-w-md mx-auto">{blurb}</p>
+      <button onClick={onCta} className="btn-primary mt-5"><Plus size={13} />{cta}</button>
+      <button onClick={() => navigate('/finance/ledger/import')} className="block mx-auto mt-3 text-xs font-bold text-brand-600 hover:underline">Import via CSV →</button>
+      <p className="text-[10px] font-bold uppercase text-slate-400 mt-8 mb-2">Lifecycle</p>
+      <div className="flex items-center justify-center gap-2 flex-wrap">{steps.map((s, i) => (
+        <span key={i} className="flex items-center gap-2"><span className="px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-[11px] font-bold text-slate-500">{s}</span>{i < steps.length - 1 && <span className="text-slate-300 text-xs">→</span>}</span>
+      ))}</div>
+    </div>
+  );
+  const LANDING: Record<string, { title: string; blurb: string; cta: string; kind: FinDocKind; steps: string[] }> = {
+    quotes: { title: 'Quote. Negotiate. Convert.', blurb: 'Send a priced proposal, then convert it to an invoice when accepted — nothing posts to the ledger until it becomes an invoice.', cta: 'New quote', kind: 'quote', steps: ['Create quote', 'Customer accepts', 'Convert to invoice', 'Record receipt'] },
+    sorders: { title: 'Confirm orders. Then invoice.', blurb: 'Sales orders confirm what a customer committed to before fulfilment — convert to an invoice when done.', cta: 'New sales order', kind: 'sales_order', steps: ['Create order', 'Fulfil', 'Convert to invoice', 'Record receipt'] },
+    invoices: { title: 'Bill customers. Get paid.', blurb: 'Every invoice posts DR Accounts Receivable / CR income (+ VAT) and tracks what each customer still owes.', cta: 'New invoice', kind: 'invoice', steps: ['Create invoice', 'Customer pays', 'Record receipt', 'Balance settled'] },
+    receipts: { title: 'Record money received.', blurb: 'Receipts settle open invoices — DR bank/cash / CR AR, with WHT-deducted handling built in.', cta: 'Record receipt', kind: 'receipt', steps: ['Customer pays', 'Record receipt', 'Invoice settled', 'Ledger updated'] },
+    cnotes: { title: 'Issue credit notes.', blurb: 'Reduce what a customer owes — returns, corrections, agreed discounts. Posts the reversal and can apply to an open invoice.', cta: 'New credit note', kind: 'credit_note', steps: ['Issue credit', 'Apply to invoice', 'AR reduced', 'Ledger updated'] },
+    bills: { title: 'Track what you owe vendors.', blurb: 'Bills post DR expense/asset / CR Accounts Payable and drive the payables aging until paid.', cta: 'New bill', kind: 'bill', steps: ['Vendor sends bill', 'Record bill', 'Record payment', 'Bill settled'] },
+    payments: { title: 'Record payments made.', blurb: 'Payments settle open bills — DR AP / CR bank, with WHT withheld from vendors posted correctly.', cta: 'Record payment', kind: 'payment', steps: ['Pay vendor', 'Record payment', 'Bill settled', 'Ledger updated'] },
+    expenses: { title: 'Time to manage your expenses!', blurb: 'Record operating costs as they happen — petty cash, fuel, subscriptions — straight to the right expense account.', cta: 'Record expense', kind: 'expense', steps: ['Expense incurred', 'Record expense', 'Billable → invoice / Non-billable → absorbed'] },
+    vcredits: { title: 'Record vendor credits.', blurb: 'Reduce what you owe a vendor — returned goods, overbilling corrections. Posts the reversal and can apply to an open bill.', cta: 'New vendor credit', kind: 'vendor_credit', steps: ['Vendor issues credit', 'Apply to bill', 'AP reduced', 'Ledger updated'] },
+  };
 
   return (
     <div className="space-y-5">
@@ -456,20 +484,25 @@ export default function FinanceLedger() {
       {tab === 'contacts' && (
         <div className="card p-5 space-y-4">
           <div className="flex items-center justify-between"><h2 className="font-black text-slate-900">Contacts</h2></div>
-          <form onSubmit={async e => { e.preventDefault(); const el = e.currentTarget.elements as unknown as Record<string, HTMLInputElement>; setBusy(true); try { await createFinContact({ name: el.cName.value, type: el.cType.value as 'customer' | 'vendor' | 'both', email: el.cEmail.value, phone: el.cPhone.value, address: el.cAddr.value }); e.currentTarget.reset(); } catch (err) { reportSaveError(err); } finally { setBusy(false); } }} className="grid grid-cols-2 md:grid-cols-6 gap-2 p-3 bg-slate-50 rounded-xl">
+          <form onSubmit={async e => { e.preventDefault(); const el = e.currentTarget.elements as unknown as Record<string, HTMLInputElement>; setBusy(true); try { await createFinContact({ name: el.cName.value, type: el.cType.value as 'customer' | 'vendor' | 'both', email: el.cEmail.value, phone: el.cPhone.value, address: el.cAddr.value, bankName: el.cBank.value || undefined, bankAccountNo: el.cBankNo.value || undefined, bankCode: el.cBankCode.value || undefined }); e.currentTarget.reset(); } catch (err) { reportSaveError(err); } finally { setBusy(false); } }} className="grid grid-cols-2 md:grid-cols-4 gap-2 p-3 bg-slate-50 rounded-xl">
             <input name="cName" className="input" placeholder="Name" required />
             <select name="cType" className="select"><option value="customer">Customer</option><option value="vendor">Vendor</option><option value="both">Both</option></select>
             <input name="cEmail" className="input" type="email" placeholder="Email" />
             <input name="cPhone" className="input" placeholder="Phone" />
-            <input name="cAddr" className="input" placeholder="Billing address" />
+            <input name="cAddr" className="input col-span-2" placeholder="Billing address" />
+            <input name="cBank" className="input" placeholder="Bank name" />
+            <input name="cBankNo" className="input" placeholder="Account number" />
+            <input name="cBankCode" className="input" placeholder="Sort / bank code" />
             <button className="btn-primary" disabled={busy}><Plus size={13} />Add</button>
           </form>
           <div className="divide-y divide-slate-100">
             {finContacts.map(c => (
               <div key={c.id} className="py-2.5 flex items-center gap-3 text-sm">
-                <span className="font-bold text-slate-800 flex-1">{c.name}</span>
-                <span className="badge bg-slate-100 text-slate-600">{c.type}</span>
-                <span className="text-xs text-slate-400">{c.email ?? ''} {c.phone ? `· ${c.phone}` : ''}</span>
+                <div className="flex-1">
+                  <p className="font-bold text-slate-800">{c.name} <span className="badge bg-slate-100 text-slate-600 ml-1">{c.type}</span></p>
+                  <p className="text-xs text-slate-400">{[c.email, c.phone].filter(Boolean).join(' · ')}</p>
+                  {c.bankAccountNo && <p className="text-xs text-slate-500 mt-0.5">🏦 {c.bankName ?? ''} · {c.bankAccountNo}{c.bankCode ? ` · ${c.bankCode}` : ''}</p>}
+                </div>
               </div>
             ))}
             {finContacts.length === 0 && <p className="text-sm text-slate-400 py-4">No contacts yet.</p>}
@@ -882,7 +915,9 @@ export default function FinanceLedger() {
                     </div>
                   );
                 })}
-                {finJournalEntries.length === 0 && <p className="p-8 text-center text-sm text-slate-400">No journal entries yet.</p>}
+                {finJournalEntries.length === 0 && (
+                  <Landing title="Directly adjust your books." blurb="Manual journals record adjustments no document covers — opening balances, accruals, corrections. Every entry must balance debits against credits before it publishes." cta="New manual journal" onCta={() => openForm('journal')} steps={['Draft journal', 'Balance debits = credits', 'Publish', 'Reports update']} />
+                )}
               </div>
             </div>
           )}
@@ -896,10 +931,14 @@ export default function FinanceLedger() {
             return (
               <div>
                 {TITLE[pSub] && <h3 className="font-black text-slate-900 mb-2">{TITLE[pSub]}</h3>}
-                <div className="card divide-y divide-slate-100">
-                  {docs.map(docRow)}
-                  {docs.length === 0 && <p className="p-8 text-center text-sm text-slate-400">Nothing posted yet.</p>}
-                </div>
+                {docs.length === 0 && LANDING[pSub] ? (
+                  <Landing {...LANDING[pSub]} onCta={() => openForm(LANDING[pSub].kind)} />
+                ) : (
+                  <div className="card divide-y divide-slate-100">
+                    {docs.map(docRow)}
+                    {docs.length === 0 && <p className="p-8 text-center text-sm text-slate-400">Nothing posted yet.</p>}
+                  </div>
+                )}
               </div>
             );
           })()}
@@ -1096,7 +1135,13 @@ export default function FinanceLedger() {
                 <h2 className="font-black text-slate-900">New budget</h2>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   <input className="input" placeholder="Budget name" value={budName} onChange={e => setBudName(e.target.value)} />
-                  <input className="input" placeholder="Period (e.g. 2027)" value={budPeriod} onChange={e => setBudPeriod(e.target.value)} />
+                  <select className="select" value={budPeriod} onChange={e => setBudPeriod(e.target.value)}>
+                    {[new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1, new Date().getFullYear() + 2].map(y => <option key={y} value={String(y)}>Jan {y} – Dec {y}</option>)}
+                  </select>
+                  <select className="select" value={budFreq} onChange={e => setBudFreq(e.target.value as 'monthly' | 'quarterly' | 'yearly')}>
+                    <option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option>
+                  </select>
+                  <p className="text-[11px] text-slate-400 self-center">Amounts below are per {budFreq === 'monthly' ? 'month' : budFreq === 'quarterly' ? 'quarter' : 'year'} — across income, expense, and balance-sheet accounts.</p>
                 </div>
                 {budLines.map((l, i) => (
                   <div key={i} className="grid grid-cols-1 md:grid-cols-3 gap-2">
@@ -1110,7 +1155,7 @@ export default function FinanceLedger() {
                   <button onClick={async () => {
                     const ls = budLines.filter(l => l.accountId && Number(l.amount) > 0).map(l => ({ accountId: l.accountId, amount: Number(l.amount) }));
                     if (!budName.trim() || !ls.length) return alert('Name the budget and add at least one account line.');
-                    try { await upsertFinBudget({ name: budName.trim(), period: budPeriod.trim(), lines: ls }); setBudName(''); setBudLines([{ accountId: '', amount: '' }]); } catch (e) { reportSaveError(e); }
+                    try { await upsertFinBudget({ name: budName.trim(), period: budPeriod.trim(), budgetPeriod: budFreq, lines: ls }); setBudName(''); setBudLines([{ accountId: '', amount: '' }]); } catch (e) { reportSaveError(e); }
                   }} className="btn-primary text-xs">Save budget</button>
                 </div>
               </div>
@@ -1118,7 +1163,7 @@ export default function FinanceLedger() {
               <div className="card p-5">
                 <div className="mb-3 flex items-center gap-3">
                   <h2 className="font-black text-slate-900">Budget vs actual</h2>
-                  <select className="select max-w-xs" value={budId} onChange={e => setBudId(e.target.value)}><option value="">Pick a budget…</option>{finBudgets.map(b => <option key={b.id} value={b.id}>{b.name} ({b.period})</option>)}</select>
+                  <select className="select max-w-xs" value={budId} onChange={e => setBudId(e.target.value)}><option value="">Pick a budget…</option>{finBudgets.map(b => <option key={b.id} value={b.id}>{b.name} ({b.period}{b.budgetPeriod ? ` · ${b.budgetPeriod}` : ''})</option>)}</select>
                 </div>
                 {budId && (() => {
                   const b = finBudgets.find(x => x.id === budId)!;
