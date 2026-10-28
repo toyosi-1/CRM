@@ -742,7 +742,7 @@ export async function fetchFinJournal(): Promise<{ entries: FinJournalEntry[]; l
   fail(e.error); fail(l.error);
   return {
     entries: (e.data ?? []).map(r => ({ id: r.id, no: r.no, source: r.source, sourceId: r.source_id ?? undefined, date: r.date, ref: r.ref ?? undefined, notes: r.notes ?? undefined, status: r.status, createdBy: r.created_by, createdAt: r.created_at })),
-    lines: (l.data ?? []).map(r => ({ id: r.id, entryId: r.entry_id, accountId: r.account_id, debit: Number(r.debit), credit: Number(r.credit), memo: r.memo ?? undefined })),
+    lines: (l.data ?? []).map(r => ({ id: r.id, entryId: r.entry_id, accountId: r.account_id, debit: Number(r.debit), credit: Number(r.credit), memo: r.memo ?? undefined, contactId: r.contact_id ?? undefined })),
   };
 }
 export function subscribeFinJournal(cb: (v: { entries: FinJournalEntry[]; lines: FinJournalLine[] }) => void): () => void {
@@ -849,7 +849,7 @@ export async function logFinActivity(actor: string, action: string, ref?: string
 
 /* ---------- posting engine ---------- */
 // Every document posts a balanced journal entry. Lines: [{accountId, dr, cr, memo}]
-export interface PostLine { accountId: string; dr?: number; cr?: number; memo?: string }
+export interface PostLine { accountId: string; dr?: number; cr?: number; memo?: string; contactId?: string }
 
 export async function postJournal(
   meta: { no: string; source: FinJournalEntry['source']; sourceId?: string; date: string; ref?: string; notes?: string; status?: string; createdBy: string },
@@ -865,7 +865,7 @@ export async function postJournal(
   });
   fail(error);
   const { error: lErr } = await supabase.from('fin_journal_lines').insert(
-    lines.filter(l => (l.dr ?? 0) > 0 || (l.cr ?? 0) > 0).map(l => ({ entry_id: entryId, account_id: l.accountId, debit: l.dr ?? 0, credit: l.cr ?? 0, memo: l.memo ?? null })),
+    lines.filter(l => (l.dr ?? 0) > 0 || (l.cr ?? 0) > 0).map(l => ({ entry_id: entryId, account_id: l.accountId, debit: l.dr ?? 0, credit: l.cr ?? 0, memo: l.memo ?? null, contact_id: l.contactId ?? null })),
   );
   fail(lErr);
   return entryId;
@@ -885,9 +885,16 @@ export async function createFinDocument(doc: Omit<FinDocument, 'id' | 'createdAt
 export async function updateFinDocument(id: string, data: Partial<FinDocument>): Promise<void> {
   const { error } = await supabase.from('fin_documents').update({
     ...(data.status !== undefined && { status: data.status }), ...(data.paid !== undefined && { paid: data.paid }),
+    ...(data.total !== undefined && { total: data.total }),
     ...(data.payload !== undefined && { payload: data.payload }), ...(data.dueDate !== undefined && { due_date: data.dueDate }),
     ...(data.contactId !== undefined && { contact_id: data.contactId }), ...(data.no !== undefined && { no: data.no }),
   }).eq('id', id); fail(error);
+}
+
+// Publish a journal entry saved as draft (drafts don't affect balances until published).
+export async function publishFinJournalEntry(id: string, no: string, by: string): Promise<void> {
+  const { error } = await supabase.from('fin_journal_entries').update({ status: 'published' }).eq('id', id); fail(error);
+  await logFinActivity(by, `Published journal ${no}`, id).catch(() => undefined);
 }
 
 // Void a standalone journal entry (manual journal / FX) that isn't tied to a document.

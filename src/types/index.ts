@@ -445,7 +445,7 @@ export interface FinAccount {
 export interface FinJournalEntry {
   id: string;
   no: string;
-  source: 'journal' | 'invoice' | 'receipt' | 'bill' | 'payment' | 'expense' | 'bank' | 'fx';
+  source: 'journal' | 'invoice' | 'receipt' | 'bill' | 'payment' | 'expense' | 'bank' | 'fx' | 'credit_note' | 'vendor_credit';
   sourceId?: string;
   date: string;
   ref?: string;
@@ -462,6 +462,7 @@ export interface FinJournalLine {
   debit: number;
   credit: number;
   memo?: string;
+  contactId?: string;
 }
 
 export interface FinContact {
@@ -482,7 +483,7 @@ export interface FinItem {
   stock?: number;
 }
 
-export type FinDocKind = 'invoice' | 'receipt' | 'bill' | 'payment' | 'expense' | 'bank' | 'project' | 'timesheet' | 'journal' | 'fx' | 'lock' | 'quote' | 'sales_order' | 'depreciation';
+export type FinDocKind = 'invoice' | 'receipt' | 'bill' | 'payment' | 'expense' | 'bank' | 'project' | 'timesheet' | 'journal' | 'fx' | 'lock' | 'quote' | 'sales_order' | 'depreciation' | 'credit_note' | 'vendor_credit';
 export type FinDocStatus = 'draft' | 'issued' | 'part_paid' | 'paid' | 'void' | 'published' | 'reconciled';
 
 export interface FinDocument {
