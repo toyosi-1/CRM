@@ -47,10 +47,12 @@ export default function FacilitiesManagement() {
     const monthlyRent = rentTotal > 0 ? rentTotal : Number(form.monthlyRent.value);
     await createTenant({
       siteId: site.id, name: form.tenantName.value, unit: units[0]?.label ?? '', units: units.length ? units : undefined, email: form.email.value,
+      emails: (form.emails.value || '').split(',').map(e => e.trim()).filter(Boolean),
       phone: form.phone.value, monthlyRent, serviceCharge: Number(form.serviceCharge.value) || 0, leaseExpiry: form.leaseExpiry.value,
+      nextRentDate: form.nextRentDate.value || undefined,
       serviceChargeBilling: form.serviceChargeBilling.value as 'included' | 'separate',
       serviceChargeInvoiceDate: form.serviceChargeInvoiceDate.value || undefined,
-      lastPaymentDate: form.lastPaymentDate.value, status: 'paid',
+      status: 'paid',
     });
     setShowTenant(false); setNewUnits([{ label: '', rent: '' }]);
   };
@@ -111,14 +113,15 @@ export default function FacilitiesManagement() {
                   <form onSubmit={addTenant} className="mb-4 p-3 bg-slate-50 rounded-xl space-y-3">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <input className="input" name="tenantName" placeholder="Tenant name" required />
-                      <input className="input" name="email" type="email" placeholder="Email" />
+                      <input className="input" name="email" type="email" placeholder="Primary email" />
+                      <input className="input" name="emails" placeholder="Extra emails (comma-separated)" />
                       <input className="input" name="phone" placeholder="Phone" />
                       <input className="input" name="monthlyRent" type="number" min={0} placeholder="Monthly rent (₦) — or use per-unit rents" />
                       <input className="input" name="serviceCharge" type="number" min={0} placeholder="Service charge (₦, if applicable)" />
                       <select className="select" name="serviceChargeBilling" defaultValue="separate" title="Service charge billing"><option value="separate">Service charge: billed separately</option><option value="included">Service charge: included in rent</option></select>
+                      <input className="input" name="nextRentDate" type="date" title="Next rent due date" />
                       <input className="input" name="serviceChargeInvoiceDate" type="date" title="Next service-charge invoice date" />
                       <input className="input" name="leaseExpiry" type="date" placeholder="Lease expiry" />
-                      <input className="input" name="lastPaymentDate" type="date" placeholder="Last payment" />
                     </div>
                     <div className="space-y-2">
                       <p className="label">Units occupied <span className="text-slate-400 font-normal">— add as many as the tenant occupies; rent totals automatically</span></p>
@@ -177,15 +180,43 @@ function TenantRow({ tenant, canEdit, onUpdate }: { tenant: Tenant; canEdit: boo
     const rentTotal = units.reduce((s, u) => s + (u.rent ?? 0), 0);
     await onUpdate(tenant.id, {
       name: f.tenantName.value, unit: units[0]?.label ?? tenant.unit, units: units.length ? units : undefined,
-      email: f.email.value, phone: f.phone.value,
+      email: f.email.value, emails: (f.emails.value || '').split(',').map(e => e.trim()).filter(Boolean), phone: f.phone.value,
       monthlyRent: rentTotal > 0 ? rentTotal : Number(f.monthlyRent.value),
       serviceCharge: Number(f.serviceCharge.value) || 0,
       serviceChargeBilling: f.serviceChargeBilling.value as 'included' | 'separate',
       serviceChargeInvoiceDate: f.serviceChargeInvoiceDate.value || undefined,
-      leaseExpiry: f.leaseExpiry.value || undefined, lastPaymentDate: f.lastPaymentDate.value || undefined,
+      leaseExpiry: f.leaseExpiry.value || undefined, nextRentDate: f.nextRentDate.value || undefined,
       status: f.status.value as Tenant['status'],
     });
     setEditing(false);
+  };
+
+  const allEmails = [tenant.email, ...(tenant.emails ?? [])].filter(Boolean);
+  const rentDue = tenant.nextRentDate ? tenant.nextRentDate <= new Date().toISOString().slice(0, 10) : false;
+
+  const sendRentInvoice = async () => {
+    if (!allEmails.length) return alert('No email on file for this tenant — add one via Edit tenant.');
+    const period = window.prompt('Rent period (e.g. "November 2026"):', new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }));
+    if (period === null) return;
+    const subject = `Rent Invoice — ${siteName} — ${period.trim() || 'Rent'}`;
+    const body = [
+      `Dear ${tenant.name},`,
+      '',
+      `This is your rent invoice for ${period.trim() || 'the current period'} at ${siteName}.`,
+      `Unit(s): ${tenant.units?.length ? tenant.units.map(u => u.label).join(', ') : tenant.unit}`,
+      '',
+      `Rent due: ₦${tenant.monthlyRent.toLocaleString('en-NG')}`,
+      '',
+      'Please remit payment to the facility account. Contact the facility manager with any questions.',
+      '',
+      'Propel Properties & Facilities Services Ltd.',
+    ].join('\n');
+    window.location.href = `mailto:${allEmails.join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    // Advance the next due date by one month once the invoice is sent.
+    if (tenant.nextRentDate) {
+      const next = new Date(tenant.nextRentDate); next.setMonth(next.getMonth() + 1);
+      await onUpdate(tenant.id, { nextRentDate: next.toISOString().slice(0, 10) });
+    }
   };
   const separate = (tenant.serviceChargeBilling ?? 'separate') === 'separate' && (tenant.serviceCharge ?? 0) > 0;
   const siteName = sites.find(s => s.id === tenant.siteId)?.name ?? 'your facility';
@@ -224,11 +255,13 @@ function TenantRow({ tenant, canEdit, onUpdate }: { tenant: Tenant; canEdit: boo
         <form onSubmit={saveEdit} className="space-y-3 bg-slate-50 rounded-xl p-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             <input className="input" name="tenantName" defaultValue={tenant.name} placeholder="Tenant name" required />
-            <input className="input" name="email" type="email" defaultValue={tenant.email} placeholder="Email" />
+            <input className="input" name="email" type="email" defaultValue={tenant.email} placeholder="Primary email" />
+            <input className="input" name="emails" defaultValue={(tenant.emails ?? []).join(', ')} placeholder="Extra emails (comma-separated)" />
             <input className="input" name="phone" defaultValue={tenant.phone} placeholder="Phone" />
             <input className="input" name="monthlyRent" type="number" min={0} defaultValue={tenant.monthlyRent} placeholder="Monthly rent (₦) — or per-unit rents" />
             <input className="input" name="serviceCharge" type="number" min={0} defaultValue={tenant.serviceCharge ?? 0} placeholder="Service charge (₦)" />
             <select className="select" name="serviceChargeBilling" defaultValue={tenant.serviceChargeBilling ?? 'separate'}><option value="separate">Service charge: billed separately</option><option value="included">Service charge: included in rent</option></select>
+            <input className="input" name="nextRentDate" type="date" defaultValue={tenant.nextRentDate ?? ''} title="Next rent due date" />
             <input className="input" name="serviceChargeInvoiceDate" type="date" defaultValue={tenant.serviceChargeInvoiceDate ?? ''} title="Next service-charge invoice date" />
             <input className="input" name="leaseExpiry" type="date" defaultValue={tenant.leaseExpiry ?? ''} title="Lease expiry" />
             <select className="select" name="status" defaultValue={tenant.status}><option value="paid">Paid</option><option value="expiring_soon">Expiring soon</option><option value="overdue">Overdue</option></select>
@@ -256,6 +289,12 @@ function TenantRow({ tenant, canEdit, onUpdate }: { tenant: Tenant; canEdit: boo
             : tenant.unit}
           {' · '}{tenant.phone} · {formatCurrency(tenant.monthlyRent)}/month{(tenant.serviceCharge ?? 0) > 0 && ` + ${formatCurrency(tenant.serviceCharge!)} service charge${tenant.serviceChargeBilling === 'included' ? ' (in rent)' : ''}`}
         </p>
+        {tenant.nextRentDate && (
+          <p className={`text-[11px] mt-0.5 font-semibold ${rentDue ? 'text-amber-600' : 'text-slate-400'}`}>
+            Next rent due: {new Date(tenant.nextRentDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}{rentDue && ' — due now'}
+            {tenant.leaseExpiry && ` · lease ends ${new Date(tenant.leaseExpiry).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`}
+          </p>
+        )}
         {separate && (tenant.serviceChargeInvoiceDate || lastIssued) && (
           <p className="text-[11px] text-slate-400 mt-0.5">
             {tenant.serviceChargeInvoiceDate && `Next service-charge invoice: ${new Date(tenant.serviceChargeInvoiceDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`}
@@ -265,6 +304,11 @@ function TenantRow({ tenant, canEdit, onUpdate }: { tenant: Tenant; canEdit: boo
       </div>
       <div className="text-right">
         {quickStatus ? <div className="flex gap-2"><select className="select text-xs" value={status} onChange={e => setStatus(e.target.value as Tenant['status'])}><option value="paid">Paid</option><option value="expiring_soon">Expiring soon</option><option value="overdue">Overdue</option></select><button onClick={saveStatus} className="btn-success text-xs py-1">Save</button></div> : <span className={`badge ${tenant.status === 'overdue' ? 'bg-red-100 text-red-700' : tenant.status === 'expiring_soon' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>{tenant.status.replace('_', ' ')}</span>}
+        {canEdit && (
+          <button onClick={() => void sendRentInvoice()} className={`block text-[11px] mt-1 font-bold ${rentDue ? 'text-amber-600' : 'text-brand-600'}`}>
+            {rentDue ? '⚠ Rent due — send invoice →' : 'Send rent invoice →'}
+          </button>
+        )}
         {canEdit && <button onClick={openEdit} className="block text-[11px] text-brand-600 mt-1 font-semibold">Edit tenant →</button>}
         {canEdit && !quickStatus && <button onClick={() => setQuickStatus(true)} className="block text-[11px] text-brand-600 mt-1">Change status</button>}
         {canEdit && separate && (

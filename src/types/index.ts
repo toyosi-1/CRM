@@ -408,6 +408,8 @@ export interface Tenant {
   serviceChargeInvoiceDate?: string;
   leaseExpiry?: string;
   lastPaymentDate?: string;
+  nextRentDate?: string;   // next rent due date — the invoice button highlights when reached
+  emails?: string[];       // additional recipient emails (email stays primary)
   status: 'paid' | 'expiring_soon' | 'overdue';
   createdAt: string;
   updatedAt: string;
