@@ -6,7 +6,8 @@ import FinConnect from './FinConnect';
 import { useStore } from '../../store/useStore';
 import {
   createFinContact, upsertFinItem, deleteFinItem, createFinDocument, updateFinDocument,
-  voidFinDocument, postJournal, logFinActivity, upsertFinBudget, upsertFinAccount, reclassifyFinLines, uploadFile, type PostLine,
+  voidFinDocument, postJournal, logFinActivity, upsertFinBudget, upsertFinAccount, reclassifyFinLines, uploadFile,
+  upsertFinRecurring, deleteFinRecurring, type PostLine,
 } from '../../lib/db';
 import { reportSaveError } from '../../store/useStore';
 import type { FinAccount, FinDocument, FinDocKind } from '../../types';
@@ -39,7 +40,9 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function FinanceLedger() {
-  const { finAccounts, finJournalEntries, finJournalLines, finContacts, finItems, finDocuments, finBudgets, finActivity, currentUser, getBudgetSummaries } = useStore();
+  const { finAccounts, finJournalEntries, finJournalLines, finContacts, finItems, finDocuments, finBudgets, finActivity, finRecurring, currentUser, getBudgetSummaries } = useStore();
+  const [recForm, setRecForm] = useState<null | { contactId: string; vat: string; memo: string; nextRun: string; endDate?: string; dayOfMonth: string }>(null);
+  const [recLines, setRecLines] = useState<{ accountId: string; amount: string; memo: string }[]>([{ accountId: '', amount: '', memo: '' }]);
   const seg = useParams()['*'] ?? '';
   const [pTab, pSub] = seg.split('/');
   const tab = (TABS.some(t => t.id === pTab) ? pTab : 'home') as Tab;
@@ -431,6 +434,7 @@ export default function FinanceLedger() {
             {tab === 'sales' && (!pSub || pSub === 'sorders') && <button onClick={() => openForm('sales_order')} className="btn-secondary"><Plus size={13} />New sales order</button>}
             {tab === 'sales' && (!pSub || pSub === 'invoices') && <button onClick={() => openForm('invoice')} className="btn-primary"><Plus size={13} />New invoice</button>}
             {tab === 'sales' && (!pSub || pSub === 'receipts') && <button onClick={() => openForm('receipt')} className="btn-secondary"><Plus size={13} />Record receipt</button>}
+            {tab === 'sales' && pSub === 'recurring' && <button onClick={() => setRecForm({ contactId: '', vat: '', memo: '', nextRun: today(), dayOfMonth: '1' })} className="btn-primary"><Plus size={13} />New recurring invoice</button>}
             {tab === 'purchases' && pSub !== 'payments' && pSub !== 'expenses' && <button onClick={() => openForm('bill')} className="btn-primary"><Plus size={13} />New bill</button>}
             {tab === 'purchases' && pSub !== 'bills' && pSub !== 'expenses' && <button onClick={() => openForm('payment')} className="btn-secondary"><Plus size={13} />Record payment</button>}
             {tab === 'purchases' && pSub !== 'bills' && pSub !== 'payments' && <button onClick={() => openForm('expense')} className="btn-secondary"><Plus size={13} />New expense</button>}
@@ -513,7 +517,67 @@ export default function FinanceLedger() {
             </div>
           )}
 
+          {tab === 'sales' && pSub === 'recurring' && (
+            <div>
+              <h3 className="font-black text-slate-900 mb-2">Recurring invoices</h3>
+              <p className="text-xs text-slate-500 mb-3">Monthly invoices are generated automatically on the day shown — posted to the ledger like a normal invoice (DR AR / CR income / CR VAT).</p>
+              {recForm && (
+                <div className="card p-4 mb-4 space-y-3">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div><label className="label">Customer</label>
+                      <select className="select" value={recForm.contactId} onChange={e => setRecForm(v => v && ({ ...v, contactId: e.target.value }))}>
+                        <option value="">Choose…</option>
+                        {finContacts.filter(c => c.type === 'customer' || c.type === 'both').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select></div>
+                    <div><label className="label">First invoice date</label><input className="input" type="date" value={recForm.nextRun} onChange={e => setRecForm(v => v && ({ ...v, nextRun: e.target.value }))} /></div>
+                    <div><label className="label">VAT (₦)</label><input className="input" type="number" min={0} value={recForm.vat} onChange={e => setRecForm(v => v && ({ ...v, vat: e.target.value }))} /></div>
+                    <div><label className="label">End date (optional)</label><input className="input" type="date" value={recForm.endDate ?? ''} onChange={e => setRecForm(v => v && ({ ...v, endDate: e.target.value }))} /></div>
+                    <div className="col-span-2"><label className="label">Memo</label><input className="input" value={recForm.memo} onChange={e => setRecForm(v => v && ({ ...v, memo: e.target.value }))} /></div>
+                  </div>
+                  <div className="space-y-2">
+                    {recLines.map((l, i) => (
+                      <div key={i} className="grid grid-cols-12 gap-2">
+                        <div className="col-span-5">{accountPicker(l.accountId, v => setRecLines(ls => ls.map((x, j) => j === i ? { ...x, accountId: v } : x)), ['Income', 'Other Income'])}</div>
+                        <div className="col-span-3"><input className="input" type="number" min={0} placeholder="Amount" value={l.amount} onChange={e => setRecLines(ls => ls.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))} /></div>
+                        <div className="col-span-3"><input className="input" placeholder="Memo" value={l.memo} onChange={e => setRecLines(ls => ls.map((x, j) => j === i ? { ...x, memo: e.target.value } : x))} /></div>
+                        <div className="col-span-1"><button className="btn-ghost text-red-500" onClick={() => setRecLines(ls => ls.filter((_, j) => j !== i))}><Trash2 size={14} /></button></div>
+                      </div>
+                    ))}
+                    <button className="btn-secondary text-xs" onClick={() => setRecLines(ls => [...ls, { accountId: '', amount: '', memo: '' }])}><Plus size={12} />Add line</button>
+                  </div>
+                  <div className="flex gap-2">
+                    <button className="btn-primary" disabled={busy} onClick={async () => {
+                      const lns = recLines.filter(l => l.accountId && Number(l.amount) > 0).map(l => ({ accountId: l.accountId, amount: Number(l.amount), memo: l.memo || undefined }));
+                      if (!recForm.contactId || !lns.length) return alert('Pick a customer and at least one line with an account and amount.');
+                      setBusy(true);
+                      try {
+                        await upsertFinRecurring({ contactId: recForm.contactId, lines: lns, vat: Number(recForm.vat || 0), dayOfMonth: new Date(recForm.nextRun).getDate(), nextRun: recForm.nextRun, endDate: recForm.endDate || undefined, memo: recForm.memo || undefined, createdBy: me });
+                        await logFinActivity(me, `Created recurring invoice for ${contactName(recForm.contactId)}`);
+                        setRecForm(null); setRecLines([{ accountId: '', amount: '', memo: '' }]);
+                      } catch (e) { reportSaveError(e); } finally { setBusy(false); }
+                    }}>{busy ? <Loader2 className="animate-spin" size={14} /> : 'Save template'}</button>
+                    <button className="btn-ghost" onClick={() => setRecForm(null)}>Cancel</button>
+                  </div>
+                </div>
+              )}
+              <div className="card divide-y divide-slate-100">
+                {finRecurring.map(r => (
+                  <div key={r.id} className="px-4 py-3 flex items-center gap-3 text-sm">
+                    <span className="font-semibold flex-1">{contactName(r.contactId)}</span>
+                    <span className="text-xs text-slate-400">{r.lines.length} line{r.lines.length !== 1 ? 's' : ''} · {fmt(r.lines.reduce((s, l) => s + l.amount, 0) + r.vat)}/mo</span>
+                    <span className="text-xs text-slate-500">next {r.nextRun}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${r.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>{r.active ? 'active' : 'paused'}</span>
+                    <button className="btn-ghost text-xs" onClick={async () => { try { await upsertFinRecurring({ ...r, active: !r.active }); } catch (e) { reportSaveError(e); } }}>{r.active ? 'Pause' : 'Resume'}</button>
+                    <button className="btn-ghost text-red-500" onClick={async () => { if (confirm('Delete this recurring template?')) { try { await deleteFinRecurring(r.id); } catch (e) { reportSaveError(e); } } }}><Trash2 size={14} /></button>
+                  </div>
+                ))}
+                {finRecurring.length === 0 && <p className="p-8 text-center text-sm text-slate-400">No recurring invoices yet — e.g. monthly facility management fees.</p>}
+              </div>
+            </div>
+          )}
+
           {(() => {
+            if (tab === 'sales' && pSub === 'recurring') return null;
             const SUB: Record<string, string[]> = { quotes: ['quote'], sorders: ['sales_order'], invoices: ['invoice'], receipts: ['receipt'], bills: ['bill'], payments: ['payment'], expenses: ['expense'] };
             const TITLE: Record<string, string> = { quotes: 'Quotes', sorders: 'Sales orders', invoices: 'Invoices', receipts: 'Receipts', bills: 'Bills', payments: 'Payments made', expenses: 'Expenses' };
             const kinds = SUB[pSub] ?? (tab === 'sales' ? ['quote', 'sales_order', 'invoice', 'receipt'] : tab === 'purchases' ? ['bill', 'payment', 'expense'] : tab === 'banking' ? ['bank'] : ['journal']);

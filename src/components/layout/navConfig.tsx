@@ -70,6 +70,7 @@ const FINANCE_NAV: NavSection[] = [
       { label: 'Sales orders', path: '/finance/ledger/sales/sorders', icon: <></> },
       { label: 'Invoices', path: '/finance/ledger/sales/invoices', icon: <></> },
       { label: 'Receipts', path: '/finance/ledger/sales/receipts', icon: <></> },
+      { label: 'Recurring', path: '/finance/ledger/sales/recurring', icon: <></> },
     ]},
     { label: 'Purchases', path: '/finance/ledger/purchases', icon: <TrendingDown size={15} />, children: [
       { label: 'Bills', path: '/finance/ledger/purchases/bills', icon: <></> },

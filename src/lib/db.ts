@@ -722,7 +722,7 @@ export async function saveFmReport(siteId: string, period: string, payload: Reco
 }
 
 /* ---------- GlassHouse Finance ledger ---------- */
-import type { FinAccount, FinJournalEntry, FinJournalLine, FinContact, FinItem, FinDocument, FinBudget, FinActivity } from '../types';
+import type { FinAccount, FinJournalEntry, FinJournalLine, FinContact, FinItem, FinDocument, FinBudget, FinActivity, FinRecurring } from '../types';
 
 export async function fetchFinAccounts(): Promise<FinAccount[]> {
   const { data, error } = await supabase.from('fin_accounts').select('*').order('code'); fail(error);
@@ -786,6 +786,35 @@ export async function fetchFinDocuments(kind?: string): Promise<FinDocument[]> {
 }
 export function subscribeFinDocuments(cb: (v: FinDocument[]) => void): () => void {
   const refresh = async () => cb(await fetchFinDocuments()); void refresh(); return subscribe('fin_documents', refresh);
+}
+
+const rowToRecurring = (r: Record<string, unknown>): FinRecurring => ({
+  id: r.id as string, contactId: r.contact_id as string,
+  lines: (r.lines as FinRecurring['lines']) ?? [], vat: Number(r.vat ?? 0),
+  dayOfMonth: Number(r.day_of_month ?? 1), nextRun: r.next_run as string,
+  endDate: (r.end_date as string) ?? undefined, memo: (r.memo as string) ?? undefined,
+  active: Boolean(r.active), createdBy: r.created_by as string,
+});
+export async function fetchFinRecurring(): Promise<FinRecurring[]> {
+  const { data, error } = await supabase.from('fin_recurring').select('*').order('next_run'); fail(error);
+  return (data ?? []).map(rowToRecurring);
+}
+export function subscribeFinRecurring(cb: (v: FinRecurring[]) => void): () => void {
+  const refresh = async () => cb(await fetchFinRecurring()); void refresh(); return subscribe('fin_recurring', refresh);
+}
+export async function upsertFinRecurring(r: Partial<FinRecurring> & { contactId: string; createdBy: string }): Promise<void> {
+  const { error } = await supabase.from('fin_recurring').upsert({
+    ...(r.id && { id: r.id }), contact_id: r.contactId, lines: r.lines ?? [], vat: r.vat ?? 0,
+    day_of_month: r.dayOfMonth ?? 1, next_run: r.nextRun, end_date: r.endDate ?? null,
+    memo: r.memo ?? null, active: r.active ?? true, created_by: r.createdBy,
+  }); fail(error);
+}
+export async function deleteFinRecurring(id: string): Promise<void> {
+  const { error } = await supabase.from('fin_recurring').delete().eq('id', id); fail(error);
+}
+// Lazy trigger — generates any due invoices; also scheduled daily via pg_cron on the server.
+export async function runRecurringNow(): Promise<number> {
+  const { data, error } = await supabase.rpc('run_recurring_invoices'); fail(error); return Number(data ?? 0);
 }
 
 export async function fetchFinBudgets(): Promise<FinBudget[]> {

@@ -494,6 +494,19 @@ export interface FinDocument {
   createdAt: string;
 }
 
+export interface FinRecurring {
+  id: string;
+  contactId: string;
+  lines: { accountId: string; amount: number; memo?: string }[];
+  vat: number;
+  dayOfMonth: number;
+  nextRun: string;
+  endDate?: string;
+  memo?: string;
+  active: boolean;
+  createdBy: string;
+}
+
 export interface FinBudget {
   id: string;
   name: string;

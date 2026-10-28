@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type {
   User, Site, Vendor, Asset, MaintenanceRequest,
   Checklist, TreasuryEntry, RequestStatus, TaxType, Priority,
-  PPMSchedule, Incident, PettyCashEntry, SupportTicket, Tenant, JobCompletion, ChecklistTemplate, ReconciliationEntry, FacilityVendorSLA, ServiceChargeInvoice, FinAccount, FinJournalEntry, FinJournalLine, FinContact, FinItem, FinDocument, FinBudget, FinActivity
+  PPMSchedule, Incident, PettyCashEntry, SupportTicket, Tenant, JobCompletion, ChecklistTemplate, ReconciliationEntry, FacilityVendorSLA, ServiceChargeInvoice, FinAccount, FinJournalEntry, FinJournalLine, FinContact, FinItem, FinDocument, FinBudget, FinActivity, FinRecurring
 } from '../types';
 import {
   MOCK_USERS, MOCK_SITES, MOCK_VENDORS, MOCK_ASSETS,
@@ -22,7 +22,7 @@ import {
   upsertVendor, createFacilityVendorSLA, updateFacilityVendorSLA, deleteFacilityVendorSLA,
   assignTechnician as assignTechnicianDb, acknowledgeHandover, markWorkCompleted,
   subscribeFinAccounts, subscribeFinJournal, subscribeFinContacts, subscribeFinItems,
-  subscribeFinDocuments, subscribeFinBudgets, subscribeFinActivity, postJournal, logFinActivity,
+  subscribeFinDocuments, subscribeFinBudgets, subscribeFinActivity, subscribeFinRecurring, runRecurringNow, postJournal, logFinActivity,
 } from '../lib/db';
 import { supabase } from '../lib/supabase';
 import { isChecklistMissed } from '../lib/checklists';
@@ -54,6 +54,7 @@ interface AppState {
   finItems: FinItem[];
   finDocuments: FinDocument[];
   finBudgets: FinBudget[];
+  finRecurring: FinRecurring[];
   finActivity: FinActivity[];
   jobCompletions: JobCompletion[];
   checklistTemplates: ChecklistTemplate[];
@@ -199,6 +200,7 @@ export const useStore = create<AppState>((set, get) => ({
   finItems: [],
   finDocuments: [],
   finBudgets: [],
+  finRecurring: [],
   finActivity: [],
   jobCompletions: [],
   checklistTemplates: [],
@@ -253,6 +255,8 @@ export const useStore = create<AppState>((set, get) => ({
       subscribeFinDocuments(finDocuments => set({ finDocuments }));
       subscribeFinBudgets(finBudgets => set({ finBudgets }));
       subscribeFinActivity(finActivity => set({ finActivity }));
+      subscribeFinRecurring(finRecurring => set({ finRecurring }));
+      runRecurringNow().catch(() => undefined); // lazy invoice generation — pg_cron also fires it daily
 
       if (_unsubJobCompletions) _unsubJobCompletions();
       _unsubJobCompletions = subscribeJobCompletions(jobCompletions => set({ jobCompletions }));
