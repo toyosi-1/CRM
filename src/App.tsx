@@ -34,6 +34,7 @@ const FacilitiesManagement = lazy(() => import('./pages/shared/FacilitiesManagem
 const PeopleRegistry = lazy(() => import('./pages/shared/PeopleRegistry'));
 
 const FinanceDashboard = lazy(() => import('./pages/finance/FinanceDashboard'));
+const FinanceLedger = lazy(() => import('./pages/finance/FinanceLedger'));
 const FinancePettyCash = lazy(() => import('./pages/finance/FinancePettyCash'));
 const PaymentQueue = lazy(() => import('./pages/finance/PaymentQueue'));
 const TreasuryLedger = lazy(() => import('./pages/finance/TreasuryLedger'));
@@ -163,7 +164,7 @@ export default function App() {
           <ProtectedRoute role="finance"><Layout /></ProtectedRoute>
         }>
           <Route index element={<FinanceDashboard />} />
-          <Route path="ledger/*" element={<Navigate to="/finance" replace />} />
+          <Route path="ledger/*" element={<FinanceLedger />} />
           <Route path="payments" element={<PaymentQueue />} />
           <Route path="receipts" element={<PaymentQueue />} />
           <Route path="petty-cash" element={<FinancePettyCash />} />

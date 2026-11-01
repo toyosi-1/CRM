@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Plus, Pencil, Wallet, Receipt, CheckCircle } from 'lucide-react';
+import { Building2, Plus, Pencil, Wallet, Receipt, CheckCircle, BookOpen } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { categoryBalance, saveFacilityBudget, saveFacilityCategory, useFacilityFinance, type FacilityCategory } from '../../lib/facilityFinance';
 import { formatCurrency } from '../../utils/helpers';
@@ -8,7 +8,7 @@ import { formatCurrency } from '../../utils/helpers';
 const months = Array.from({ length: 12 }, (_, i) => new Date(2026, i, 1).toLocaleString('en', { month: 'short' }));
 export default function FinanceDashboard() {
   const navigate = useNavigate();
-  const { currentUser, sites, requests } = useStore();
+  const { currentUser, sites, requests, financeAdvanced, setFinanceAdvanced } = useStore();
   const { categories, allocations, payments, loading, error, refresh } = useFacilityFinance();
   const [selectedSite, setSelectedSite] = useState('');
   const siteId = selectedSite || sites[0]?.id || '';
@@ -40,7 +40,10 @@ export default function FinanceDashboard() {
   return <div className="space-y-5">
     <header className="dash-header flex items-center justify-between gap-4 flex-wrap">
       <div><p className="text-xs uppercase tracking-widest text-slate-400">Facility finance</p><h1 className="text-xl font-semibold text-white mt-1">Budgets & payments</h1><p className="text-sm text-slate-400 mt-1">{currentUser?.name}<br />Finance · Facility category allocations, approved requests and payment evidence</p></div>
-      <button className="btn-primary" onClick={() => navigate('/finance/payments')}><Wallet size={15} /> Payment queue</button>
+      <div className="flex gap-2 flex-wrap">
+        <button className="btn-primary" onClick={() => navigate('/finance/payments')}><Wallet size={15} /> Payment queue</button>
+        <button className="btn-secondary" onClick={() => { if (financeAdvanced) setFinanceAdvanced(false); else { setFinanceAdvanced(true); navigate('/finance/ledger'); } }}><BookOpen size={15} /> {financeAdvanced ? 'Standard view' : 'Advanced mode'}</button>
+      </div>
     </header>
     <div className="card p-4 flex items-end flex-wrap gap-4">
       <label className="text-xs font-semibold flex-1 min-w-48">Facility<select className="input mt-1" value={siteId} onChange={e => setSelectedSite(e.target.value)}><option value="" disabled>Select facility</option>{sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>

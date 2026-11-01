@@ -63,6 +63,7 @@ interface AppState {
   facilityVendorSLAs: FacilityVendorSLA[];
   activeRequestId: string | null;
   activeSiteId: string | null;
+  financeAdvanced: boolean;
   supabaseReady: boolean;
   saveError: string | null;
 
@@ -72,6 +73,7 @@ interface AppState {
 
   setActiveRequest: (id: string | null) => void;
   setActiveSiteId: (siteId: string) => void;
+  setFinanceAdvanced: (on: boolean) => void;
   clearSaveError: () => void;
 
   getPPMForUser: () => PPMSchedule[];
@@ -181,6 +183,7 @@ let _unsubFacilityVendorSLAs: (() => void) | null = null;
 export const useStore = create<AppState>((set, get) => ({
   currentUser: null,
   activeSiteId: null,
+  financeAdvanced: localStorage.getItem('financeAdvanced') === '1',
   users: DEMO_MODE ? MOCK_USERS : [],
   sites: DEMO_MODE ? MOCK_SITES : [],
   vendors: DEMO_MODE ? MOCK_VENDORS : [],
@@ -301,6 +304,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   setActiveRequest: (id) => set({ activeRequestId: id }),
   setActiveSiteId: (siteId) => set({ activeSiteId: siteId }),
+  setFinanceAdvanced: (on) => { localStorage.setItem('financeAdvanced', on ? '1' : '0'); set({ financeAdvanced: on }); },
 
   createRequest: async (data) => {
     const { currentUser, sites, requests } = get();

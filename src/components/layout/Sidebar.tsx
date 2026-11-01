@@ -5,7 +5,7 @@ import type { UserRole } from '../../types';
 import { ROLE_LABELS } from '../../utils/helpers';
 import { useStore } from '../../store/useStore';
 import { useAuth } from '../../lib/AuthContext';
-import { NAV_MAP } from './navConfig';
+import { NAV_MAP, FINANCE_ADVANCED_NAV } from './navConfig';
 import { instanceId, isDueToday } from '../../lib/checklists';
 
 const ROLE_COLOR: Record<UserRole, string> = {
@@ -19,12 +19,12 @@ const ROLE_COLOR: Record<UserRole, string> = {
 };
 
 export default function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { currentUser, logout: clearSession, sites, requests, checklists, checklistTemplates, ppmSchedules, activeSiteId } = useStore();
+  const { currentUser, logout: clearSession, sites, requests, checklists, checklistTemplates, ppmSchedules, activeSiteId, financeAdvanced } = useStore();
   const { supabaseUser, logout } = useAuth();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   if (!currentUser) return null;
 
-  const sections = NAV_MAP[currentUser.role];
+  const sections = currentUser.role === 'finance' && financeAdvanced ? FINANCE_ADVANCED_NAV : NAV_MAP[currentUser.role];
   const initials = currentUser.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
   const siteName = sites.find(s => s.id === currentUser.siteId)?.name;
   const roleColor = ROLE_COLOR[currentUser.role];
