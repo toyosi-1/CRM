@@ -3,7 +3,6 @@ import {
   Package, DollarSign, Settings, BarChart3, Building2,
   BookOpen, ShieldCheck, FileText, Store, Users,
   AlertTriangle, Calendar, Wrench, UserPlus, ClipboardEdit, ClipboardCheck, Wallet,
-  TrendingUp, TrendingDown, Clock, Landmark, BookMarked, Activity, Upload,
 } from 'lucide-react';
 import type { UserRole } from '../../types';
 
@@ -60,50 +59,12 @@ const SUPERVISOR_NAV: NavSection[] = [
 ];
 
 const FINANCE_NAV: NavSection[] = [
-  { section: 'Workspace', items: [
-    { label: 'Home', path: '/finance/ledger', icon: <LayoutDashboard size={15} /> },
-    { label: 'How it connects', path: '/finance/ledger/connect', icon: <BookOpen size={15} /> },
-    { label: 'Contacts', path: '/finance/ledger/contacts', icon: <Users size={15} /> },
-    { label: 'Items', path: '/finance/ledger/items', icon: <Package size={15} /> },
-    { label: 'Sales', path: '/finance/ledger/sales', icon: <TrendingUp size={15} />, children: [
-      { label: 'Quotes', path: '/finance/ledger/sales/quotes', icon: <></> },
-      { label: 'Sales orders', path: '/finance/ledger/sales/sorders', icon: <></> },
-      { label: 'Invoices', path: '/finance/ledger/sales/invoices', icon: <></> },
-      { label: 'Receipts', path: '/finance/ledger/sales/receipts', icon: <></> },
-      { label: 'Credit notes', path: '/finance/ledger/sales/cnotes', icon: <></> },
-      { label: 'Recurring invoices', path: '/finance/ledger/sales/recurring', icon: <></> },
-    ]},
-    { label: 'Purchases', path: '/finance/ledger/purchases', icon: <TrendingDown size={15} />, children: [
-      { label: 'Bills', path: '/finance/ledger/purchases/bills', icon: <></> },
-      { label: 'Payments', path: '/finance/ledger/purchases/payments', icon: <></> },
-      { label: 'Expenses', path: '/finance/ledger/purchases/expenses', icon: <></> },
-      { label: 'Vendor credits', path: '/finance/ledger/purchases/vcredits', icon: <></> },
-      { label: 'Recurring expenses', path: '/finance/ledger/purchases/recexpenses', icon: <></> },
-    ]},
-    { label: 'Projects & time', path: '/finance/ledger/projects', icon: <Clock size={15} /> },
-    { label: 'Banking', path: '/finance/ledger/banking', icon: <Landmark size={15} /> },
-    { label: 'Accountant', path: '/finance/ledger/journals', icon: <BookMarked size={15} />, children: [
-      { label: 'Manual journals', path: '/finance/ledger/journals', icon: <></> },
-      { label: 'Chart of accounts', path: '/finance/ledger/reports', icon: <></> },
-      { label: 'Transaction locking', path: '/finance/ledger/lock', icon: <></> },
-    ]},
-    { label: 'Reports', path: '/finance/ledger/reports', icon: <BarChart3 size={15} />, children: [
-      { label: 'Trial balance', path: '/finance/ledger/reports/tb', icon: <></> },
-      { label: 'Profit & loss', path: '/finance/ledger/reports/pl', icon: <></> },
-      { label: 'Balance sheet', path: '/finance/ledger/reports/bs', icon: <></> },
-      { label: 'Account transactions', path: '/finance/ledger/reports/acct', icon: <></> },
-      { label: 'Receivables aging', path: '/finance/ledger/reports/ar', icon: <></> },
-      { label: 'Payables aging', path: '/finance/ledger/reports/ap', icon: <></> },
-      { label: 'Cash flow', path: '/finance/ledger/reports/cf', icon: <></> },
-      { label: 'Ratios & equity', path: '/finance/ledger/reports/ratios', icon: <></> },
-      { label: 'VAT & WHT summary', path: '/finance/ledger/reports/tax', icon: <></> },
-      { label: 'Budget vs actual', path: '/finance/ledger/reports/budget', icon: <></> },
-    ]},
-    { label: 'Activity log', path: '/finance/ledger/activity', icon: <Activity size={15} /> },
-    { label: 'Import / export', path: '/finance/ledger/import', icon: <Upload size={15} /> },
+  { section: 'Facility finance', items: [
+    { label: 'Budgets & categories', path: '/finance', icon: <LayoutDashboard size={15} /> },
+    { label: 'Payment queue', path: '/finance/payments', icon: <DollarSign size={15} /> },
+    { label: 'Paid requests & receipts', path: '/finance/receipts', icon: <FileText size={15} /> },
   ]},
   { section: 'Operations', items: [
-    { label: 'Payment queue', path: '/finance/payments', icon: <DollarSign size={15} /> },
     { label: 'Petty cash', path: '/finance/petty-cash', icon: <Wallet size={15} /> },
     { label: 'Treasury ledger', path: '/finance/treasury', icon: <BookOpen size={15} /> },
     { label: 'Reconciliation', path: '/finance/recon', icon: <CheckSquare size={15} /> },

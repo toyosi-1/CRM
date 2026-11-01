@@ -6,8 +6,7 @@ import type { Priority, VendorType } from '../../types';
 import { formatCurrency, formatDate, compareFloors, normalizeFloor, vendorLabel } from '../../utils/helpers';
 import ImageUpload from '../../components/shared/ImageUpload';
 import { formatFileSize } from '../../utils/imageCompression';
-
-const REQUEST_CATEGORIES = ['HVAC', 'Water treatment', 'Generator', 'Electrical', 'Plumbing', 'Cleaning', 'Security', 'Lift maintenance', 'Civil works', 'Other'];
+import { categoryBalance, useFacilityFinance } from '../../lib/facilityFinance';
 
 export default function CreateRequest() {
   const navigate = useNavigate();
@@ -16,12 +15,16 @@ export default function CreateRequest() {
   const siteId = activeSiteId ?? currentUser?.siteId;
   const site = sites.find(s => s.id === siteId);
   const siteAssets = assets.filter(a => a.siteId === siteId);
+  const { categories, allocations, payments, loading: budgetLoading, error: budgetError } = useFacilityFinance();
+  const siteCategories = categories.filter(c => c.site_id === siteId && c.active);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   const [form, setForm] = useState({
     description: searchParams.get('prefill') ?? '',
     details: '',
     category: '',
-    customCategory: '',
+    budgetCategoryId: '',
     floor: '',
     customFloor: '',
     space: '',
@@ -60,7 +63,8 @@ export default function CreateRequest() {
   const availableVendors = form.slaAvailable ? slaVendors : vendors;
   const effectiveVendorId = form.slaAvailable && slaVendors.length === 1 ? slaVendors[0].id : form.vendorId;
   const selectedVendor = vendors.find(v => v.id === effectiveVendorId);
-  const remaining = site ? site.monthlyBudget - getSiteMonthSpend(site.id) : 0;
+  const categoryBudget = categoryBalance(form.budgetCategoryId, new Date().getFullYear(), new Date().getMonth() + 1, allocations, payments, requests);
+  const remaining = form.budgetCategoryId ? categoryBudget.remaining : site ? site.monthlyBudget - getSiteMonthSpend(site.id) : 0;
   const invoiceAmt = parseFloat(form.invoiceAmount.replace(/,/g, '')) || 0;
   const budgetWarning = invoiceAmt > 0 && invoiceAmt > remaining;
   const vendorReady = form.vendorType === 'recurring'
@@ -76,11 +80,14 @@ export default function CreateRequest() {
   const priceDelta = lastPrice > 0 && invoiceAmt > 0 ? Math.round(((invoiceAmt - lastPrice) / lastPrice) * 100) : null;
 
   const handleSubmit = async () => {
-    if (!form.description.trim()) return;
+    if (saving || !form.description.trim() || !siteCategories.some(c => c.id === form.budgetCategoryId) || budgetError) return;
+    setSaving(true); setSaveError('');
+    try {
     const totalSaved = compressedImages.reduce((acc, img) => acc + (img.originalSize - img.compressedSize), 0);
     await createRequest({
       description: form.description + (form.details ? `\n\n${form.details}` : ''),
-      category: form.category === 'Other' ? form.customCategory.trim() : form.category,
+      category: siteCategories.find(c => c.id === form.budgetCategoryId)?.name,
+      budgetCategoryId: form.budgetCategoryId,
       location: [(derivedFloor === 'Other' ? form.customFloor : derivedFloor), derivedSpace].filter(Boolean).join(' — ') || '',
       priority: form.priority,
       slaAvailable: form.slaAvailable,
@@ -109,6 +116,8 @@ export default function CreateRequest() {
       storageSaved: totalSaved,
     });
     navigate('/fm/requests');
+    } catch (e) { setSaveError(e instanceof Error ? e.message : 'Request could not be saved'); }
+    finally { setSaving(false); }
   };
 
   const cardStyle = { padding: '14px 15px' } as const;
@@ -144,11 +153,13 @@ export default function CreateRequest() {
               <div className="row2">
                 <div className="form-field">
                   <label>Category <span className="req">*</span></label>
-                  <select className="sel" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+                  <select className="sel" value={form.budgetCategoryId} disabled={budgetLoading || !!budgetError} onChange={e => setForm(f => ({ ...f, budgetCategoryId: e.target.value, category: siteCategories.find(c => c.id === e.target.value)?.name ?? '' }))}>
                     <option value="">Select category…</option>
-                    {REQUEST_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}
+                    {siteCategories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
                   </select>
-                  {form.category === 'Other' && <input className="inp" style={{ marginTop: 6 }} placeholder="Enter custom category" value={form.customCategory} onChange={e => setForm(f => ({ ...f, customCategory: e.target.value }))} required />}
+                  {form.budgetCategoryId && <p className="text-xs text-slate-500">Category balance this month: <span className={categoryBudget.remaining < 0 ? 'text-red-600 font-semibold' : ''}>{formatCurrency(categoryBudget.remaining)}</span>{categoryBudget.remaining < 0 ? ' — budget already exceeded' : ''}. Your request amount is committed against this budget as soon as it is submitted.</p>}
+                  {!budgetLoading && !siteCategories.length && <p className="text-xs text-amber-700">Ask Finance to create budget categories for this facility before submitting a request.</p>}
+                  {(budgetError || saveError) && <p role="alert" className="text-xs text-red-600">{saveError || budgetError}</p>}
                 </div>
                 <div className="form-field">
                   <label>Priority <span className="req">*</span></label>
@@ -334,7 +345,7 @@ export default function CreateRequest() {
 
           <div style={{ display: 'flex', gap: 9 }}>
             <button className="btn-ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={() => navigate(-1)}>Cancel</button>
-            <button className="btn-acc" style={{ flex: 2, justifyContent: 'center' }} onClick={handleSubmit} disabled={!form.description.trim() || !form.category || (form.category === 'Other' && !form.customCategory.trim()) || !vendorReady || invoiceAmt <= 0}>
+            <button className="btn-acc" style={{ flex: 2, justifyContent: 'center' }} onClick={handleSubmit} disabled={saving || budgetLoading || !!budgetError || !form.description.trim() || !siteCategories.some(c => c.id === form.budgetCategoryId) || !vendorReady || invoiceAmt <= 0}>
               <Send size={13} aria-hidden="true" /> Submit request
             </button>
           </div>

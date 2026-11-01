@@ -54,6 +54,14 @@ Note: the smoke test requires a local Chrome executable on macOS at `/Applicatio
 - Vite warns the main JS chunk is >500 KB. Route-level code splitting is recommended when scaling.
 - `caniuse-lite` data is outdated; run `npx update-browserslist-db@latest` to refresh.
 
+## Facility finance workflow
+- Finance opens at `/finance`: facility-specific categories and 12 monthly allocations whose sum is the annual budget. Old `/finance/ledger/*` links redirect to this page; legacy accounting source and records are retained.
+- `src/lib/facilityFinance.ts` supplies shared category/budget data to Finance and FM request creation. Request category IDs remain stable when Finance renames a category.
+- `20261111000000_facility_category_budgets.sql` adds the facility budget tables and transactional payment RPCs. Apply this migration before deploying the replacement interface.
+- Open requests commit their invoice amount against the category immediately (`categoryBalance` in `src/lib/facilityBudget.ts`: remaining = allocation − paid − pending); payment converts the commitment to paid spending without double counting. Overspending is allowed — balances go negative and the UI flags "Budget exceeded". A full approved payment debits the gross invoice cost, including WHT, atomically; duplicate payments are rejected.
+- Receipts may follow payment through `/finance/receipts`; attaching a receipt never creates another debit. Historical paid requests are retained but excluded from category budgets until an explicit migration is designed.
+- A sanitized standalone accounting UI snapshot is maintained separately in `https://github.com/toyosi-1/Finance-dash`; never copy production configuration, data or the main repository history into it.
+
 ## Pending before launch
 - Create the first ICT administrator account via Supabase Auth + `profiles` record.
 - Add verified Resend domain and operational email alerts (optional; in-app notifications are live).

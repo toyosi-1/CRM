@@ -188,6 +188,7 @@ export interface MaintenanceRequest {
   submittedByName: string;
   description: string;
   category?: string;
+  budgetCategoryId?: string;
   location?: string;
   slaAvailable?: boolean;
   oneTimeVendor?: {

@@ -116,7 +116,7 @@ function requestFromRow(row: Record<string, unknown>): MaintenanceRequest {
   return {
     id: String(row.id), requestNumber: String(row.request_number), siteId: String(row.site_id), siteName: String(row.site_name),
     submittedBy: String(row.submitted_by), submittedByName: String(row.submitted_by_name), description: String(row.description),
-    category: row.category ? String(row.category) : undefined, location: row.location ? String(row.location) : undefined,
+    category: row.category ? String(row.category) : undefined, budgetCategoryId: row.budget_category_id ? String(row.budget_category_id) : undefined, location: row.location ? String(row.location) : undefined,
     slaAvailable: Boolean(row.sla_available), oneTimeVendor: (row.one_time_vendor ?? {}) as MaintenanceRequest['oneTimeVendor'],
     priority: row.priority as MaintenanceRequest['priority'], status: row.status as MaintenanceRequest['status'],
     vendorId: row.vendor_id ? String(row.vendor_id) : undefined, vendorAttendedAt: row.vendor_attended_at ? String(row.vendor_attended_at) : undefined, vendorName: row.vendor_name ? String(row.vendor_name) : undefined,
@@ -151,6 +151,7 @@ function requestToRow(request: Partial<MaintenanceRequest>) {
     ...(request.siteId !== undefined && { site_id: request.siteId }), ...(request.siteName !== undefined && { site_name: request.siteName }),
     ...(request.submittedBy !== undefined && { submitted_by: request.submittedBy }), ...(request.submittedByName !== undefined && { submitted_by_name: request.submittedByName }),
     ...(request.description !== undefined && { description: request.description }), ...(request.category !== undefined && { category: request.category }),
+    ...(request.budgetCategoryId !== undefined && { budget_category_id: request.budgetCategoryId }),
     ...(request.location !== undefined && { location: request.location }), ...(request.slaAvailable !== undefined && { sla_available: request.slaAvailable }),
     ...(request.oneTimeVendor !== undefined && { one_time_vendor: request.oneTimeVendor }),
     ...(request.priority !== undefined && { priority: request.priority }),

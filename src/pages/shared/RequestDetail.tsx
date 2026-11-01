@@ -16,9 +16,8 @@ import {
 export default function RequestDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { requests, sites, vendors, users, currentUser, updateRequestStatus, updateRequest, generatePO, processPayment, markPaid, deleteRequest, facilityVendorSLAs, incidents, getSiteMonthSpend, assignTechnician, markWorkComplete } = useStore();
+  const { requests, sites, vendors, users, currentUser, updateRequestStatus, updateRequest, generatePO, processPayment, deleteRequest, facilityVendorSLAs, incidents, getSiteMonthSpend, assignTechnician, markWorkComplete } = useStore();
   const [now, setNow] = useState(0);
-  const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [completionFile, setCompletionFile] = useState<File | null>(null);
   const [uploadingCompletion, setUploadingCompletion] = useState(false);
   const [fixInvoiceFile, setFixInvoiceFile] = useState<File | null>(null);
@@ -97,12 +96,7 @@ export default function RequestDetail() {
     processPayment(req.id, taxType, currentUser!.id);
   };
 
-  const handleMarkPaid = async () => {
-    if (!currentUser || !receiptFile) return;
-    const receiptUrl = await uploadFile(`receipts/${req.id}/${crypto.randomUUID()}-${receiptFile.name}`, receiptFile);
-    markPaid(req.id, currentUser.id, receiptUrl);
-    navigate(-1);
-  };
+  const handleMarkPaid = () => navigate('/finance/payments');
 
   const handleEmergencyBypass = () => {
     updateRequestStatus(req.id, 'ADMIN_APPROVED', currentUser!.id, '⚡ EMERGENCY BYPASS ACTIVATED — Admin override. Routed directly to Payment Pending.');
@@ -631,9 +625,8 @@ export default function RequestDetail() {
               )}
               {role === 'finance' && req.taxType && req.status !== 'PAID' && req.status !== 'CLOSED' && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  <input className="input text-xs max-w-56" type="file" accept="image/*,.pdf" onChange={e => setReceiptFile(e.target.files?.[0] ?? null)} />
-                  <button onClick={handleMarkPaid} disabled={!receiptFile} className="btn-success disabled:opacity-50">
-                    <DollarSign size={14} /> Mark as paid
+                  <button onClick={handleMarkPaid} className="btn-success">
+                    <DollarSign size={14} /> Record payment against budget
                   </button>
                 </div>
               )}

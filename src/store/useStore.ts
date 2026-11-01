@@ -22,10 +22,11 @@ import {
   upsertVendor, createFacilityVendorSLA, updateFacilityVendorSLA, deleteFacilityVendorSLA,
   assignTechnician as assignTechnicianDb, acknowledgeHandover, markWorkCompleted,
   subscribeFinAccounts, subscribeFinJournal, subscribeFinContacts, subscribeFinItems,
-  subscribeFinDocuments, subscribeFinBudgets, subscribeFinActivity, subscribeFinRecurring, runRecurringNow, postJournal, logFinActivity,
+  subscribeFinDocuments, subscribeFinBudgets, subscribeFinActivity, subscribeFinRecurring, runRecurringNow,
 } from '../lib/db';
 import { supabase } from '../lib/supabase';
 import { isChecklistMissed } from '../lib/checklists';
+import { recordFacilityPayment } from '../lib/facilityFinance';
 import { titleCase, sentenceCase, normalizeFloor } from '../utils/helpers';
 
 type RequestDraft = Partial<MaintenanceRequest> & {
@@ -89,7 +90,7 @@ interface AppState {
   ) => void;
   generatePO: (requestId: string, actorId: string) => Promise<void>;
   processPayment: (requestId: string, taxType: TaxType, actorId: string) => void;
-  markPaid: (requestId: string, actorId: string, receiptUrl?: string) => void;
+  markPaid: (requestId: string, categoryId: string, paidOn: string, reference: string, receiptUrl?: string) => Promise<void>;
 
   saveChecklist: (checklistId: string, items: Checklist['items']) => void;
   submitChecklist: (checklistId: string, userId: string) => void;
@@ -332,6 +333,7 @@ export const useStore = create<AppState>((set, get) => ({
       submittedByName: currentUser.name,
       description: sentenceCase(data.description ?? ''),
       category: data.category ? titleCase(data.category) : undefined,
+      budgetCategoryId: data.budgetCategoryId,
       location: data.location ? data.location.split('—').map(part => titleCase(part)).join('—') : undefined,
       slaAvailable: data.slaAvailable ?? false,
       oneTimeVendor: data.oneTimeVendor ? {
@@ -480,7 +482,7 @@ export const useStore = create<AppState>((set, get) => ({
     if (!actor || !req) return;
     const gross = req.invoiceAmount ?? 0;
     const rate = taxType === '5pct_wht' ? 0.05 : taxType === '10pct_wht' ? 0.10 : 0;
-    const tax = Math.round(gross * rate);
+    const tax = Math.round(gross * rate * 100) / 100;
     const net = gross - tax;
     const now = new Date().toISOString();
     const tatHours = Math.round((new Date(now).getTime() - new Date(req.updatedAt).getTime()) / 3600000);
@@ -500,55 +502,10 @@ export const useStore = create<AppState>((set, get) => ({
     });
   },
 
-  markPaid: (requestId, actorId, receiptUrl) => {
-    const { users, requests, sites } = get();
-    const actor = users.find(u => u.id === actorId);
-    const req = requests.find(r => r.id === requestId);
-    if (!actor || !req) return;
-    const now = new Date().toISOString();
-    const tatHours = Math.round((new Date(now).getTime() - new Date(req.updatedAt).getTime()) / 3600000);
-    const entry = {
-      id: genId(), requestId, userId: actor.id, userName: actor.name,
-      userRole: actor.role, department: actor.department,
-      action: `Payment completed. Net amount ₦${(req.netPayment ?? req.invoiceAmount ?? 0).toLocaleString()} disbursed.${receiptUrl ? ' Receipt uploaded.' : ' No receipt uploaded.'}`,
-      timestamp: now, tatHours,
-    };
-    const updatedSites = sites.map(s =>
-      s.id === req.siteId
-        ? { ...s, currentMonthSpend: s.currentMonthSpend + (req.netPayment ?? req.invoiceAmount ?? 0) }
-        : s
-    );
-    set({
-      requests: requests.map(r => {
-        if (r.id !== requestId) return r;
-        const updated = { ...r, status: 'PAID' as const, paymentReceiptUrl: receiptUrl, paidAt: now, updatedAt: now, auditTrail: [...r.auditTrail, entry] };
-        updateRequestInDB(requestId, updated).catch(reportSaveError);
-        return updated;
-      }),
-      sites: updatedSites,
-    });
-    updateSiteInDB(req.siteId, { currentMonthSpend: updatedSites.find(s => s.id === req.siteId)?.currentMonthSpend }).catch(reportSaveError);
-
+  markPaid: async (requestId, categoryId, paidOn, reference, receiptUrl) => {
     // Auto-post to the ledger: DR expense (request category) / CR operating bank.
-    const amount = req.netPayment ?? req.invoiceAmount ?? 0;
-    if (amount > 0) {
-      const cat = (req.category ?? '').toLowerCase();
-      const expenseAcct = cat.includes('diesel') || cat.includes('generator') || cat.includes('power') ? 'acc_6020'
-        : cat.includes('office') || cat.includes('supplies') ? 'acc_6040'
-        : cat.includes('travel') || cat.includes('transport') ? 'acc_6050'
-        : 'acc_6030';
-      const poNo = req.purchaseOrder?.poNumber;
-      const gross = req.invoiceAmount ?? amount;
-      const wht = Math.round(Math.max(0, gross - amount) * 100) / 100;
-      void postJournal(
-        { no: poNo ?? req.requestNumber, source: 'payment', sourceId: req.id, date: now.slice(0, 10), ref: `Request ${req.requestNumber}`, notes: req.description?.slice(0, 200), createdBy: actor.name },
-        [
-          { accountId: expenseAcct, dr: gross, memo: req.category || 'Maintenance' },
-          { accountId: 'acc_1100', cr: amount, memo: `Payment disbursed${poNo ? ` (${poNo})` : ''}` },
-          ...(wht > 0 ? [{ accountId: 'acc_2110', cr: wht, memo: 'WHT withheld at source' }] : []),
-        ],
-      ).then(() => logFinActivity(actor.name, `Auto-posted ${req.requestNumber}${poNo ? ` / ${poNo}` : ''} ${amount.toLocaleString('en-NG')}${wht > 0 ? ` + WHT ${wht.toLocaleString('en-NG')}` : ''}`, req.requestNumber)).catch(reportSaveError);
-    }
+    await recordFacilityPayment(requestId, categoryId, paidOn, reference, receiptUrl);
+    set(state => ({ requests: state.requests.map(r => r.id === requestId ? { ...r, status: r.status === 'CLOSED' ? 'CLOSED' : 'PAID', budgetCategoryId: categoryId, paidAt: `${paidOn}T00:00:00Z`, paymentReceiptUrl: receiptUrl } : r) }));
   },
 
   saveChecklist: (checklistId, items) => {

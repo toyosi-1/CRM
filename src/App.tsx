@@ -38,7 +38,6 @@ const FinancePettyCash = lazy(() => import('./pages/finance/FinancePettyCash'));
 const PaymentQueue = lazy(() => import('./pages/finance/PaymentQueue'));
 const TreasuryLedger = lazy(() => import('./pages/finance/TreasuryLedger'));
 const Reconciliation = lazy(() => import('./pages/finance/Reconciliation'));
-const FinanceLedger = lazy(() => import('./pages/finance/FinanceLedger'));
 
 const TechnicianDashboard = lazy(() => import('./pages/technician/TechnicianDashboard'));
 const TechnicianTasks = lazy(() => import('./pages/technician/TechnicianTasks'));
@@ -68,7 +67,7 @@ const ROLE_ROUTES: Record<UserRole, string> = {
   facility_manager: '/fm',
   procurement: '/procurement',
   supervisor: '/supervisor',
-  finance: '/finance/ledger',
+  finance: '/finance',
   admin: '/admin',
   ict_admin: '/ict',
   technician: '/technician',
@@ -164,8 +163,9 @@ export default function App() {
           <ProtectedRoute role="finance"><Layout /></ProtectedRoute>
         }>
           <Route index element={<FinanceDashboard />} />
-          <Route path="ledger/*" element={<FinanceLedger />} />
+          <Route path="ledger/*" element={<Navigate to="/finance" replace />} />
           <Route path="payments" element={<PaymentQueue />} />
+          <Route path="receipts" element={<PaymentQueue />} />
           <Route path="petty-cash" element={<FinancePettyCash />} />
           <Route path="treasury" element={<TreasuryLedger />} />
           <Route path="recon" element={<Reconciliation />} />
