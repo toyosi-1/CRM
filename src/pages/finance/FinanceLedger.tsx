@@ -131,13 +131,33 @@ export default function FinanceLedger() {
 
   /* ---------- document form (modal-ish inline panel) ---------- */
   const [form, setForm] = useState<null | { kind: FinDocKind }>(null);
+  const [editDocId, setEditDocId] = useState<string | null>(null);
   const [f, setF] = useState<Record<string, string>>({});
   const [lines, setLines] = useState<{ accountId: string; amount: string; memo: string; dr?: string; cr?: string; qty?: string; rate?: string; disc?: string; itemId?: string; contactId?: string }[]>([{ accountId: '', amount: '', memo: '' }]);
-  const openForm = (kind: FinDocKind) => { setForm({ kind }); setF({ date: today(), bankAccountId: 'acc_1100', cashAccountId: 'acc_1000' }); setLines([{ accountId: '', amount: '', memo: '' }]); };
+  const openForm = (kind: FinDocKind) => { setEditDocId(null); setForm({ kind }); setF({ date: today(), bankAccountId: 'acc_1100', cashAccountId: 'acc_1000' }); setLines([{ accountId: '', amount: '', memo: '' }]); };
+  const startEditDoc = (d: FinDocument) => {
+    const ls = (d.payload.lines as { accountId: string; amount: string; memo?: string }[] | undefined) ?? [];
+    setEditDocId(d.id); setForm({ kind: d.kind });
+    setF({ no: d.no, date: d.date, dueDate: d.dueDate ?? '', contactId: d.contactId ?? '', siteId: d.siteId ?? '', memo: String(d.payload.memo ?? ''), orderNo: String(d.payload.orderNo ?? ''), refNo: String(d.payload.refNo ?? ''), subject: String(d.payload.subject ?? ''), salesperson: String(d.payload.salesperson ?? ''), customerNotes: String(d.payload.customerNotes ?? ''), termsText: String(d.payload.termsText ?? ''), expiryDate: String(d.payload.expiryDate ?? ''), terms: String(d.payload.terms ?? ''), vat: String(d.payload.vat ?? '0') });
+    setLines(ls.length ? ls.map(l => ({ accountId: l.accountId, amount: String(l.amount), memo: l.memo ?? '' })) : [{ accountId: '', amount: '', memo: '' }]);
+  };
 
   const submitDoc = async (asDraft = false) => {
     if (!form) return;
     const k = form.kind;
+    // Editing an unposted document (quote / sales order / draft): update in place.
+    if (editDocId) {
+      const lns2 = lines.filter(l => l.accountId && Number(l.amount) > 0);
+      const total2 = r2(lns2.reduce((s, l) => s + Number(l.amount), 0));
+      if (!lns2.length) return alert('Add at least one line with an account and amount.');
+      const editingDoc = finDocuments.find(d => d.id === editDocId);
+      const vat2 = Number(f.vat || editingDoc?.payload.vat || 0);
+      try {
+        await updateFinDocument(editDocId, { no: f.no || undefined, total: r2(total2 + vat2), dueDate: f.dueDate || undefined, contactId: f.contactId || undefined, payload: { ...(editingDoc?.payload ?? {}), lines: lns2, vat: vat2, memo: f.memo, orderNo: f.orderNo || undefined, refNo: f.refNo || undefined, subject: f.subject || undefined, salesperson: f.salesperson || undefined, customerNotes: f.customerNotes || undefined, termsText: f.termsText || undefined, expiryDate: f.expiryDate || undefined, terms: f.terms || undefined } });
+        setEditDocId(null); setForm(null);
+      } catch (e) { reportSaveError(e); }
+      return;
+    }
     const lns = lines.filter(l => l.accountId && Number(l.amount) > 0);
     const total = r2(lns.reduce((s, l) => s + Number(l.amount), 0));
     if (k !== 'bank' && lns.length === 0) return alert('Add at least one line with an account and amount.');
@@ -279,6 +299,9 @@ export default function FinanceLedger() {
       )}
       {['issued', 'part_paid'].includes(d.status) && ['invoice', 'bill'].includes(d.kind) && (
         <button onClick={() => { const k = d.kind === 'invoice' ? 'receipt' : 'payment'; openForm(k); setF(v => ({ ...v, linkedDocId: d.id, contactId: d.contactId ?? '' })); setLines([{ accountId: acct(d.kind === 'invoice' ? '1200' : '2000')!, amount: String(r2(d.total - d.paid)), memo: `${KIND_LABEL[d.kind]} ${d.no}` }]); }} className="text-[11px] font-bold text-brand-600 whitespace-nowrap">{d.kind === 'invoice' ? 'Record receipt' : 'Record payment'}</button>
+      )}
+      {['quote', 'sales_order'].includes(d.kind) && ['issued', 'draft'].includes(d.status) && !d.payload.convertedTo && (
+        <button onClick={() => startEditDoc(d)} className="text-[11px] font-bold text-brand-600 whitespace-nowrap">Edit</button>
       )}
       {['quote', 'sales_order'].includes(d.kind) && d.status === 'issued' && !d.payload.convertedTo && (
         <button onClick={async () => {
@@ -630,7 +653,7 @@ export default function FinanceLedger() {
 
           {form && (
             <div className="card p-5 space-y-3 border-2 border-brand-200">
-              <div className="flex items-center justify-between"><h3 className="font-black text-slate-900">{form.kind === 'journal' ? (f.fx ? 'FX currency adjustment' : 'Manual journal') : `New ${KIND_LABEL[form.kind]?.toLowerCase()}`}</h3><button onClick={() => setForm(null)} className="text-xs text-slate-400">Cancel</button></div>
+              <div className="flex items-center justify-between"><h3 className="font-black text-slate-900">{form.kind === 'journal' ? (f.fx ? 'FX currency adjustment' : 'Manual journal') : editDocId ? `Edit ${KIND_LABEL[form.kind]?.toLowerCase()}` : `New ${KIND_LABEL[form.kind]?.toLowerCase()}`}</h3><button onClick={() => { setEditDocId(null); setForm(null); }} className="text-xs text-slate-400">Cancel</button></div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 <div><label className="label">Number</label><input className="input" value={f.no ?? ''} placeholder={nextNo(form.kind.slice(0, 3).toUpperCase(), form.kind)} onChange={e => setF(v => ({ ...v, no: e.target.value }))} /></div>
                 <div><label className="label">Date</label><input className="input" type="date" value={f.date ?? today()} onChange={e => setF(v => ({ ...v, date: e.target.value }))} /></div>

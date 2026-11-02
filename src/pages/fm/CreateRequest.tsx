@@ -23,6 +23,7 @@ export default function CreateRequest() {
   const [form, setForm] = useState({
     description: searchParams.get('prefill') ?? '',
     details: '',
+    internalNote: '',
     category: '',
     budgetCategoryId: '',
     floor: '',
@@ -88,6 +89,7 @@ export default function CreateRequest() {
       description: form.description + (form.details ? `\n\n${form.details}` : ''),
       category: siteCategories.find(c => c.id === form.budgetCategoryId)?.name,
       budgetCategoryId: form.budgetCategoryId,
+      internalNote: form.internalNote.trim() || undefined,
       location: [(derivedFloor === 'Other' ? form.customFloor : derivedFloor), derivedSpace].filter(Boolean).join(' — ') || '',
       priority: form.priority,
       slaAvailable: form.slaAvailable,
@@ -149,6 +151,11 @@ export default function CreateRequest() {
                 <label>Additional information</label>
                 <textarea className="inp ta" placeholder="Symptoms, impact on operations, access notes…"
                   value={form.details} onChange={e => setForm(f => ({ ...f, details: e.target.value }))} />
+              </div>
+              <div className="form-field">
+                <label>Internal comment <span className="text-slate-400 font-normal">(visible to Procurement, Supervisor &amp; Finance — e.g. "pay 50% now")</span></label>
+                <textarea className="inp ta" placeholder="Payment instructions, split terms, or anything staff should know…"
+                  value={form.internalNote} onChange={e => setForm(f => ({ ...f, internalNote: e.target.value }))} />
               </div>
               <div className="row2">
                 <div className="form-field">

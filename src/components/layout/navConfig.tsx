@@ -38,7 +38,7 @@ const PROCUREMENT_NAV: NavSection[] = [
     { label: 'Request queue', path: '/procurement/queue', icon: <ClipboardList size={15} /> },
   ]},
   { section: 'Management', items: [
-    { label: 'Onboarding', path: '/procurement/vendor-onboarding', icon: <UserPlus size={15} /> },
+    { label: 'Vendors', path: '/procurement/vendor-onboarding', icon: <UserPlus size={15} /> },
     { label: 'SLA scorecard', path: '/procurement/scorecard', icon: <BarChart3 size={15} /> },
     { label: 'Purchase orders', path: '/procurement/pos', icon: <FileText size={15} /> },
   ]},

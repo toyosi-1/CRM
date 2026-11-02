@@ -338,6 +338,7 @@ export const useStore = create<AppState>((set, get) => ({
       description: sentenceCase(data.description ?? ''),
       category: data.category ? titleCase(data.category) : undefined,
       budgetCategoryId: data.budgetCategoryId,
+      internalNote: data.internalNote,
       location: data.location ? data.location.split('—').map(part => titleCase(part)).join('—') : undefined,
       slaAvailable: data.slaAvailable ?? false,
       oneTimeVendor: data.oneTimeVendor ? {

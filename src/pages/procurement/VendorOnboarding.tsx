@@ -54,7 +54,7 @@ export default function VendorOnboarding() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-white/50 text-xs font-bold uppercase tracking-widest mb-1">Procurement</p>
-            <h1 className="text-2xl font-black text-white tracking-tight">Vendor onboarding</h1>
+            <h1 className="text-2xl font-black text-white tracking-tight">Vendors</h1>
             <p className="text-white/60 text-sm mt-1">Register vendors and manage their payment details.</p>
           </div>
           {canManage && <button onClick={() => openForm()} className="btn-white-glass"><User size={14} />Register vendor</button>}

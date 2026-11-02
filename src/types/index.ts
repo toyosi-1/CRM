@@ -222,6 +222,7 @@ export interface MaintenanceRequest {
   amountPaid?: number;
   paymentReceiptUrl?: string;
   rejectionComment?: string;
+  internalNote?: string;
   isEmergencyBypass?: boolean;
   isBudgetWarning?: boolean;
   isIncident?: boolean;
