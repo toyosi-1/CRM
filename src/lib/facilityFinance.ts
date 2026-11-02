@@ -41,8 +41,8 @@ export async function saveFacilityBudget(categoryId: string, year: number, month
   const { error } = await supabase.rpc('save_facility_budget', { p_category_id: categoryId, p_year: year, p_months: months });
   if (error) throw new Error(error.message);
 }
-export async function recordFacilityPayment(requestId: string, categoryId: string, paidOn: string, reference: string, receiptUrl?: string) {
-  const { error } = await supabase.rpc('record_facility_payment', { p_request_id: requestId, p_category_id: categoryId, p_paid_on: paidOn, p_reference: reference, p_receipt_url: receiptUrl ?? null });
+export async function recordFacilityPayment(requestId: string, categoryId: string, paidOn: string, reference: string, receiptUrl?: string, amount?: number) {
+  const { error } = await supabase.rpc('record_facility_payment', { p_request_id: requestId, p_category_id: categoryId, p_paid_on: paidOn, p_reference: reference, p_receipt_url: receiptUrl ?? null, p_amount: amount ?? null });
   if (error) throw new Error(error.message);
 }
 export async function attachFacilityReceipt(paymentId: string, receiptUrl: string) {

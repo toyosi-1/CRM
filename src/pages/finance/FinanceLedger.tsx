@@ -997,8 +997,18 @@ export default function FinanceLedger() {
                   {finAccounts.filter(a => repBal(a.id) !== 0).map(a => (
                     <Fragment key={a.id}>
                     <tr className="cursor-pointer hover:bg-slate-50" onClick={() => setTbExpand(tbExpand === a.id ? null : a.id)}><td className="py-1.5 font-semibold">{a.code} · {a.name} <span className="text-[10px] text-brand-600 font-bold">{tbExpand === a.id ? '▾' : '▸'}</span></td><td className="text-xs text-slate-400">{a.type}</td><td className="text-right tabular-nums">{repBal(a.id) > 0 ? fmt(repBal(a.id)) : ''}</td><td className="text-right tabular-nums">{repBal(a.id) < 0 ? fmt(-repBal(a.id)) : ''}</td></tr>
-                    {tbExpand === a.id && (
+                    {tbExpand === a.id && (() => {
+                      const siteTotals = new Map<string, number>();
+                      const published = new Set(finJournalEntries.filter(e => e.status === 'published').map(e => e.id));
+                      finJournalLines.filter(l => l.accountId === a.id && published.has(l.entryId)).forEach(l => {
+                        const e = finJournalEntries.find(x => x.id === l.entryId)!;
+                        const sid = siteByDocId.get(e.sourceId ?? '') ?? 'unassigned';
+                        siteTotals.set(sid, (siteTotals.get(sid) ?? 0) + l.debit - l.credit);
+                      });
+                      const parts = [...siteTotals.entries()].filter(([, v]) => v !== 0).map(([sid, v]) => `${sid === 'unassigned' ? 'Unallocated' : siteName(sid)} ${fmt(Math.abs(v))}${v < 0 ? ' CR' : ''}`);
+                      return (
                       <tr key={`${a.id}-detail`}><td colSpan={4} className="py-0">
+                        {!repSite && parts.length > 0 && <p className="text-[11px] font-bold text-slate-500 bg-slate-100 px-4 py-1.5">By facility: {parts.join(' · ')}</p>}
                         <table className="w-full text-xs bg-slate-50 rounded">
                           <tbody className="divide-y divide-slate-100">
                             {finJournalEntries.filter(e => e.status === 'published' && (!repSite || docSite(e) === repSite) && finJournalLines.some(l => l.entryId === e.id && l.accountId === a.id)).map(e => {
@@ -1010,7 +1020,8 @@ export default function FinanceLedger() {
                           </tbody>
                         </table>
                       </td></tr>
-                    )}
+                      );
+                    })()}
                     </Fragment>
                   ))}
                   <tr className="font-black border-t-2 border-slate-200"><td className="py-2">Total</td><td /><td className="text-right tabular-nums">{fmt(finAccounts.reduce((s, a) => s + Math.max(0, repBal(a.id)), 0))}</td><td className="text-right tabular-nums">{fmt(-finAccounts.reduce((s, a) => s + Math.min(0, repBal(a.id)), 0))}</td></tr>

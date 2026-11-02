@@ -16,7 +16,9 @@ export function categoryBalance(categoryId: string, year: number, month: number 
   // allocations pace the year; spend in one month is not fenced to that month's plan.
   const annualCents = allocations.filter(a => a.category_id === categoryId && a.year === year).reduce((sum, a) => sum + Math.round(a.amount * 100), 0);
   const yearSpentCents = payments.filter(p => p.category_id === categoryId && Number(p.paid_on.slice(0, 4)) === year).reduce((sum, p) => sum + Math.round(p.gross_amount * 100), 0);
-  const paidRequestIds = new Set(payments.map(p => p.request_id));
-  const pendingCents = requests.filter(r => r.budgetCategoryId === categoryId && !['REJECTED', 'PAID', 'CLOSED'].includes(r.status) && !paidRequestIds.has(r.id)).reduce((sum, r) => sum + Math.round((r.invoiceAmount ?? 0) * 100), 0);
+  const paidByRequest = new Map<string, number>();
+  for (const p of payments) paidByRequest.set(p.request_id, (paidByRequest.get(p.request_id) ?? 0) + Math.round(p.gross_amount * 100));
+  const pendingCents = requests.filter(r => r.budgetCategoryId === categoryId && !['REJECTED', 'PAID', 'CLOSED'].includes(r.status))
+    .reduce((sum, r) => sum + Math.max(0, Math.round((r.invoiceAmount ?? 0) * 100) - (paidByRequest.get(r.id) ?? 0)), 0);
   return { allocated: allocatedCents / 100, spent: spentCents / 100, pending: pendingCents / 100, remaining: (annualCents - yearSpentCents - pendingCents) / 100 };
 }

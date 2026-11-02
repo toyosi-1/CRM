@@ -92,7 +92,7 @@ interface AppState {
   ) => void;
   generatePO: (requestId: string, actorId: string) => Promise<void>;
   processPayment: (requestId: string, taxType: TaxType, actorId: string) => void;
-  markPaid: (requestId: string, categoryId: string, paidOn: string, reference: string, receiptUrl?: string) => Promise<void>;
+  markPaid: (requestId: string, categoryId: string, paidOn: string, reference: string, receiptUrl?: string, amount?: number) => Promise<void>;
 
   saveChecklist: (checklistId: string, items: Checklist['items']) => void;
   submitChecklist: (checklistId: string, userId: string) => void;
@@ -506,10 +506,15 @@ export const useStore = create<AppState>((set, get) => ({
     });
   },
 
-  markPaid: async (requestId, categoryId, paidOn, reference, receiptUrl) => {
+  markPaid: async (requestId, categoryId, paidOn, reference, receiptUrl, amount) => {
     // Auto-post to the ledger: DR expense (request category) / CR operating bank.
-    await recordFacilityPayment(requestId, categoryId, paidOn, reference, receiptUrl);
-    set(state => ({ requests: state.requests.map(r => r.id === requestId ? { ...r, status: r.status === 'CLOSED' ? 'CLOSED' : 'PAID', budgetCategoryId: categoryId, paidAt: `${paidOn}T00:00:00Z`, paymentReceiptUrl: receiptUrl } : r) }));
+    await recordFacilityPayment(requestId, categoryId, paidOn, reference, receiptUrl, amount);
+    set(state => ({ requests: state.requests.map(r => {
+      if (r.id !== requestId) return r;
+      const paidSoFar = (r.amountPaid ?? 0) + (amount ?? (r.invoiceAmount ?? 0) - (r.amountPaid ?? 0));
+      const settled = paidSoFar >= (r.invoiceAmount ?? 0) - 0.005;
+      return { ...r, amountPaid: paidSoFar, status: settled ? (r.status === 'CLOSED' ? 'CLOSED' : 'PAID') : r.status, budgetCategoryId: categoryId, paidAt: settled ? `${paidOn}T00:00:00Z` : r.paidAt, paymentReceiptUrl: receiptUrl ?? r.paymentReceiptUrl };
+    }) }));
   },
 
   saveChecklist: (checklistId, items) => {

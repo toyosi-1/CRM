@@ -219,6 +219,7 @@ export interface MaintenanceRequest {
   grossAmount?: number;
   taxAmount?: number;
   netPayment?: number;
+  amountPaid?: number;
   paymentReceiptUrl?: string;
   rejectionComment?: string;
   isEmergencyBypass?: boolean;
