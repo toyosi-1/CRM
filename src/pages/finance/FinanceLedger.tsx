@@ -1004,7 +1004,7 @@ export default function FinanceLedger() {
                             {finJournalEntries.filter(e => e.status === 'published' && (!repSite || docSite(e) === repSite) && finJournalLines.some(l => l.entryId === e.id && l.accountId === a.id)).map(e => {
                               const src = finDocuments.find(d => d.id === e.sourceId);
                               return finJournalLines.filter(l => l.entryId === e.id && l.accountId === a.id).map(l => (
-                                <tr key={l.id}><td className="py-1.5 pl-4 text-slate-400 w-24">{e.date}</td><td className="font-mono w-24">{e.no}</td><td className="text-slate-500">{src ? `${src.no} · ${src.kind === 'payment' || src.kind === 'receipt' ? `via ${src.payload.method ?? 'payment'}` : KIND_LABEL[src.kind] ?? ''}` : 'Manual journal'}{l.memo ? ` — ${l.memo}` : ''}</td><td className="text-right tabular-nums w-24">{l.debit ? fmt(l.debit) : ''}</td><td className="text-right tabular-nums w-24">{l.credit ? fmt(l.credit) : ''}</td></tr>
+                                <tr key={l.id}><td className="py-1.5 pl-4 text-slate-400 w-24">{e.date}</td><td className="font-mono w-24">{e.no}</td><td className="text-slate-500">{src ? `${src.no} · ${KIND_LABEL[src.kind] ?? src.kind}${src.siteId ? ` · ${siteName(src.siteId)}` : ''}` : 'Manual journal'}{l.memo ? ` — ${l.memo}` : ''}</td><td className="text-right tabular-nums w-24">{l.debit ? fmt(l.debit) : ''}</td><td className="text-right tabular-nums w-24">{l.credit ? fmt(l.credit) : ''}</td></tr>
                               ));
                             })}
                           </tbody>

@@ -12,7 +12,11 @@ export function categoryBalance(categoryId: string, year: number, month: number 
   const inPeriod = (date: string) => Number(date.slice(0, 4)) === year && (month === null || Number(date.slice(5, 7)) === month);
   const allocatedCents = allocations.filter(a => a.category_id === categoryId && a.year === year && (month === null || a.month === month)).reduce((sum, a) => sum + Math.round(a.amount * 100), 0);
   const spentCents = payments.filter(p => p.category_id === categoryId && inPeriod(p.paid_on)).reduce((sum, p) => sum + Math.round(p.gross_amount * 100), 0);
+  // Available = annual budget − all year spending − open commitments. Monthly
+  // allocations pace the year; spend in one month is not fenced to that month's plan.
+  const annualCents = allocations.filter(a => a.category_id === categoryId && a.year === year).reduce((sum, a) => sum + Math.round(a.amount * 100), 0);
+  const yearSpentCents = payments.filter(p => p.category_id === categoryId && Number(p.paid_on.slice(0, 4)) === year).reduce((sum, p) => sum + Math.round(p.gross_amount * 100), 0);
   const paidRequestIds = new Set(payments.map(p => p.request_id));
-  const pendingCents = requests.filter(r => r.budgetCategoryId === categoryId && !['REJECTED', 'PAID', 'CLOSED'].includes(r.status) && !paidRequestIds.has(r.id) && inPeriod(r.createdAt)).reduce((sum, r) => sum + Math.round((r.invoiceAmount ?? 0) * 100), 0);
-  return { allocated: allocatedCents / 100, spent: spentCents / 100, pending: pendingCents / 100, remaining: (allocatedCents - spentCents - pendingCents) / 100 };
+  const pendingCents = requests.filter(r => r.budgetCategoryId === categoryId && !['REJECTED', 'PAID', 'CLOSED'].includes(r.status) && !paidRequestIds.has(r.id)).reduce((sum, r) => sum + Math.round((r.invoiceAmount ?? 0) * 100), 0);
+  return { allocated: allocatedCents / 100, spent: spentCents / 100, pending: pendingCents / 100, remaining: (annualCents - yearSpentCents - pendingCents) / 100 };
 }

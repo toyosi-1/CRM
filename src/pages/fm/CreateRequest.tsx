@@ -157,7 +157,7 @@ export default function CreateRequest() {
                     <option value="">Select category…</option>
                     {siteCategories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
                   </select>
-                  {form.budgetCategoryId && <p className="text-xs text-slate-500">Category balance this month: <span className={categoryBudget.remaining < 0 ? 'text-red-600 font-semibold' : ''}>{formatCurrency(categoryBudget.remaining)}</span>{categoryBudget.remaining < 0 ? ' — budget already exceeded' : ''}. Your request amount is committed against this budget as soon as it is submitted.</p>}
+                  {form.budgetCategoryId && <p className="text-xs text-slate-500">Category balance: <span className={categoryBudget.remaining < 0 ? 'text-red-600 font-semibold' : ''}>{formatCurrency(categoryBudget.remaining)}</span>{categoryBudget.remaining < 0 ? ' — budget already exceeded' : ''}. Your request amount is committed against this budget as soon as it is submitted.</p>}
                   {!budgetLoading && !siteCategories.length && <p className="text-xs text-amber-700">Ask Finance to create budget categories for this facility before submitting a request.</p>}
                   {(budgetError || saveError) && <p role="alert" className="text-xs text-red-600">{saveError || budgetError}</p>}
                 </div>
