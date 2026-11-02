@@ -5,6 +5,7 @@ import { useStore, reportSaveError } from '../../store/useStore';
 import { markVendorAttended, uploadFile } from '../../lib/db';
 import { StatusBadge, PriorityBadge } from '../../components/shared/Badges';
 import AuditTimeline from '../../components/shared/AuditTimeline';
+import RequestComments from '../../components/shared/RequestComments';
 import BudgetWidget from '../../components/shared/BudgetWidget';
 import Lightbox from '../../components/shared/Lightbox';
 import DocPreview from '../../components/shared/DocPreview';
@@ -273,7 +274,6 @@ export default function RequestDetail() {
           <div className="card p-5">
             <h2 className="section-title mb-3">Fault description</h2>
             <p className="text-slate-700 leading-relaxed">{req.description}</p>
-            {req.internalNote && <div className="mt-3 bg-amber-50 border border-amber-100 rounded-lg p-3"><p className="text-[10px] font-bold uppercase text-amber-600">Internal comment · staff only</p><p className="text-sm text-amber-800 mt-0.5 whitespace-pre-line">{req.internalNote}</p></div>}
             <div className="mt-3 flex flex-wrap gap-2">
               {req.category && <span className="badge bg-slate-100 text-slate-600">{req.category}</span>}
               {req.location && <span className="badge bg-blue-50 text-blue-700">{req.location}</span>}
@@ -302,6 +302,8 @@ export default function RequestDetail() {
               </div>
             )}
           </div>
+
+          <RequestComments requestId={req.id} initialNote={req.internalNote} requesterId={req.submittedBy} requestedAt={req.createdAt} />
 
           {/* Linked incident */}
           {req.linkedIncidentId && (() => {
