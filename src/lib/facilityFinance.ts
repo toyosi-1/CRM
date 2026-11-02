@@ -33,8 +33,8 @@ export function useFacilityFinance() {
   }, [refresh]);
   return { ...data, error, loading, refresh };
 }
-export async function saveFacilityCategory(siteId: string, name: string, id?: string, active = true) {
-  const { error } = await supabase.from('facility_budget_categories').upsert({ ...(id ? { id } : {}), site_id: siteId, name: name.trim(), active });
+export async function saveFacilityCategory(siteId: string, name: string, id?: string, active = true, accountId?: string) {
+  const { error } = await supabase.from('facility_budget_categories').upsert({ ...(id ? { id } : {}), site_id: siteId, name: name.trim(), active, account_id: accountId || null });
   if (error) throw new Error(error.message);
 }
 export async function saveFacilityBudget(categoryId: string, year: number, months: number[]) {

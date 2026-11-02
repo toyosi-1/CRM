@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { Plus, Search, Pencil, X } from 'lucide-react';
+import { Plus, Search, Pencil, X, Paperclip } from 'lucide-react';
 import { useStore } from '../../store/useStore';
-import { formatDate, vendorMatches } from '../../utils/helpers';
+import { uploadFile } from '../../lib/db';
+import { formatDate, formatCurrency, vendorMatches } from '../../utils/helpers';
 import type { Vendor } from '../../types';
 
 function maskAccount(account: string) {
@@ -31,6 +32,16 @@ export default function FMVendors() {
   const [editing, setEditing] = useState<Vendor | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_VENDOR });
+  const [docBusy, setDocBusy] = useState(false);
+  const attachDoc = async (vendor: Vendor, file: File) => {
+    setDocBusy(true);
+    try {
+      const url = await uploadFile(`vendor-docs/${vendor.id}/${crypto.randomUUID()}-${file.name}`, file);
+      const documents = [...(vendor.documents ?? []), { name: file.name, url }];
+      await upsertVendor({ id: vendor.id, documents });
+      setEditing(v => v ? { ...v, documents } : v);
+    } finally { setDocBusy(false); }
+  };
   const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
@@ -38,6 +49,10 @@ export default function FMVendors() {
   }, [showForm]);
 
   const siteRequests = requests.filter(r => r.siteId === siteId);
+  const oneOffs = useMemo(() => siteRequests
+    .filter(r => r.oneTimeVendor?.name)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map(req => ({ req, v: req.oneTimeVendor! })), [siteRequests]);
   const lastUsed = useMemo(() => {
     const map = new Map<string, string>();
     siteRequests.forEach(r => {
@@ -130,6 +145,19 @@ export default function FMVendors() {
             <div className="form-group"><label className="label">RC number</label><input className="input" value={form.rcNumber} onChange={e => setForm(f => ({ ...f, rcNumber: e.target.value }))} /></div>
             <div className="form-group"><label className="label">Exemption / notes</label><input className="input" value={form.exemptionNotes} onChange={e => setForm(f => ({ ...f, exemptionNotes: e.target.value }))} /></div>
           </div>
+          {editing && (
+            <div className="border-t border-slate-100 pt-4">
+              <p className="label mb-2">Certifications & documents</p>
+              <div className="flex flex-wrap items-center gap-2">
+                {(editing.documents ?? []).map(doc => (
+                  <a key={doc.url} href={doc.url} target="_blank" rel="noreferrer" className="btn-secondary text-xs"><Paperclip size={12} /> {doc.name}</a>
+                ))}
+                <label className="btn-ghost text-xs cursor-pointer">{docBusy ? 'Uploading…' : 'Attach document'}
+                  <input type="file" className="hidden" disabled={docBusy} onChange={e => { const file = e.target.files?.[0]; if (file) void attachDoc(editing, file); e.target.value = ''; }} />
+                </label>
+              </div>
+            </div>
+          )}
           <div className="flex gap-2"><button type="button" className="btn-ghost" onClick={() => { resetForm(); setShowForm(false); }}>Cancel</button><button className="btn-acc" disabled={saving}>{saving ? 'Saving…' : editing ? 'Update vendor' : 'Save vendor'}</button></div>
         </form>
       )}
@@ -180,6 +208,28 @@ export default function FMVendors() {
           </table>
         </div>
       </div>
+
+      {oneOffs.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="p-5 border-b border-slate-100"><h2 className="font-bold">One-off vendor history</h2><p className="text-xs text-slate-500 mt-1">Vendors used once on requests — payment details recorded per job</p></div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="text-left text-xs text-slate-400 border-b border-slate-100"><th className="px-4 py-3 font-semibold">Vendor</th><th className="px-4 py-3 font-semibold">Bank</th><th className="px-4 py-3 font-semibold">Request</th><th className="px-4 py-3 font-semibold">Amount</th><th className="px-4 py-3 font-semibold">Used</th></tr></thead>
+              <tbody className="divide-y divide-slate-100">
+                {oneOffs.map(({ req, v }) => (
+                  <tr key={req.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3 font-semibold text-slate-800">{v.name}{v.contactPerson && <div className="text-xs font-normal text-slate-500">{v.contactPerson}{v.phone ? ` · ${v.phone}` : ''}</div>}</td>
+                    <td className="px-4 py-3 text-slate-600 font-mono text-xs">{v.bankName ? `${v.bankName} · ${maskAccount(v.accountNumber ?? '')}` : '—'}</td>
+                    <td className="px-4 py-3 text-brand-600 font-bold text-xs">{req.requestNumber}</td>
+                    <td className="px-4 py-3 text-slate-600">{formatCurrency(req.invoiceAmount ?? 0)}</td>
+                    <td className="px-4 py-3 text-xs text-slate-500">{formatDate(req.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

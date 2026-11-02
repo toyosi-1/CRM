@@ -104,6 +104,7 @@ export interface Vendor {
   approvalStatus?: 'pending' | 'approved' | 'rejected';
   requestedBy?: string;
   guarantorProfileId?: string;
+  documents?: { name: string; url: string }[];
   createdAt: string;
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { BookOpen, Users, Package, TrendingUp, TrendingDown, Landmark, BookMarked, BarChart3, Activity, Plus, Loader2, Trash2, Upload, Paperclip } from 'lucide-react';
 import FinImport from './FinImport';
@@ -42,7 +42,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function FinanceLedger() {
-  const { finAccounts, finJournalEntries, finJournalLines, finContacts, finItems, finDocuments, finBudgets, finActivity, finRecurring, currentUser, getBudgetSummaries } = useStore();
+  const { finAccounts, finJournalEntries, finJournalLines, finContacts, finItems, finDocuments, finBudgets, finActivity, finRecurring, currentUser, getBudgetSummaries, sites } = useStore();
   const [recForm, setRecForm] = useState<null | { kind: 'invoice' | 'expense'; name: string; contactId: string; vat: string; memo: string; nextRun: string; endDate?: string; frequency: 'weekly' | 'monthly' | 'yearly'; paidThroughId: string }>(null);
   const [recLines, setRecLines] = useState<{ accountId: string; amount: string; memo: string }[]>([{ accountId: '', amount: '', memo: '' }]);
   const seg = useParams()['*'] ?? '';
@@ -58,6 +58,11 @@ export default function FinanceLedger() {
   const [budLines, setBudLines] = useState<{ accountId: string; amount: string }[]>([{ accountId: '', amount: '' }]);
   const [expandId, setExpandId] = useState<string | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);
+  const [repSite, setRepSite] = useState('');
+  const [tbExpand, setTbExpand] = useState<string | null>(null);
+  const siteName = (id?: string) => sites.find(s => s.id === id)?.name ?? '—';
+  const siteByDocId = useMemo(() => new Map(finDocuments.map(d => [d.id, d.siteId])), [finDocuments]);
+  const docSite = (entry: { sourceId?: string }) => siteByDocId.get(entry.sourceId ?? '');
   const [lockDate, setLockDate] = useState('');
   const [bulk, setBulk] = useState({ from: '', to: '' });
   const [itemAcc, setItemAcc] = useState('');
@@ -83,6 +88,17 @@ export default function FinanceLedger() {
     return net;
   }, [finJournalEntries, finJournalLines]);
   const bal = (id: string) => balances.get(id) ?? 0;
+  // Site-aware balance: journal lines inherit their facility from the source document
+  const balForSite = useMemo(() => {
+    const net = new Map<string, number>();
+    if (!repSite) return net;
+    const published = new Set(finJournalEntries.filter(e => e.status === 'published' && (siteByDocId.get(e.sourceId ?? '') ?? '') === repSite).map(e => e.id));
+    finJournalLines.filter(l => published.has(l.entryId)).forEach(l => {
+      net.set(l.accountId, (net.get(l.accountId) ?? 0) + l.debit - l.credit);
+    });
+    return net;
+  }, [repSite, finJournalEntries, finJournalLines, siteByDocId]);
+  const repBal = (id: string) => repSite ? (balForSite.get(id) ?? 0) : bal(id);
   const natural = (a: FinAccount) => ['Cash', 'Bank', 'Accounts Receivable', 'Other Current Asset', 'Fixed Asset', 'Cost of Goods Sold', 'Expense', 'Other Expense'].includes(a.type) ? bal(a.id) : -bal(a.id);
 
   const pl = useMemo(() => {
@@ -125,7 +141,7 @@ export default function FinanceLedger() {
     const lns = lines.filter(l => l.accountId && Number(l.amount) > 0);
     const total = r2(lns.reduce((s, l) => s + Number(l.amount), 0));
     if (k !== 'bank' && lns.length === 0) return alert('Add at least one line with an account and amount.');
-    const base: Omit<FinDocument, 'id' | 'createdAt'> = { kind: k, no: f.no || nextNo(k.slice(0, 3).toUpperCase(), k), date: f.date || today(), status: asDraft ? 'draft' : 'issued', contactId: f.contactId || undefined, projectId: f.projectId || undefined, total, paid: 0, dueDate: f.dueDate || undefined, createdBy: me, payload: { lines: lns, memo: f.memo, method: f.method, bankAccountId: f.bankAccountId, linkedDocId: f.linkedDocId, orderNo: f.orderNo || undefined, refNo: f.refNo || undefined, subject: f.subject || undefined, salesperson: f.salesperson || undefined, customerNotes: f.customerNotes || undefined, termsText: f.termsText || undefined, expiryDate: f.expiryDate || undefined, terms: f.terms || undefined, arAccountId: f.arAccountId || undefined, apAccountId: f.apAccountId || undefined, billableContactId: f.billableContactId || undefined } };
+    const base: Omit<FinDocument, 'id' | 'createdAt'> = { kind: k, no: f.no || nextNo(k.slice(0, 3).toUpperCase(), k), date: f.date || today(), status: asDraft ? 'draft' : 'issued', contactId: f.contactId || undefined, siteId: f.siteId || undefined, projectId: f.projectId || undefined, total, paid: 0, dueDate: f.dueDate || undefined, createdBy: me, payload: { lines: lns, memo: f.memo, method: f.method, bankAccountId: f.bankAccountId, linkedDocId: f.linkedDocId, orderNo: f.orderNo || undefined, refNo: f.refNo || undefined, subject: f.subject || undefined, salesperson: f.salesperson || undefined, customerNotes: f.customerNotes || undefined, termsText: f.termsText || undefined, expiryDate: f.expiryDate || undefined, terms: f.terms || undefined, arAccountId: f.arAccountId || undefined, apAccountId: f.apAccountId || undefined, billableContactId: f.billableContactId || undefined } };
 
     // Drafts save without posting to the ledger — Issue posts later.
     if (asDraft && ['invoice', 'quote', 'sales_order', 'bill'].includes(k)) {
@@ -240,8 +256,9 @@ export default function FinanceLedger() {
       <span className="font-mono text-xs font-bold text-slate-500 w-20 flex-shrink-0">{d.no}</span>
       <span className="text-xs text-slate-400 w-20 flex-shrink-0">{d.date}</span>
       <span className="flex-1 font-semibold text-slate-700 truncate">{d.contactId ? contactName(d.contactId) : String(d.payload.memo ?? KIND_LABEL[d.kind])}</span>
+      {d.siteId && <span className="text-[11px] text-slate-400 whitespace-nowrap">{siteName(d.siteId)}</span>}
       <span className="font-bold text-slate-900 tabular-nums">{fmt(d.total)}</span>
-      {d.paid > 0 && d.total > 0 && d.status !== 'paid' && <span className="text-[11px] text-slate-400 tabular-nums">{fmt(d.paid)} paid</span>}
+      {d.paid > 0 && d.total > 0 && d.status !== 'paid' && <span className="text-[11px] text-slate-400 tabular-nums">{fmt(d.paid)} paid · <span className="text-amber-700 font-semibold">{fmt(r2(d.total - d.paid))} due</span></span>}
       <span className={`badge ${STATUS_COLORS[d.status] ?? 'bg-slate-100 text-slate-500'}`}>{d.status.replace('_', ' ')}</span>
       {d.status === 'draft' && (
         <button onClick={async () => {
@@ -263,16 +280,20 @@ export default function FinanceLedger() {
       {['issued', 'part_paid'].includes(d.status) && ['invoice', 'bill'].includes(d.kind) && (
         <button onClick={() => { const k = d.kind === 'invoice' ? 'receipt' : 'payment'; openForm(k); setF(v => ({ ...v, linkedDocId: d.id, contactId: d.contactId ?? '' })); setLines([{ accountId: acct(d.kind === 'invoice' ? '1200' : '2000')!, amount: String(r2(d.total - d.paid)), memo: `${KIND_LABEL[d.kind]} ${d.no}` }]); }} className="text-[11px] font-bold text-brand-600 whitespace-nowrap">{d.kind === 'invoice' ? 'Record receipt' : 'Record payment'}</button>
       )}
-      {['quote', 'sales_order'].includes(d.kind) && d.status === 'issued' && (
+      {['quote', 'sales_order'].includes(d.kind) && d.status === 'issued' && !d.payload.convertedTo && (
         <button onClick={async () => {
           const ls = (d.payload.lines as { accountId: string; amount: string; memo: string }[] | undefined) ?? [];
           const vat = Number(d.payload.vat ?? 0); const t = r2(d.total);
+          const invNo = nextNo('INV', 'invoice');
           await post(
-            { kind: 'invoice', no: nextNo('INV', 'invoice'), date: today(), status: 'issued', contactId: d.contactId, total: t, paid: 0, createdBy: me, payload: { lines: ls, convertedFrom: d.no } },
+            { kind: 'invoice', no: invNo, date: today(), status: 'issued', contactId: d.contactId, siteId: d.siteId, total: t, paid: 0, createdBy: me, payload: { lines: ls, convertedFrom: d.no } },
             [{ accountId: acct('1200')!, dr: t, memo: `AR — from ${d.no}` }, ...ls.map(l => ({ accountId: l.accountId, cr: Number(l.amount), memo: l.memo })), ...(vat > 0 ? [{ accountId: acct('2100')!, cr: vat, memo: 'VAT output' }] : [])],
           );
-          await updateFinDocument(d.id, { status: 'void' }).catch(reportSaveError);
+          await updateFinDocument(d.id, { payload: { ...d.payload, convertedTo: invNo } }).catch(reportSaveError);
         }} className="text-[11px] font-bold text-brand-600 whitespace-nowrap">Convert to invoice</button>
+      )}
+      {['quote', 'sales_order'].includes(d.kind) && !!d.payload.convertedTo && (
+        <span className="text-[11px] font-semibold text-slate-400 whitespace-nowrap">Converted → {String(d.payload.convertedTo)}</span>
       )}
       <button onClick={() => setViewId(v => v === d.id ? null : d.id)} className="text-[11px] font-semibold text-brand-600 whitespace-nowrap">View</button>
       {finJournalEntries.some(e => e.sourceId === d.id) && (
@@ -284,7 +305,7 @@ export default function FinanceLedger() {
           <input type="file" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (file) void attach(d, file); e.target.value = ''; }} />
         </label>
       )}
-      {d.status !== 'void' && <button onClick={() => void voidDoc(d)} className="text-[11px] text-red-500 font-semibold">Void</button>}
+      {d.status !== 'void' && !d.payload.convertedTo && <button onClick={() => void voidDoc(d)} className="text-[11px] text-red-500 font-semibold">Void</button>}
     </div>
     {viewId === d.id && (() => {
       const ls = (d.payload.lines as { accountId: string; amount: string; memo?: string; qty?: string; rate?: string }[] | undefined) ?? [];
@@ -303,6 +324,7 @@ export default function FinanceLedger() {
             <div className="text-right text-xs text-slate-500">
               <p>Date: <strong>{d.date}</strong></p>
               {d.dueDate && <p>Due: <strong>{d.dueDate}</strong></p>}
+              {d.payload.terms !== undefined && d.payload.terms !== '' && <p>Terms: <strong>{PAYMENT_TERMS.find(([days]) => String(days) === String(d.payload.terms))?.[1] ?? `${d.payload.terms} days`}</strong></p>}
               {d.payload.expiryDate ? <p>Expires: <strong>{String(d.payload.expiryDate as string)}</strong></p> : null}
               {d.payload.orderNo ? <p>Order #: <strong>{String(d.payload.orderNo as string)}</strong></p> : null}
               {d.payload.refNo ? <p>Ref #: <strong>{String(d.payload.refNo as string)}</strong></p> : null}
@@ -631,13 +653,16 @@ export default function FinanceLedger() {
                   <div><label className="label">{['bill', 'payment', 'expense', 'vendor_credit'].includes(form.kind) ? 'Vendor' : 'Customer'}</label><select className="select" value={f.contactId ?? ''} onChange={e => setF(v => ({ ...v, contactId: e.target.value }))}><option value="">—</option>{finContacts.filter(c => ['bill', 'payment', 'expense', 'vendor_credit'].includes(form.kind) ? c.type !== 'customer' : c.type !== 'vendor').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
                 )}
                 {['credit_note'].includes(form.kind) && (
-                  <div><label className="label">Apply to invoice (opt.)</label><select className="select" value={f.linkedDocId ?? ''} onChange={e => setF(v => ({ ...v, linkedDocId: e.target.value }))}><option value="">Standalone credit</option>{finDocuments.filter(d => d.kind === 'invoice' && ['issued', 'part_paid'].includes(d.status)).map(d => <option key={d.id} value={d.id}>{d.no} — {contactName(d.contactId)} ({fmt(r2(d.total - d.paid))} open)</option>)}</select></div>
+                  <div><label className="label">Apply to invoice (opt.)</label><select className="select" value={f.linkedDocId ?? ''} onChange={e => setF(v => ({ ...v, linkedDocId: e.target.value }))}><option value="">Standalone credit</option>{finDocuments.filter(d => d.kind === 'invoice' && ['issued', 'part_paid', 'paid'].includes(d.status)).map(d => <option key={d.id} value={d.id}>{d.no} — {contactName(d.contactId)} ({fmt(r2(d.total - d.paid))} open)</option>)}</select></div>
                 )}
                 {['vendor_credit'].includes(form.kind) && (
-                  <div><label className="label">Apply to bill (opt.)</label><select className="select" value={f.linkedDocId ?? ''} onChange={e => setF(v => ({ ...v, linkedDocId: e.target.value }))}><option value="">Standalone credit</option>{finDocuments.filter(d => d.kind === 'bill' && ['issued', 'part_paid'].includes(d.status)).map(d => <option key={d.id} value={d.id}>{d.no} — {contactName(d.contactId)} ({fmt(r2(d.total - d.paid))} open)</option>)}</select></div>
+                  <div><label className="label">Apply to bill (opt.)</label><select className="select" value={f.linkedDocId ?? ''} onChange={e => setF(v => ({ ...v, linkedDocId: e.target.value }))}><option value="">Standalone credit</option>{finDocuments.filter(d => d.kind === 'bill' && ['issued', 'part_paid', 'paid'].includes(d.status)).map(d => <option key={d.id} value={d.id}>{d.no} — {contactName(d.contactId)} ({fmt(r2(d.total - d.paid))} open)</option>)}</select></div>
                 )}
                 {form.kind === 'expense' && (
                   <div><label className="label">Customer — billable (opt.)</label><select className="select" value={f.billableContactId ?? ''} onChange={e => setF(v => ({ ...v, billableContactId: e.target.value }))}><option value="">Not billable</option>{finContacts.filter(c => c.type !== 'vendor').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                )}
+                {['invoice', 'receipt', 'bill', 'payment', 'quote', 'sales_order', 'expense', 'credit_note', 'vendor_credit'].includes(form.kind) && (
+                  <div><label className="label">Facility</label><select className="select" value={f.siteId ?? ''} onChange={e => setF(v => ({ ...v, siteId: e.target.value }))}><option value="">—</option>{sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
                 )}
                 {['invoice', 'quote', 'sales_order'].includes(form.kind) && finDocuments.some(d => d.kind === 'project') && (
                   <div><label className="label">Project (opt.)</label><select className="select" value={f.projectId ?? ''} onChange={e => setF(v => ({ ...v, projectId: e.target.value }))}><option value="">—</option>{finDocuments.filter(d => d.kind === 'project').map(d => <option key={d.id} value={d.id}>{String(d.payload.name ?? d.no)}</option>)}</select></div>
@@ -955,22 +980,40 @@ export default function FinanceLedger() {
             <div><label className="label">Type</label><select name="aType" className="select">{['Income','Other Income','Expense','Cost of Goods Sold','Other Expense','Cash','Bank','Accounts Receivable','Other Current Asset','Fixed Asset','Accounts Payable','Other Current Liability','Long Term Liability','Equity'].map(t => <option key={t}>{t}</option>)}</select></div>
             <button className="btn-primary text-xs"><Plus size={12} />Add / update account</button>
           </form>
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap items-center">
             {([['tb', 'Trial balance'], ['pl', 'Profit & loss'], ['bs', 'Balance sheet'], ['acct', 'Account transactions'], ['ar', 'Receivables aging'], ['ap', 'Payables aging'], ['cf', 'Cash flow'], ['ratios', 'Ratios & equity'], ['tax', 'VAT & WHT summary'], ['budget', 'Budget vs actual']] as const).map(([id, label]) => (
               <button key={id} onClick={() => setReport(id)} className={`px-3.5 py-2 text-xs font-bold rounded-lg ${report === id ? 'bg-brand-600 text-white' : 'bg-white border border-slate-200 text-slate-500'}`}>{label}</button>
             ))}
+            <select aria-label="Filter by facility" className="select text-xs max-w-[180px]" value={repSite} onChange={e => setRepSite(e.target.value)}><option value="">All facilities</option>{sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
           </div>
 
           {report === 'tb' && (
             <div className="card p-5">
-              <h2 className="font-black text-slate-900 mb-3">Trial balance</h2>
+              <h2 className="font-black text-slate-900 mb-1">Trial balance{repSite ? ` — ${siteName(repSite)}` : ''}</h2>
+              <p className="text-[11px] text-slate-400 mb-3">Click an account to see every posted ledger line — where the money came from and which document created it.</p>
               <table className="w-full text-sm">
                 <thead><tr className="text-left text-[11px] uppercase text-slate-400 border-b border-slate-100"><th className="py-2">Account</th><th>Type</th><th className="text-right">Debit</th><th className="text-right">Credit</th></tr></thead>
                 <tbody className="divide-y divide-slate-50">
-                  {finAccounts.filter(a => bal(a.id) !== 0).map(a => (
-                    <tr key={a.id}><td className="py-1.5 font-semibold">{a.code} · {a.name}</td><td className="text-xs text-slate-400">{a.type}</td><td className="text-right tabular-nums">{bal(a.id) > 0 ? fmt(bal(a.id)) : ''}</td><td className="text-right tabular-nums">{bal(a.id) < 0 ? fmt(-bal(a.id)) : ''}</td></tr>
+                  {finAccounts.filter(a => repBal(a.id) !== 0).map(a => (
+                    <Fragment key={a.id}>
+                    <tr className="cursor-pointer hover:bg-slate-50" onClick={() => setTbExpand(tbExpand === a.id ? null : a.id)}><td className="py-1.5 font-semibold">{a.code} · {a.name} <span className="text-[10px] text-brand-600 font-bold">{tbExpand === a.id ? '▾' : '▸'}</span></td><td className="text-xs text-slate-400">{a.type}</td><td className="text-right tabular-nums">{repBal(a.id) > 0 ? fmt(repBal(a.id)) : ''}</td><td className="text-right tabular-nums">{repBal(a.id) < 0 ? fmt(-repBal(a.id)) : ''}</td></tr>
+                    {tbExpand === a.id && (
+                      <tr key={`${a.id}-detail`}><td colSpan={4} className="py-0">
+                        <table className="w-full text-xs bg-slate-50 rounded">
+                          <tbody className="divide-y divide-slate-100">
+                            {finJournalEntries.filter(e => e.status === 'published' && (!repSite || docSite(e) === repSite) && finJournalLines.some(l => l.entryId === e.id && l.accountId === a.id)).map(e => {
+                              const src = finDocuments.find(d => d.id === e.sourceId);
+                              return finJournalLines.filter(l => l.entryId === e.id && l.accountId === a.id).map(l => (
+                                <tr key={l.id}><td className="py-1.5 pl-4 text-slate-400 w-24">{e.date}</td><td className="font-mono w-24">{e.no}</td><td className="text-slate-500">{src ? `${src.no} · ${src.kind === 'payment' || src.kind === 'receipt' ? `via ${src.payload.method ?? 'payment'}` : KIND_LABEL[src.kind] ?? ''}` : 'Manual journal'}{l.memo ? ` — ${l.memo}` : ''}</td><td className="text-right tabular-nums w-24">{l.debit ? fmt(l.debit) : ''}</td><td className="text-right tabular-nums w-24">{l.credit ? fmt(l.credit) : ''}</td></tr>
+                              ));
+                            })}
+                          </tbody>
+                        </table>
+                      </td></tr>
+                    )}
+                    </Fragment>
                   ))}
-                  <tr className="font-black border-t-2 border-slate-200"><td className="py-2">Total</td><td /><td className="text-right tabular-nums">{fmt(finAccounts.reduce((s, a) => s + Math.max(0, bal(a.id)), 0))}</td><td className="text-right tabular-nums">{fmt(-finAccounts.reduce((s, a) => s + Math.min(0, bal(a.id)), 0))}</td></tr>
+                  <tr className="font-black border-t-2 border-slate-200"><td className="py-2">Total</td><td /><td className="text-right tabular-nums">{fmt(finAccounts.reduce((s, a) => s + Math.max(0, repBal(a.id)), 0))}</td><td className="text-right tabular-nums">{fmt(-finAccounts.reduce((s, a) => s + Math.min(0, repBal(a.id)), 0))}</td></tr>
                 </tbody>
               </table>
             </div>

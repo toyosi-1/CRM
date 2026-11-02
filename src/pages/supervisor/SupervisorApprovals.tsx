@@ -9,10 +9,17 @@ export default function SupervisorApprovals() {
   const { currentUser, requests, updateRequestStatus } = useStore();
 
   const queue = requests.filter(r => r.status === 'PO_GENERATED' || r.status === 'SUPERVISOR_APPROVAL');
+  // Requests this supervisor already decided — visible history of approvals/rejections
+  const decided = requests
+    .filter(r => !['PO_GENERATED', 'SUPERVISOR_APPROVAL'].includes(r.status) && r.auditTrail?.some(a => a.userId === currentUser?.id && /approv|reject/i.test(a.action)))
+    .map(r => ({ req: r, entry: [...(r.auditTrail ?? [])].reverse().find(a => a.userId === currentUser?.id && /approv|reject/i.test(a.action))! }))
+    .sort((a, b) => b.entry.timestamp.localeCompare(a.entry.timestamp))
+    .slice(0, 15);
 
   const handleApprove = (e: React.MouseEvent, reqId: string) => {
     e.stopPropagation();
-    updateRequestStatus(reqId, 'PAYMENT_PENDING', currentUser!.id, 'Supervisor approved. Forwarded to Finance for payment processing.');
+    const comment = window.prompt('Approval comment (optional):')?.trim();
+    updateRequestStatus(reqId, 'PAYMENT_PENDING', currentUser!.id, 'Supervisor approved. Forwarded to Finance for payment processing.', comment || undefined);
   };
 
   const handleReject = (e: React.MouseEvent, reqId: string) => {
@@ -112,6 +119,27 @@ export default function SupervisorApprovals() {
           </div>
         )}
       </div>
+
+      {decided.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="p-5 border-b border-slate-100"><h2 className="font-bold">Your recent decisions</h2><p className="text-xs text-slate-500 mt-1">Requests you approved or rejected, with the comment recorded</p></div>
+          <table className="w-full">
+            <thead><tr className="border-b border-slate-100 text-left"><th className="table-header">Request</th><th className="table-header">Description</th><th className="table-header">Decision</th><th className="table-header">Comment</th><th className="table-header">When</th><th className="table-header"></th></tr></thead>
+            <tbody>
+              {decided.map(({ req, entry }) => (
+                <tr key={req.id} className="table-row">
+                  <td className="table-cell font-bold text-brand-600">{req.requestNumber}</td>
+                  <td className="table-cell text-sm max-w-64 truncate">{req.description}</td>
+                  <td className="table-cell"><span className={`text-xs font-bold ${/reject/i.test(entry.action) ? 'text-red-600' : 'text-emerald-600'}`}>{/reject/i.test(entry.action) ? 'Rejected' : 'Approved'}</span></td>
+                  <td className="table-cell text-xs text-slate-500 max-w-56 truncate">{entry.comment || '—'}</td>
+                  <td className="table-cell text-xs text-slate-400">{formatDate(entry.timestamp)}</td>
+                  <td className="table-cell"><button onClick={() => navigate(`/request/${req.id}`)} className="btn-icon w-7 h-7"><Eye size={13} /></button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

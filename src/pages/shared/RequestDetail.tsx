@@ -66,7 +66,8 @@ export default function RequestDetail() {
   const role = currentUser?.role;
 
   const handleApprove = () => {
-    updateRequestStatus(req.id, 'PAYMENT_PENDING', currentUser!.id, 'Supervisor approved request. Forwarded to Finance for payment.');
+    const comment = window.prompt('Approval comment (optional):')?.trim();
+    updateRequestStatus(req.id, 'PAYMENT_PENDING', currentUser!.id, 'Supervisor approved request. Forwarded to Finance for payment.', comment || undefined);
     navigate(-1);
   };
 

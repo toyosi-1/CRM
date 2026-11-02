@@ -1,6 +1,6 @@
 import type { MaintenanceRequest } from '../types';
 
-export interface FacilityCategory { id: string; site_id: string; name: string; active: boolean }
+export interface FacilityCategory { id: string; site_id: string; name: string; active: boolean; account_id?: string }
 export interface FacilityAllocation { category_id: string; year: number; month: number; amount: number }
 export interface FacilityPayment {
   id: string; request_id: string; category_id: string; site_id: string; paid_on: string;

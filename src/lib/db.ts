@@ -80,7 +80,8 @@ function vendorFromRow(row: Record<string, unknown>): Vendor {
     phone: String(row.phone ?? ''), email: String(row.email ?? ''), alias: String(row.alias ?? ''), tin: String(row.tin ?? ''), verified: Boolean(row.verified),
     approvalStatus: row.approval_status ? (row.approval_status as Vendor['approvalStatus']) : 'approved',
     requestedBy: row.requested_by ? String(row.requested_by) : undefined,
-    guarantorProfileId: row.guarantor_profile_id ? String(row.guarantor_profile_id) : undefined, createdAt: String(row.created_at),
+    guarantorProfileId: row.guarantor_profile_id ? String(row.guarantor_profile_id) : undefined,
+    documents: Array.isArray(row.documents) ? row.documents as Vendor['documents'] : [], createdAt: String(row.created_at),
   };
 }
 
@@ -97,6 +98,7 @@ function vendorToRow(vendor: Partial<Vendor>) {
     ...(vendor.phone !== undefined && { phone: vendor.phone }), ...(vendor.email !== undefined && { email: vendor.email }), ...(vendor.alias !== undefined && { alias: vendor.alias }), ...(vendor.tin !== undefined && { tin: vendor.tin }),
     ...(vendor.verified !== undefined && { verified: vendor.verified }), ...(vendor.approvalStatus !== undefined && { approval_status: vendor.approvalStatus }),
     ...(vendor.requestedBy !== undefined && { requested_by: vendor.requestedBy }), ...(vendor.guarantorProfileId !== undefined && { guarantor_profile_id: vendor.guarantorProfileId }),
+    ...(vendor.documents !== undefined && { documents: vendor.documents }),
   };
 }
 

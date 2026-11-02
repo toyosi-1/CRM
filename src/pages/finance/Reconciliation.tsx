@@ -79,6 +79,7 @@ export default function Reconciliation() {
                 <th scope="col" className="px-4 py-3 font-semibold">Payee</th>
                 <th scope="col" className="px-4 py-3 font-semibold">Site</th>
                 <th scope="col" className="px-4 py-3 font-semibold">Net paid</th>
+                <th scope="col" className="px-4 py-3 font-semibold">Paid on</th>
                 <th scope="col" className="px-4 py-3 font-semibold">State</th>
                 <th scope="col" className="px-4 py-3 font-semibold">Action</th>
               </tr>
@@ -90,6 +91,7 @@ export default function Reconciliation() {
                   <td className="px-4 py-3 text-slate-600">{r.vendorName ?? '—'}</td>
                   <td className="px-4 py-3 text-slate-600">{r.siteName}</td>
                   <td className="px-4 py-3 font-mono text-xs">{r.netPayment != null ? formatCurrency(r.netPayment) : formatCurrency(r.grossAmount ?? r.invoiceAmount ?? 0)}</td>
+                  <td className="px-4 py-3 text-xs text-slate-500">{r.paidAt ? formatDate(r.paidAt) : '—'}</td>
                   <td className="px-4 py-3">
                     {r.reconStatus === 'confirmed' && <span className="badge bg-emerald-100 text-emerald-700">Confirmed</span>}
                     {r.reconStatus === 'flagged' && <span className="badge bg-red-100 text-red-700" title={r.reconNote}>Flagged</span>}
@@ -116,7 +118,7 @@ export default function Reconciliation() {
                   </td>
                 </tr>
               ))}
-              {paid.length === 0 && <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-400">No executed payments yet</td></tr>}
+              {paid.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-400">No executed payments yet</td></tr>}
             </tbody>
           </table>
         </div>
