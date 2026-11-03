@@ -711,7 +711,7 @@ export default function FinanceLedger() {
                 {form.kind === 'expense' && (
                   <div><label className="label">Customer — billable (opt.)</label><select className="select" value={f.billableContactId ?? ''} onChange={e => setF(v => ({ ...v, billableContactId: e.target.value }))}><option value="">Not billable</option>{finContacts.filter(c => c.type !== 'vendor').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
                 )}
-                {['invoice', 'receipt', 'bill', 'payment', 'quote', 'sales_order', 'expense', 'credit_note', 'vendor_credit'].includes(form.kind) && (
+                {['invoice', 'receipt', 'bill', 'payment', 'quote', 'sales_order', 'expense', 'credit_note', 'vendor_credit', 'journal'].includes(form.kind) && (
                   <div><label className="label">Facility</label><select className="select" value={f.siteId ?? ''} onChange={e => setF(v => ({ ...v, siteId: e.target.value }))}><option value="">—</option>{sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
                 )}
                 {['invoice', 'quote', 'sales_order'].includes(form.kind) && finDocuments.some(d => d.kind === 'project') && (
@@ -848,7 +848,7 @@ export default function FinanceLedger() {
                 {form.kind === 'journal' && (
                   <button onClick={() => {
                     setBusy(true);
-                    postJournal({ no: f.no || nextNo(f.fx ? 'FX' : 'MJ', 'journal'), source: f.fx ? 'fx' : 'journal', date: f.date || today(), ref: f.refNo, notes: f.memo, status: 'draft', createdBy: me },
+                    postJournal({ no: f.no || nextNo(f.fx ? 'FX' : 'MJ', 'journal'), source: f.fx ? 'fx' : 'journal', date: f.date || today(), ref: f.refNo, notes: f.memo, status: 'draft', createdBy: me, siteId: f.siteId || undefined },
                       lines.map(l => ({ accountId: l.accountId, dr: Number(l.dr) || 0, cr: Number(l.cr) || 0, memo: l.memo, contactId: l.contactId })))
                       .then(() => setForm(null)).catch(reportSaveError).finally(() => setBusy(false));
                   }} disabled={busy} className="btn-secondary">Save as draft</button>
@@ -858,10 +858,10 @@ export default function FinanceLedger() {
                     setBusy(true);
                     const jl = lines.map(l => ({ accountId: l.accountId, dr: Number(l.dr) || 0, cr: Number(l.cr) || 0, memo: l.memo, contactId: l.contactId }));
                     const jno = f.no || nextNo(f.fx ? 'FX' : 'MJ', 'journal');
-                    postJournal({ no: jno, source: f.fx ? 'fx' : 'journal', date: f.date || today(), ref: f.refNo, notes: f.memo, createdBy: me }, jl)
+                    postJournal({ no: jno, source: f.fx ? 'fx' : 'journal', date: f.date || today(), ref: f.refNo, notes: f.memo, createdBy: me, siteId: f.siteId || undefined }, jl)
                       .then(async () => {
                         if (f.reverseDate) {
-                          await postJournal({ no: `REV-${jno}`, source: 'journal', date: f.reverseDate, ref: `Reversal of ${jno}`, notes: f.memo, createdBy: me },
+                          await postJournal({ no: `REV-${jno}`, source: 'journal', date: f.reverseDate, ref: `Reversal of ${jno}`, notes: f.memo, createdBy: me, siteId: f.siteId || undefined },
                             jl.map(l => ({ accountId: l.accountId, dr: l.cr, cr: l.dr, memo: l.memo ? `Reversal — ${l.memo}` : 'Reversal', contactId: l.contactId })));
                         }
                       })
