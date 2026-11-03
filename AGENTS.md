@@ -62,6 +62,11 @@ Note: the smoke test requires a local Chrome executable on macOS at `/Applicatio
 - Receipts may follow payment through `/finance/receipts`; attaching a receipt never creates another debit. Historical paid requests are retained but excluded from category budgets until an explicit migration is designed.
 - A sanitized standalone accounting UI snapshot is maintained separately in `https://github.com/toyosi-1/Finance-dash`; never copy production configuration, data or the main repository history into it.
 
+## Finance ledger integrity rules (migration 20261113000000)
+- Journal writes go through RPCs only: `post_journal`, `fin_create_document` (doc + balanced journal atomically), `void_fin_document`, `void_fin_journal`, `publish_fin_journal`, `reclassify_fin_lines`, `close_finance_period`. Direct insert/update/delete on `fin_journal_entries`/`fin_journal_lines` is revoked.
+- Posted documents are immutable (`no`/`date`/`total`/`site_id`/`contact_id` frozen once a published journal exists); voids post reversals — no deletes on issued docs. Credit notes accumulate `payload.creditsApplied`; open balance = `total − paid − creditsApplied`.
+- Period close persists a `kind='lock'` document via `close_finance_period` after the reconciliation gate (all paid requests confirmed, no open exceptions); any write dated ≤ the lock date is rejected. Journal lines carry `site_id` for per-facility reporting.
+
 ## Pending before launch
 - Create the first ICT administrator account via Supabase Auth + `profiles` record.
 - Add verified Resend domain and operational email alerts (optional; in-app notifications are live).

@@ -467,6 +467,7 @@ export interface FinJournalLine {
   credit: number;
   memo?: string;
   contactId?: string;
+  siteId?: string;
 }
 
 export interface FinContact {

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { CheckCircle, Flag, PlusCircle, Lock } from 'lucide-react';
 import { useStore } from '../../store/useStore';
+import { closeFinancePeriod } from '../../lib/db';
 import { formatDate, formatCurrency } from '../../utils/helpers';
 
 export default function Reconciliation() {
@@ -26,11 +27,13 @@ export default function Reconciliation() {
     setFlagging(null); setFlagReason(''); setError('');
   };
 
-  const closePeriod = () => {
-    if (unconfirmed.length > 0 || openExceptions.length > 0) {
-      setCloseMsg(`Close period refused — ${unconfirmed.length} payment${unconfirmed.length === 1 ? '' : 's'} unconfirmed, ${openExceptions.length} open exception${openExceptions.length === 1 ? '' : 's'}.`);
-    } else {
-      setCloseMsg('Period closed — every executed payment is confirmed.');
+  const closePeriod = async () => {
+    setCloseMsg('');
+    try {
+      const lockId = await closeFinancePeriod(new Date().toISOString().slice(0, 10));
+      setCloseMsg(`Period closed — every executed payment is confirmed. The ledger is now locked through today (lock ${lockId.slice(0, 8)}…). Unlock from Transaction locking in the ledger.`);
+    } catch (e) {
+      setCloseMsg(e instanceof Error ? e.message : 'Period could not be closed.');
     }
   };
 

@@ -49,7 +49,7 @@ export default function FinanceLedger() {
   const [pTab, pSub] = seg.split('/');
   const tab = (TABS.some(t => t.id === pTab) ? pTab : 'home') as Tab;
   const [busy, setBusy] = useState(false);
-  const [report, setReport] = useState<'tb' | 'pl' | 'bs' | 'acct' | 'ar' | 'ap' | 'cf' | 'ratios' | 'tax' | 'budget'>('tb');
+  const [report, setReport] = useState<'tb' | 'pl' | 'bs' | 'acct' | 'ar' | 'ap' | 'cf' | 'ratios' | 'tax' | 'budget' | 'vendor'>('tb');
   const [acctId, setAcctId] = useState('');
   const [budId, setBudId] = useState('');
   const [budName, setBudName] = useState('');
@@ -61,15 +61,17 @@ export default function FinanceLedger() {
   const [repSite, setRepSite] = useState('');
   const [tbExpand, setTbExpand] = useState<string | null>(null);
   const siteName = (id?: string) => sites.find(s => s.id === id)?.name ?? '—';
+  // Open balance: issued total minus cash received and credits applied.
+  // `total` itself never changes after posting — credits live in payload.creditsApplied.
+  const openBal = (d: FinDocument) => r2(Math.max(0, d.total - d.paid - Number(d.payload.creditsApplied ?? 0)));
   const siteByDocId = useMemo(() => new Map(finDocuments.map(d => [d.id, d.siteId])), [finDocuments]);
-  const docSite = (entry: { sourceId?: string }) => siteByDocId.get(entry.sourceId ?? '');
   const [lockDate, setLockDate] = useState('');
   const [bulk, setBulk] = useState({ from: '', to: '' });
   const [itemAcc, setItemAcc] = useState('');
   const me = currentUser?.name ?? 'Finance';
 
   useEffect(() => {
-    if (tab === 'reports' && pSub && ['tb', 'pl', 'bs', 'acct', 'ar', 'ap', 'cf', 'ratios', 'tax', 'budget'].includes(pSub)) setReport(pSub as typeof report);
+    if (tab === 'reports' && pSub && ['tb', 'pl', 'bs', 'acct', 'ar', 'ap', 'cf', 'ratios', 'tax', 'budget', 'vendor'].includes(pSub)) setReport(pSub as typeof report);
   }, [tab, pSub]);
 
   const byCode = useMemo(() => Object.fromEntries(finAccounts.map(a => [a.code, a])), [finAccounts]);
@@ -88,12 +90,13 @@ export default function FinanceLedger() {
     return net;
   }, [finJournalEntries, finJournalLines]);
   const bal = (id: string) => balances.get(id) ?? 0;
-  // Site-aware balance: journal lines inherit their facility from the source document
+  // Site-aware balance: journal lines carry their facility (line.siteId), falling
+  // back to the source document's site for entries posted before line-level tagging.
   const balForSite = useMemo(() => {
     const net = new Map<string, number>();
     if (!repSite) return net;
-    const published = new Set(finJournalEntries.filter(e => e.status === 'published' && (siteByDocId.get(e.sourceId ?? '') ?? '') === repSite).map(e => e.id));
-    finJournalLines.filter(l => published.has(l.entryId)).forEach(l => {
+    const published = new Map(finJournalEntries.filter(e => e.status === 'published').map(e => [e.id, siteByDocId.get(e.sourceId ?? '')]));
+    finJournalLines.filter(l => published.has(l.entryId) && (l.siteId ?? published.get(l.entryId) ?? '') === repSite).forEach(l => {
       net.set(l.accountId, (net.get(l.accountId) ?? 0) + l.debit - l.credit);
     });
     return net;
@@ -110,6 +113,26 @@ export default function FinanceLedger() {
 
   const lockUntil = finDocuments.filter(d => d.kind === 'lock' && d.status !== 'void').map(d => d.payload.date as string).sort().pop() ?? null;
 
+  // Audit-friendly CSV export of the full posted ledger.
+  const downloadCsv = (name: string, rows: (string | number | undefined)[][]) => {
+    const esc = (v: string | number | undefined) => `"${String(v ?? '').replaceAll('"', '""')}"`;
+    const csv = rows.map(r => r.map(esc).join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = name; a.click(); URL.revokeObjectURL(a.href);
+  };
+  const exportLedger = () => {
+    const entryById = new Map(finJournalEntries.map(e => [e.id, e]));
+    downloadCsv(`glasshouse-ledger-${today()}.csv`, [
+      ['Date', 'Entry', 'Source', 'Account', 'Debit', 'Credit', 'Facility', 'Memo'],
+      ...finJournalLines.map(l => {
+        const e = entryById.get(l.entryId);
+        if (!e || e.status !== 'published') return null;
+        return [e.date, e.no, e.source, accName(l.accountId), l.debit || '', l.credit || '', siteName(l.siteId ?? siteByDocId.get(e.sourceId ?? '')), l.memo ?? ''];
+      }).filter((r): r is NonNullable<typeof r> => r !== null),
+    ]);
+  };
+
   const post = async (doc: Omit<FinDocument, 'id' | 'createdAt'>, lines: PostLine[]) => {
     if (lockUntil && doc.date <= lockUntil) return alert(`Transactions on or before ${lockUntil} are locked. Unlock from the Transaction locking page first.`);
     setBusy(true);
@@ -121,7 +144,7 @@ export default function FinanceLedger() {
 
   const voidDoc = async (d: FinDocument) => {
     if (!confirm(`Void ${d.no}? The ledger entry is reversed.`)) return;
-    try { await voidFinDocument(d.id, d.no, me); } catch (e) { reportSaveError(e); }
+    try { await voidFinDocument(d.id); } catch (e) { reportSaveError(e); }
   };
 
   const nextNo = (prefix: string, kind: string) => {
@@ -197,7 +220,8 @@ export default function FinanceLedger() {
       const linked = finDocuments.find(d => d.id === f.linkedDocId);
       if (linked) {
         const paid = r2(linked.paid + total);
-        await updateFinDocument(linked.id, { paid, status: paid >= linked.total - 0.005 ? 'paid' : 'part_paid' }).catch(reportSaveError);
+        const settled = r2(paid + Number(linked.payload.creditsApplied ?? 0));
+        await updateFinDocument(linked.id, { paid, status: settled >= linked.total - 0.005 ? 'paid' : 'part_paid' }).catch(reportSaveError);
       }
       await post({ ...base, status: 'paid', paid: total }, jl);
     } else if (k === 'credit_note') {
@@ -208,8 +232,9 @@ export default function FinanceLedger() {
       jl.push({ accountId: f.arAccountId || acct('1200')!, cr: t, memo: 'Credit to customer' });
       const linked = finDocuments.find(d => d.id === f.linkedDocId);
       if (linked) {
-        const newTotal = Math.max(linked.paid, r2(linked.total - t));
-        await updateFinDocument(linked.id, { total: newTotal, status: linked.paid >= newTotal - 0.005 ? 'paid' : linked.paid > 0 ? 'part_paid' : 'issued' }).catch(reportSaveError);
+        const applied = r2(Number(linked.payload.creditsApplied ?? 0) + t);
+        const settled = r2(linked.paid + applied);
+        await updateFinDocument(linked.id, { payload: { ...linked.payload, creditsApplied: applied }, status: settled >= linked.total - 0.005 ? 'paid' : linked.paid > 0 ? 'part_paid' : 'issued' }).catch(reportSaveError);
       }
       await post({ ...base, total: t, status: 'paid', payload: { ...base.payload, vat } }, jl);
     } else if (k === 'vendor_credit') {
@@ -220,8 +245,9 @@ export default function FinanceLedger() {
       jl.push(...lns.map(l => ({ accountId: l.accountId, cr: Number(l.amount), memo: l.memo })));
       const linked = finDocuments.find(d => d.id === f.linkedDocId);
       if (linked) {
-        const newTotal = Math.max(linked.paid, r2(linked.total - t));
-        await updateFinDocument(linked.id, { total: newTotal, status: linked.paid >= newTotal - 0.005 ? 'paid' : linked.paid > 0 ? 'part_paid' : 'issued' }).catch(reportSaveError);
+        const applied = r2(Number(linked.payload.creditsApplied ?? 0) + t);
+        const settled = r2(linked.paid + applied);
+        await updateFinDocument(linked.id, { payload: { ...linked.payload, creditsApplied: applied }, status: settled >= linked.total - 0.005 ? 'paid' : linked.paid > 0 ? 'part_paid' : 'issued' }).catch(reportSaveError);
       }
       await post({ ...base, total: t, status: 'paid', payload: { ...base.payload, vat } }, jl);
     } else if (k === 'bill') {
@@ -237,7 +263,8 @@ export default function FinanceLedger() {
       const linked = finDocuments.find(d => d.id === f.linkedDocId);
       if (linked) {
         const paid = r2(linked.paid + total);
-        await updateFinDocument(linked.id, { paid, status: paid >= linked.total - 0.005 ? 'paid' : 'part_paid' }).catch(reportSaveError);
+        const settled = r2(paid + Number(linked.payload.creditsApplied ?? 0));
+        await updateFinDocument(linked.id, { paid, status: settled >= linked.total - 0.005 ? 'paid' : 'part_paid' }).catch(reportSaveError);
       }
       await post({ ...base, status: 'paid' }, jl);
     } else if (k === 'expense') {
@@ -278,7 +305,7 @@ export default function FinanceLedger() {
       <span className="flex-1 font-semibold text-slate-700 truncate">{d.contactId ? contactName(d.contactId) : String(d.payload.memo ?? KIND_LABEL[d.kind])}</span>
       {d.siteId && <span className="text-[11px] text-slate-400 whitespace-nowrap">{siteName(d.siteId)}</span>}
       <span className="font-bold text-slate-900 tabular-nums">{fmt(d.total)}</span>
-      {d.paid > 0 && d.total > 0 && d.status !== 'paid' && <span className="text-[11px] text-slate-400 tabular-nums">{fmt(d.paid)} paid · <span className="text-amber-700 font-semibold">{fmt(r2(d.total - d.paid))} due</span></span>}
+      {d.paid > 0 && d.total > 0 && d.status !== 'paid' && <span className="text-[11px] text-slate-400 tabular-nums">{fmt(d.paid)} paid · <span className="text-amber-700 font-semibold">{fmt(openBal(d))} due</span></span>}
       <span className={`badge ${STATUS_COLORS[d.status] ?? 'bg-slate-100 text-slate-500'}`}>{d.status.replace('_', ' ')}</span>
       {d.status === 'draft' && (
         <button onClick={async () => {
@@ -286,10 +313,10 @@ export default function FinanceLedger() {
           const vat = Number(d.payload.vat ?? 0);
           try {
             if (d.kind === 'invoice') {
-              await postJournal({ no: d.no, source: 'invoice', sourceId: d.id, date: d.date, ref: d.payload.memo as string | undefined, createdBy: me },
+              await postJournal({ no: d.no, source: 'invoice', sourceId: d.id, date: d.date, ref: d.payload.memo as string | undefined, createdBy: me, siteId: d.siteId },
                 [{ accountId: (d.payload.arAccountId as string) || acct('1200')!, dr: d.total, memo: 'AR' }, ...ls.map(l => ({ accountId: l.accountId, cr: Number(l.amount), memo: l.memo })), ...(vat > 0 ? [{ accountId: acct('2100')!, cr: vat, memo: 'VAT output' }] : [])]);
             } else if (d.kind === 'bill') {
-              await postJournal({ no: d.no, source: 'bill', sourceId: d.id, date: d.date, ref: d.payload.memo as string | undefined, createdBy: me },
+              await postJournal({ no: d.no, source: 'bill', sourceId: d.id, date: d.date, ref: d.payload.memo as string | undefined, createdBy: me, siteId: d.siteId },
                 [...ls.map(l => ({ accountId: l.accountId, dr: Number(l.amount), memo: l.memo })), ...(vat > 0 ? [{ accountId: acct('1330')!, dr: vat, memo: 'VAT input' }] : []), { accountId: acct('2000')!, cr: d.total }]);
             }
             await updateFinDocument(d.id, { status: 'issued' });
@@ -298,7 +325,7 @@ export default function FinanceLedger() {
         }} className="text-[11px] font-bold text-brand-600 whitespace-nowrap">Issue</button>
       )}
       {['issued', 'part_paid'].includes(d.status) && ['invoice', 'bill'].includes(d.kind) && (
-        <button onClick={() => { const k = d.kind === 'invoice' ? 'receipt' : 'payment'; openForm(k); setF(v => ({ ...v, linkedDocId: d.id, contactId: d.contactId ?? '' })); setLines([{ accountId: acct(d.kind === 'invoice' ? '1200' : '2000')!, amount: String(r2(d.total - d.paid)), memo: `${KIND_LABEL[d.kind]} ${d.no}` }]); }} className="text-[11px] font-bold text-brand-600 whitespace-nowrap">{d.kind === 'invoice' ? 'Record receipt' : 'Record payment'}</button>
+        <button onClick={() => { const k = d.kind === 'invoice' ? 'receipt' : 'payment'; openForm(k); setF(v => ({ ...v, linkedDocId: d.id, contactId: d.contactId ?? '' })); setLines([{ accountId: acct(d.kind === 'invoice' ? '1200' : '2000')!, amount: String(openBal(d)), memo: `${KIND_LABEL[d.kind]} ${d.no}` }]); }} className="text-[11px] font-bold text-brand-600 whitespace-nowrap">{d.kind === 'invoice' ? 'Record receipt' : 'Record payment'}</button>
       )}
       {['quote', 'sales_order'].includes(d.kind) && ['issued', 'draft'].includes(d.status) && !d.payload.convertedTo && (
         <button onClick={() => startEditDoc(d)} className="text-[11px] font-bold text-brand-600 whitespace-nowrap">Edit</button>
@@ -511,7 +538,7 @@ export default function FinanceLedger() {
                       <span className="font-mono text-xs">{d.no}</span>
                       <span className="flex-1 font-semibold">{contactName(d.contactId)}</span>
                       <span className="text-xs text-red-500">{Math.floor((Date.now() - new Date(d.dueDate ?? d.date).getTime()) / 86400000)}d overdue</span>
-                      <span className="font-black tabular-nums">{fmt(d.total - d.paid)}</span>
+                      <span className="font-black tabular-nums">{fmt(openBal(d))}</span>
                     </div>
                   ))}
                 </div>
@@ -676,10 +703,10 @@ export default function FinanceLedger() {
                   <div><label className="label">{['bill', 'payment', 'expense', 'vendor_credit'].includes(form.kind) ? 'Vendor' : 'Customer'}</label><select className="select" value={f.contactId ?? ''} onChange={e => setF(v => ({ ...v, contactId: e.target.value }))}><option value="">—</option>{finContacts.filter(c => ['bill', 'payment', 'expense', 'vendor_credit'].includes(form.kind) ? c.type !== 'customer' : c.type !== 'vendor').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
                 )}
                 {['credit_note'].includes(form.kind) && (
-                  <div><label className="label">Apply to invoice (opt.)</label><select className="select" value={f.linkedDocId ?? ''} onChange={e => setF(v => ({ ...v, linkedDocId: e.target.value }))}><option value="">Standalone credit</option>{finDocuments.filter(d => d.kind === 'invoice' && ['issued', 'part_paid', 'paid'].includes(d.status)).map(d => <option key={d.id} value={d.id}>{d.no} — {contactName(d.contactId)} ({fmt(r2(d.total - d.paid))} open)</option>)}</select></div>
+                  <div><label className="label">Apply to invoice (opt.)</label><select className="select" value={f.linkedDocId ?? ''} onChange={e => setF(v => ({ ...v, linkedDocId: e.target.value }))}><option value="">Standalone credit</option>{finDocuments.filter(d => d.kind === 'invoice' && ['issued', 'part_paid', 'paid'].includes(d.status)).map(d => <option key={d.id} value={d.id}>{d.no} — {contactName(d.contactId)} ({fmt(openBal(d))} open)</option>)}</select></div>
                 )}
                 {['vendor_credit'].includes(form.kind) && (
-                  <div><label className="label">Apply to bill (opt.)</label><select className="select" value={f.linkedDocId ?? ''} onChange={e => setF(v => ({ ...v, linkedDocId: e.target.value }))}><option value="">Standalone credit</option>{finDocuments.filter(d => d.kind === 'bill' && ['issued', 'part_paid', 'paid'].includes(d.status)).map(d => <option key={d.id} value={d.id}>{d.no} — {contactName(d.contactId)} ({fmt(r2(d.total - d.paid))} open)</option>)}</select></div>
+                  <div><label className="label">Apply to bill (opt.)</label><select className="select" value={f.linkedDocId ?? ''} onChange={e => setF(v => ({ ...v, linkedDocId: e.target.value }))}><option value="">Standalone credit</option>{finDocuments.filter(d => d.kind === 'bill' && ['issued', 'part_paid', 'paid'].includes(d.status)).map(d => <option key={d.id} value={d.id}>{d.no} — {contactName(d.contactId)} ({fmt(openBal(d))} open)</option>)}</select></div>
                 )}
                 {form.kind === 'expense' && (
                   <div><label className="label">Customer — billable (opt.)</label><select className="select" value={f.billableContactId ?? ''} onChange={e => setF(v => ({ ...v, billableContactId: e.target.value }))}><option value="">Not billable</option>{finContacts.filter(c => c.type !== 'vendor').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
@@ -945,10 +972,10 @@ export default function FinanceLedger() {
                         <span className={`badge ${STATUS_COLORS[e.status] ?? 'bg-slate-100 text-slate-500'}`}>{e.status}</span>
                         <button onClick={() => setExpandId(exp => exp === e.id ? null : e.id)} className="text-[11px] font-semibold text-brand-600 whitespace-nowrap">Lines</button>
                         {e.status === 'draft' && (
-                          <button onClick={async () => { try { await publishFinJournalEntry(e.id, e.no, me); } catch (err) { reportSaveError(err); } }} className="text-[11px] font-bold text-emerald-600 whitespace-nowrap">Publish</button>
+                          <button onClick={async () => { try { await publishFinJournalEntry(e.id); } catch (err) { reportSaveError(err); } }} className="text-[11px] font-bold text-emerald-600 whitespace-nowrap">Publish</button>
                         )}
                         {standalone && e.status !== 'void' && (
-                          <button onClick={async () => { if (confirm(`Void journal ${e.no}?`)) { try { await voidFinJournalEntry(e.id, e.no, me); } catch (err) { reportSaveError(err); } } }} className="text-[11px] text-red-500 font-semibold">Void</button>
+                          <button onClick={async () => { if (confirm(`Void journal ${e.no}?`)) { try { await voidFinJournalEntry(e.id); } catch (err) { reportSaveError(err); } } }} className="text-[11px] text-red-500 font-semibold">Void</button>
                         )}
                       </div>
                       {expandId === e.id && (
@@ -1004,9 +1031,10 @@ export default function FinanceLedger() {
             <button className="btn-primary text-xs"><Plus size={12} />Add / update account</button>
           </form>
           <div className="flex gap-2 flex-wrap items-center">
-            {([['tb', 'Trial balance'], ['pl', 'Profit & loss'], ['bs', 'Balance sheet'], ['acct', 'Account transactions'], ['ar', 'Receivables aging'], ['ap', 'Payables aging'], ['cf', 'Cash flow'], ['ratios', 'Ratios & equity'], ['tax', 'VAT & WHT summary'], ['budget', 'Budget vs actual']] as const).map(([id, label]) => (
+            {([['tb', 'Trial balance'], ['pl', 'Profit & loss'], ['bs', 'Balance sheet'], ['acct', 'Account transactions'], ['ar', 'Receivables aging'], ['ap', 'Payables aging'], ['cf', 'Cash flow'], ['ratios', 'Ratios & equity'], ['tax', 'VAT & WHT summary'], ['budget', 'Budget vs actual'], ['vendor', 'Vendor spend']] as const).map(([id, label]) => (
               <button key={id} onClick={() => setReport(id)} className={`px-3.5 py-2 text-xs font-bold rounded-lg ${report === id ? 'bg-brand-600 text-white' : 'bg-white border border-slate-200 text-slate-500'}`}>{label}</button>
             ))}
+            <button onClick={exportLedger} className="px-3.5 py-2 text-xs font-bold rounded-lg bg-emerald-700 text-white ml-auto">Export ledger · CSV</button>
             <select aria-label="Filter by facility" className="select text-xs max-w-[180px]" value={repSite} onChange={e => setRepSite(e.target.value)}><option value="">All facilities</option>{sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
           </div>
 
@@ -1025,7 +1053,7 @@ export default function FinanceLedger() {
                       const published = new Set(finJournalEntries.filter(e => e.status === 'published').map(e => e.id));
                       finJournalLines.filter(l => l.accountId === a.id && published.has(l.entryId)).forEach(l => {
                         const e = finJournalEntries.find(x => x.id === l.entryId)!;
-                        const sid = siteByDocId.get(e.sourceId ?? '') ?? 'unassigned';
+                        const sid = l.siteId ?? siteByDocId.get(e.sourceId ?? '') ?? 'unassigned';
                         siteTotals.set(sid, (siteTotals.get(sid) ?? 0) + l.debit - l.credit);
                       });
                       const parts = [...siteTotals.entries()].filter(([, v]) => v !== 0).map(([sid, v]) => `${sid === 'unassigned' ? 'Unallocated' : siteName(sid)} ${fmt(Math.abs(v))}${v < 0 ? ' CR' : ''}`);
@@ -1034,11 +1062,14 @@ export default function FinanceLedger() {
                         {!repSite && parts.length > 0 && <p className="text-[11px] font-bold text-slate-500 bg-slate-100 px-4 py-1.5">By facility: {parts.join(' · ')}</p>}
                         <table className="w-full text-xs bg-slate-50 rounded">
                           <tbody className="divide-y divide-slate-100">
-                            {finJournalEntries.filter(e => e.status === 'published' && (!repSite || docSite(e) === repSite) && finJournalLines.some(l => l.entryId === e.id && l.accountId === a.id)).map(e => {
+                            {finJournalEntries.filter(e => e.status === 'published' && finJournalLines.some(l => l.entryId === e.id && l.accountId === a.id && (!repSite || (l.siteId ?? siteByDocId.get(e.sourceId ?? '')) === repSite))).map(e => {
                               const src = finDocuments.find(d => d.id === e.sourceId);
-                              return finJournalLines.filter(l => l.entryId === e.id && l.accountId === a.id).map(l => (
-                                <tr key={l.id}><td className="py-1.5 pl-4 text-slate-400 w-24">{e.date}</td><td className="font-mono w-24">{e.no}</td><td className="text-slate-500">{src ? `${src.no} · ${KIND_LABEL[src.kind] ?? src.kind}${src.siteId ? ` · ${siteName(src.siteId)}` : ''}` : 'Manual journal'}{l.memo ? ` — ${l.memo}` : ''}</td><td className="text-right tabular-nums w-24">{l.debit ? fmt(l.debit) : ''}</td><td className="text-right tabular-nums w-24">{l.credit ? fmt(l.credit) : ''}</td></tr>
-                              ));
+                              return finJournalLines.filter(l => l.entryId === e.id && l.accountId === a.id).map(l => {
+                                const lSite = l.siteId ?? src?.siteId;
+                                return (
+                                <tr key={l.id}><td className="py-1.5 pl-4 text-slate-400 w-24">{e.date}</td><td className="font-mono w-24">{e.no}</td><td className="text-slate-500">{src ? `${src.no} · ${KIND_LABEL[src.kind] ?? src.kind}` : e.source === 'payment' ? `${e.sourceId ?? e.no} · Facility payment` : 'Manual journal'}{lSite ? ` · ${siteName(lSite)}` : ''}{l.memo ? ` — ${l.memo}` : ''}</td><td className="text-right tabular-nums w-24">{l.debit ? fmt(l.debit) : ''}</td><td className="text-right tabular-nums w-24">{l.credit ? fmt(l.credit) : ''}</td></tr>
+                                );
+                              });
                             })}
                           </tbody>
                         </table>
@@ -1108,7 +1139,7 @@ export default function FinanceLedger() {
             const kind = report === 'ar' ? 'invoice' : 'bill';
             const buckets = [0, 30, 60, 90];
             const rows = finDocuments.filter(d => d.kind === kind && ['issued', 'part_paid'].includes(d.status)).map(d => {
-              const out = r2(d.total - d.paid);
+              const out = openBal(d);
               const age = Math.max(0, Math.floor((Date.now() - new Date(d.dueDate ?? d.date).getTime()) / 86400000));
               return { d, out, bucket: age <= 0 ? 0 : age <= 30 ? 30 : age <= 60 ? 60 : 90 };
             }).filter(r => r.out > 0.005);
@@ -1261,6 +1292,36 @@ export default function FinanceLedger() {
               </div>
             </div>
           )}
+
+          {tab === 'reports' && report === 'vendor' && (() => {
+            const spendKinds = ['bill', 'payment', 'expense'] as const;
+            const byContact = new Map<string, { billed: number; paidOut: number; credits: number; docs: number }>();
+            finDocuments.filter(d => d.status !== 'void').forEach(d => {
+              const cid = d.contactId ?? 'unassigned';
+              const row = byContact.get(cid) ?? { billed: 0, paidOut: 0, credits: 0, docs: 0 };
+              if ((spendKinds as readonly string[]).includes(d.kind)) { row.billed += d.kind === 'expense' ? d.total : d.kind === 'bill' ? d.total : 0; row.paidOut += d.paid; row.docs += 1; }
+              if (d.kind === 'vendor_credit') { row.credits += d.total; row.docs += 1; }
+              byContact.set(cid, row);
+            });
+            const rows = [...byContact.entries()].filter(([, v]) => v.billed > 0 || v.paidOut > 0 || v.credits > 0).sort((a, b) => b[1].billed - a[1].billed);
+            return (
+              <div className="card p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="font-black text-slate-900">Vendor spend history</h2>
+                  <button onClick={() => downloadCsv(`vendor-spend-${today()}.csv`, [['Vendor', 'Documents', 'Billed', 'Paid', 'Credits', 'Open'], ...rows.map(([cid, v]) => [contactName(cid === 'unassigned' ? undefined : cid), v.docs, v.billed, v.paidOut, v.credits, r2(v.billed - v.paidOut - v.credits)])])} className="btn-secondary text-xs">Export CSV</button>
+                </div>
+                <table className="w-full text-sm">
+                  <thead><tr className="text-left text-[11px] uppercase text-slate-400 border-b border-slate-100"><th className="py-2">Vendor</th><th className="text-right">Docs</th><th className="text-right">Billed</th><th className="text-right">Paid</th><th className="text-right">Credits</th><th className="text-right">Open</th></tr></thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {rows.map(([cid, v]) => (
+                      <tr key={cid}><td className="py-1.5 font-semibold">{contactName(cid === 'unassigned' ? undefined : cid)}</td><td className="text-right tabular-nums">{v.docs}</td><td className="text-right tabular-nums">{fmt(v.billed)}</td><td className="text-right tabular-nums">{fmt(v.paidOut)}</td><td className="text-right tabular-nums">{fmt(v.credits)}</td><td className="text-right tabular-nums font-bold">{fmt(r2(v.billed - v.paidOut - v.credits))}</td></tr>
+                    ))}
+                    {rows.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-sm text-slate-400">No vendor spend recorded yet.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
 
       {tab === 'connect' && <FinConnect />}
       {tab === 'import' && <FinImport />}
