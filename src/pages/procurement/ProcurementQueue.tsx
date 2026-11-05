@@ -54,6 +54,7 @@ export default function ProcurementQueue() {
                   <td className="table-cell">
                     <div className="font-bold text-brand-600 text-xs font-mono">{req.requestNumber}</div>
                     <div className="text-xs text-slate-600 max-w-xs truncate font-medium mt-0.5">{req.description.slice(0, 55)}</div>
+                    {req.internalNote && <div className="text-[11px] text-amber-700 max-w-xs truncate mt-0.5" title={req.internalNote}>FM note: {req.internalNote}</div>}
                     <div className="text-xs text-slate-400 mt-0.5">{formatDate(req.createdAt)}</div>
                   </td>
                   <td className="table-cell text-sm">{req.siteName}</td>

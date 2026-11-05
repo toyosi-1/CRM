@@ -373,6 +373,22 @@ export function subscribeRequests(callback: (requests: MaintenanceRequest[]) => 
   const refresh = async () => callback(await fetchRequests()); void refresh(); return subscribe('requests', refresh);
 }
 
+export function subscribeProfiles(callback: (users: User[]) => void): () => void {
+  const refresh = async () => callback(await fetchUsers()); void refresh(); return subscribe('profiles', refresh);
+}
+
+export function subscribeSites(callback: (sites: Site[]) => void): () => void {
+  const refresh = async () => callback(await fetchSites()); void refresh(); return subscribe('sites', refresh);
+}
+
+export function subscribeVendors(callback: (vendors: Vendor[]) => void): () => void {
+  const refresh = async () => callback(await fetchVendors()); void refresh(); return subscribe('vendors', refresh);
+}
+
+export function subscribeAssets(callback: (assets: Asset[]) => void): () => void {
+  const refresh = async () => callback(await fetchAssets()); void refresh(); return subscribe('assets', refresh);
+}
+
 export async function createRequestInDB(request: MaintenanceRequest): Promise<void> {
   const { error } = await supabase.from('requests').insert(requestToRow(request)); fail(error);
 }

@@ -13,6 +13,7 @@ import {
   subscribeRequests, subscribeChecklists, subscribeTreasury,
   subscribePPMSchedules, subscribeIncidents, subscribePettyCash, subscribeSupportTickets,
   subscribeTenants, subscribeJobCompletions, subscribeChecklistTemplates, subscribeReconciliation, subscribeFacilityVendorSLAs,
+  subscribeProfiles, subscribeSites, subscribeVendors, subscribeAssets,
   createReconciliationEntry, updateReconciliationEntry,
   createRequestInDB, updateRequestInDB, deleteRequestInDB, updateSiteInDB, upsertSiteInDB,
   updateChecklistInDB, addTreasuryEntryInDB, uploadFile,
@@ -179,6 +180,10 @@ let _unsubJobCompletions: (() => void) | null = null;
 let _unsubChecklistTemplates: (() => void) | null = null;
 let _unsubRecon: (() => void) | null = null;
 let _unsubFacilityVendorSLAs: (() => void) | null = null;
+let _unsubProfiles: (() => void) | null = null;
+let _unsubSites: (() => void) | null = null;
+let _unsubVendors: (() => void) | null = null;
+let _unsubAssets: (() => void) | null = null;
 
 export const useStore = create<AppState>((set, get) => ({
   currentUser: null,
@@ -274,6 +279,18 @@ export const useStore = create<AppState>((set, get) => ({
       if (_unsubFacilityVendorSLAs) _unsubFacilityVendorSLAs();
       _unsubFacilityVendorSLAs = subscribeFacilityVendorSLAs(facilityVendorSLAs => set({ facilityVendorSLAs }));
 
+      if (_unsubProfiles) _unsubProfiles();
+      _unsubProfiles = subscribeProfiles(users => set(state => ({
+        users,
+        currentUser: state.currentUser ? users.find(u => u.id === state.currentUser!.id) ?? state.currentUser : null,
+      })));
+      if (_unsubSites) _unsubSites();
+      _unsubSites = subscribeSites(sites => set({ sites }));
+      if (_unsubVendors) _unsubVendors();
+      _unsubVendors = subscribeVendors(vendors => set({ vendors }));
+      if (_unsubAssets) _unsubAssets();
+      _unsubAssets = subscribeAssets(assets => set({ assets }));
+
       set({ supabaseReady: true });
     } catch (e) {
       console.error('Supabase initialization failed', e);
@@ -299,6 +316,10 @@ export const useStore = create<AppState>((set, get) => ({
     if (_unsubJobCompletions) { _unsubJobCompletions(); _unsubJobCompletions = null; }
     if (_unsubChecklistTemplates) { _unsubChecklistTemplates(); _unsubChecklistTemplates = null; }
     if (_unsubFacilityVendorSLAs) { _unsubFacilityVendorSLAs(); _unsubFacilityVendorSLAs = null; }
+    if (_unsubProfiles) { _unsubProfiles(); _unsubProfiles = null; }
+    if (_unsubSites) { _unsubSites(); _unsubSites = null; }
+    if (_unsubVendors) { _unsubVendors(); _unsubVendors = null; }
+    if (_unsubAssets) { _unsubAssets(); _unsubAssets = null; }
     set({ currentUser: null, activeRequestId: null, activeSiteId: null });
   },
 

@@ -10,9 +10,11 @@ export default function SupervisorApprovals() {
 
   const queue = requests.filter(r => r.status === 'PO_GENERATED' || r.status === 'SUPERVISOR_APPROVAL');
   // Requests this supervisor already decided — visible history of approvals/rejections
+  const mine = (a: { userId?: string; userName?: string; action?: string }) =>
+    (a.userId === currentUser?.id || (!!a.userName && a.userName === currentUser?.name)) && /approv|reject/i.test(a.action ?? '');
   const decided = requests
-    .filter(r => !['PO_GENERATED', 'SUPERVISOR_APPROVAL'].includes(r.status) && r.auditTrail?.some(a => a.userId === currentUser?.id && /approv|reject/i.test(a.action)))
-    .map(r => ({ req: r, entry: [...(r.auditTrail ?? [])].reverse().find(a => a.userId === currentUser?.id && /approv|reject/i.test(a.action))! }))
+    .filter(r => !['PO_GENERATED', 'SUPERVISOR_APPROVAL'].includes(r.status) && r.auditTrail?.some(mine))
+    .map(r => ({ req: r, entry: [...(r.auditTrail ?? [])].reverse().find(mine)! }))
     .sort((a, b) => b.entry.timestamp.localeCompare(a.entry.timestamp))
     .slice(0, 15);
 
