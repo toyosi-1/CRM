@@ -74,9 +74,23 @@ const ROLE_ROUTES: Record<UserRole, string> = {
   technician: '/technician',
 };
 
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen grid place-items-center bg-slate-50">
+      <div className="flex flex-col items-center gap-5">
+        <img src="/propel-logo.png" alt="Propel Properties & Facilities Services Ltd." className="h-16 w-auto mix-blend-multiply animate-pulse" />
+        <div className="h-1 w-40 rounded-full bg-slate-200 overflow-hidden">
+          <div className="h-full w-1/2 rounded-full bg-brand-500 animate-[loading-bar_1.2s_ease-in-out_infinite]" />
+        </div>
+        <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Loading your workspace</p>
+      </div>
+    </div>
+  );
+}
+
 function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: UserRole }) {
   const { appUser, loading } = useAuth();
-  if (loading) return <div className="min-h-screen grid place-items-center text-sm text-slate-500">Loading your workspace...</div>;
+  if (loading) return <LoadingScreen />;
   if (!appUser) return <Navigate to="/login" replace />;
   if (role && appUser.role !== role) return <Navigate to={ROLE_ROUTES[appUser.role]} replace />;
   return <>{children}</>;
@@ -84,14 +98,14 @@ function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: 
 
 function LoginOrRedirect() {
   const { appUser, loading } = useAuth();
-  if (loading) return <div className="min-h-screen grid place-items-center text-sm text-slate-500">Loading your workspace...</div>;
+  if (loading) return <LoadingScreen />;
   if (appUser) return <Navigate to={ROLE_ROUTES[appUser.role]} replace />;
   return <Login />;
 }
 
 function HomeRoute() {
   const { appUser, loading } = useAuth();
-  if (loading) return <div className="min-h-screen grid place-items-center text-sm text-slate-500">Loading your workspace...</div>;
+  if (loading) return <LoadingScreen />;
   return <Navigate to={appUser ? ROLE_ROUTES[appUser.role] : '/login'} replace />;
 }
 

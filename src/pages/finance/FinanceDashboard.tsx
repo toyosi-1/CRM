@@ -47,8 +47,8 @@ export default function FinanceDashboard() {
     </header>
     <div className="card p-4 flex items-end flex-wrap gap-4">
       <label className="text-xs font-semibold flex-1 min-w-48">Facility<select className="input mt-1" value={siteId} onChange={e => setSelectedSite(e.target.value)}><option value="" disabled>Select facility</option>{sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
-      <label className="text-xs font-semibold">Year<input className="input mt-1 w-28" type="number" min="2020" max="2100" value={year} onChange={e => setYear(Number(e.target.value))} /></label>
-      <label className="text-xs font-semibold">Period<select className="input mt-1" value={month ?? ''} onChange={e => setMonth(e.target.value ? Number(e.target.value) : null)}><option value="">Full year</option>{months.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}</select></label>
+      <label className="text-xs font-semibold">Year<select className="input mt-1 w-28" value={year} onChange={e => setYear(Number(e.target.value))}>{Array.from({ length: 7 }, (_, i) => new Date().getFullYear() - 3 + i).map(y => <option key={y} value={y}>{y}</option>)}</select></label>
+      <label className="text-xs font-semibold">Period<select className="input mt-1 w-32" value={month ?? ''} onChange={e => setMonth(e.target.value ? Number(e.target.value) : null)}><option value="">Full year</option>{months.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}</select></label>
       <button disabled={!siteId || loading || !!error} className="btn-primary" onClick={() => { setSaveError(''); setCategoryForm({ siteId, name: '', active: true, accountId: '' }); }}><Plus size={14} /> Create category</button>
     </div>
     {error && <div className="card p-4 text-red-700" role="alert">Facility finance could not load: {error}<button className="ml-3 underline" onClick={() => void refresh()}>Retry</button></div>}
