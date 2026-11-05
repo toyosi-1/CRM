@@ -42,7 +42,7 @@ export default function Login() {
   };
 
   const brandPanel = (
-    <div className="hidden lg:flex w-80 flex-col justify-between p-10" style={{ background: '#1e2110' }}>
+    <div className="hidden md:flex w-80 flex-col justify-between p-10" style={{ background: '#1e2110' }}>
       <div>
         <div className="flex items-center gap-3 mb-12">
           <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center flex-shrink-0 p-1">
