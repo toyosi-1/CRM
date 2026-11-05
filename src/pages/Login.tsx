@@ -54,13 +54,14 @@ export default function Login() {
           </div>
         </div>
         <h2 className="text-2xl font-semibold text-white leading-snug mb-3">
-          Multi-Site Facility Operations
+          Our vision
         </h2>
         <p className="text-slate-400 text-sm leading-relaxed">
-          End-to-end procurement, maintenance, and financial governance for your facility teams.
+          To be the world&rsquo;s most respected African Real Estate Services Brand.
         </p>
-        <div className="mt-8 space-y-3">
-          {['Full audit trail on every request', 'SLA enforcement by priority', 'WHT tax calculation built-in', 'Budget governance per site'].map(f => (
+        <p className="mt-8 text-xs font-bold uppercase tracking-widest" style={{ color: '#a8cf45' }}>Our core values</p>
+        <div className="mt-3 space-y-3">
+          {['Professionalism', 'Integrity', 'Long lasting relationships', 'Excellence', 'Service'].map(f => (
             <div key={f} className="flex items-center gap-2.5">
               <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#7a8c3c' }} />
               <span className="text-slate-400 text-sm">{f}</span>
